@@ -43,28 +43,64 @@ function build() {
   document.body.appendChild(root);
   cv = $('cMap'); ctx = cv.getContext('2d');
   new ResizeObserver(() => { resize(); render(); }).observe($('cMain'));
-  cv.addEventListener('pointermove', e => { const p = pick(e); if (p.prov !== hover) { hover = p.prov; render(); } });
+  // Linksklick wählt (beim Loslassen, wenn nicht gezogen wurde), Ziehen mit links oder mittlerer Taste verschiebt, Rechtsklick marschiert
+  let drag = null;
+  cv.addEventListener('pointermove', e => {
+    if (drag) {
+      const dx = (e.clientX - drag.x) * view.dpr, dy = (e.clientY - drag.y) * view.dpr;
+      if (drag.moved || Math.hypot(dx, dy) > 6 * view.dpr) { drag.moved = true; pan.x = drag.px + dx; pan.y = drag.py + dy; resize(); render(); return; }
+    }
+    const p = pick(e); if (p.prov !== hover) { hover = p.prov; render(); }
+  });
   cv.addEventListener('pointerleave', () => { hover = -1; render(); });
   cv.addEventListener('pointerdown', e => {
+    if (e.button === 2) { const p = pick(e); if (p.prov >= 0) moveTo(p.prov); return; }
+    drag = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false, btn: e.button, shift: e.shiftKey }; cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointerup', e => {
+    const d = drag; drag = null; if (!d || d.moved || d.btn !== 0) return;
     const p = pick(e);
-    if (e.button === 2 || (sel && sel.kind === 'army' && p.prov >= 0 && !p.army && e.button === 0 && e.shiftKey)) { moveTo(p.prov); return; }
+    if (sel && sel.kind === 'army' && p.prov >= 0 && !p.army && d.shift) { moveTo(p.prov); return; }
     if (p.army) { sel = { kind: 'army', id: p.army.id }; render(); return; }
     if (sel && sel.kind === 'army' && p.prov >= 0) { const a = C.armies.find(x => x.id === sel.id); if (a && a.owner === C.player && p.prov !== a.at) { moveTo(p.prov); return; } }
     sel = p.prov >= 0 ? { kind: 'prov', id: p.prov } : null; render();
   });
+  // Mausrad: zum Zeiger hin zoomen
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) * view.dpr, my = (e.clientY - r.top) * view.dpr;
+    zoomAt(mx, my, e.deltaY < 0 ? 1.18 : 1 / 1.18);
+  }, { passive: false });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keydown', e => {
     if (!campaignOpen()) return;
     if (e.key === 'Enter' && $('cDlg').hidden) { e.preventDefault(); nextTurn(); }
     if (e.key === 'Escape') { if (!$('cDlg').hidden) closeDlg(); else menu(); }
+    if (!$('cDlg').hidden) return;
+    const st = 60 * view.dpr, k = { ArrowLeft: [st, 0], ArrowRight: [-st, 0], ArrowUp: [0, st], ArrowDown: [0, -st], a: [st, 0], d: [-st, 0], w: [0, st], s: [0, -st] }[e.key];
+    if (k) { e.preventDefault(); pan.x += k[0]; pan.y += k[1]; resize(); render(); }
+    if (e.key === '+' || e.key === '=') zoomAt(cv.width / 2, cv.height / 2, 1.2);
+    if (e.key === '-') zoomAt(cv.width / 2, cv.height / 2, 1 / 1.2);
+    if (e.key === 'Home') { zoom = 1; pan = { x: 0, y: 0 }; resize(); render(); }
   });
 }
 function resize() {
   if (!cv) return;
   const r = $('cMain').getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
   cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
-  const s = Math.min(cv.width / (MW * SC), cv.height / (MH * SC));
-  view = { s, ox: (cv.width - MW * SC * s) / 2, oy: (cv.height - MH * SC * s) / 2, dpr };
+  const fit = Math.min(cv.width / (MW * SC), cv.height / (MH * SC)), s = fit * zoom, w = MW * SC * s, h = MH * SC * s;
+  // Verschieben begrenzen: die Karte bleibt im Bild
+  const mxp = Math.max(0, (w - cv.width) / 2 + 80 * dpr), myp = Math.max(0, (h - cv.height) / 2 + 80 * dpr);
+  pan.x = Math.max(-mxp, Math.min(mxp, pan.x)); pan.y = Math.max(-myp, Math.min(myp, pan.y));
+  view = { s, ox: (cv.width - w) / 2 + pan.x, oy: (cv.height - h) / 2 + pan.y, dpr, fit };
+}
+let zoom = 1, pan = { x: 0, y: 0 };
+function zoomAt(mx, my, f) {
+  const nz = Math.max(1, Math.min(4, zoom * f)); if (nz === zoom) return;
+  const cx = (mx - view.ox) / (SC * view.s), cy = (my - view.oy) / (SC * view.s); // Zelle unter dem Zeiger bleibt stehen
+  zoom = nz; const s = view.fit * zoom;
+  pan.x = mx - cx * SC * s - (cv.width - MW * SC * s) / 2; pan.y = my - cy * SC * s - (cv.height - MH * SC * s) / 2;
+  resize(); render();
 }
 // Bildschirm → Rasterzelle; Heere haben Vorrang vor der Provinz darunter
 function pick(e) {
@@ -117,16 +153,16 @@ export function render() {
     }
   }
   // Siedlungen und Namen
-  const fs = Math.max(10, 13 * s * 1.25) * view.dpr, sk = view.dpr * Math.max(.9, Math.min(1.4, s * 1.3));
+  const fs = Math.min(24, Math.max(10, 13 * s * 1.25)) * view.dpr, sk = view.dpr * Math.max(.9, Math.min(3, s * 1.7));
   paintFrame(ctx, view.ox, view.oy, MW * SC * s, MH * SC * s, view.dpr * Math.max(.75, Math.min(1.3, s)));
   for (const pi of MAP.provs) {
     const p = C.provs[pi.id], x = X(pi.x), y = Y(pi.y), cap = Object.values(C.emp).some(e => e.capital === pi.id);
-    if (p.lvl > 0) settlement(ctx, x, y + 22 * view.dpr, p.lvl, p.owner ? facColor(p.owner) : '#7d7a74', sk, cap, (p.blds.walls || 0) > 0); // Siedlung: Bauten nach Stufe
+    if (p.lvl > 0) settlement(ctx, x, y + 8 * view.dpr + 13 * sk, p.lvl, p.owner ? facColor(p.owner) : '#7d7a74', sk, cap, (p.blds.walls || 0) > 0); // Siedlung: Bauten nach Stufe
     else if (!p.owner && unitCount(p.garrison) > 0) { // wilde Besatzung: gekreuzte Klingen im dunklen Rund
       const r = 7 * view.dpr; ctx.fillStyle = 'rgba(15,14,12,.7)'; ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,200,150,.8)'; ctx.lineWidth = 1.4 * view.dpr; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x - r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x + r * .55, y + 14 * view.dpr + r * .55); ctx.moveTo(x + r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x - r * .55, y + 14 * view.dpr + r * .55); ctx.stroke(); }
     if (p.rift) { const g = ctx.createRadialGradient(x, y + 10 * view.dpr, 2, x, y + 10 * view.dpr, 26 * view.dpr); g.addColorStop(0, 'rgba(255,120,60,.95)'); g.addColorStop(.45, 'rgba(160,60,190,.55)'); g.addColorStop(1, 'rgba(60,20,80,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + 10 * view.dpr, 26 * view.dpr, 0, 7); ctx.fill(); }
-    if (p.site) { const sy = y - fs * 1.15; ctx.font = (15 * view.dpr) + 'px serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(SITES[p.site].glyph, x + 1, sy + 1); ctx.fillStyle = '#ffd98a'; ctx.fillText(SITES[p.site].glyph, x, sy); }
+    if (p.site) { const sy = y - fs * 1.15; ctx.font = Math.round(fs * 1.25) + 'px serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(SITES[p.site].glyph, x + 1, sy + 1); ctx.fillStyle = '#ffd98a'; ctx.fillText(SITES[p.site].glyph, x, sy); }
     ctx.font = '700 ' + Math.round(fs * .82) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center';
     ctx.lineJoin = 'round'; ctx.lineWidth = 3.2 * view.dpr; ctx.strokeStyle = 'rgba(12,10,8,.82)'; ctx.strokeText(pi.name, x, y - 3); ctx.fillStyle = p.owner ? '#f4ead6' : '#d6d2c2'; ctx.fillText(pi.name, x, y - 3);
   }
@@ -134,7 +170,7 @@ export function render() {
   banners = [];
   const byProv = {}; for (const a of C.armies) (byProv[a.at] ||= []).push(a);
   for (const [id, list] of Object.entries(byProv)) list.forEach((a, k) => {
-    const pi = pinfo(+id), w = 26 * view.dpr, h = 30 * view.dpr, x = X(pi.x) + (k - (list.length - 1) / 2) * (w + 4 * view.dpr), y = Y(pi.y) + 58 * view.dpr; // unter Name und Siedlung
+    const pi = pinfo(+id), w = 26 * view.dpr, h = 30 * view.dpr, x = X(pi.x) + 20 * sk + w / 2 + k * (w + 4 * view.dpr), y = Y(pi.y) + 8 * view.dpr + 13 * sk + 6 * view.dpr; // rechts neben der Siedlung
     const selA = sel && sel.kind === 'army' && sel.id === a.id;
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x - w / 2 + 3, y - h + 3, w, h);
     ctx.fillStyle = facColor(a.owner); ctx.beginPath(); ctx.moveTo(x - w / 2, y - h); ctx.lineTo(x + w / 2, y - h); ctx.lineTo(x + w / 2, y - 8 * view.dpr); ctx.lineTo(x, y); ctx.lineTo(x - w / 2, y - 8 * view.dpr); ctx.closePath(); ctx.fill();

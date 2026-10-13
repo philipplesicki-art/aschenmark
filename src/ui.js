@@ -300,6 +300,8 @@ function helpScreen(back) {
     + '<li><b>Held</b> sammelt Erfahrung durch Kämpfe, steigt bis Stufe 5 auf und schaltet auf Stufe 2 die zweite Fähigkeit frei</li>'
     + '<li><b>Macht</b> Machtpunkte wachsen mit der Zeit und mit besiegten Feinden. Mit R wählst du ein Zielgebiet</li>'
     + '<li><b>Taktik</b> Speere schlagen Reiter, Reiter schlagen Fernkämpfer, Fernkämpfer schlagen Speere. Belagerung zerstört Gebäude, ist aber gegen Truppen schwach</li>'
+    + '<li><b>Gelände</b> Am Waldrand mindert Deckung den Fernkampfschaden um ein Drittel, Schlamm an Tümpeln und tiefer Schnee im Hartfrost bremsen</li>'
+    + '<li><b>Weltkarte</b> Linksklick wählt, Rechtsklick schickt das gewählte Heer, Ziehen oder Pfeiltasten verschieben, Mausrad und Plus/Minus zoomen, Pos1 zeigt alles, Enter beendet die Runde</li>'
     + '<li><b>Fraktionen</b> Die Grenzwacht hält stand, die Aschenhorde kommt in Massen, der Salzbund kämpft auf Abstand und heilt</li></ul>'
     + backRow(), act => { if (act === 'back') back(); }, back);
 }
