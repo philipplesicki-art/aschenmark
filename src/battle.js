@@ -151,12 +151,15 @@ export function battleTick() {
   // Der Verteidiger wartet, bis der Angreifer nahe ist (oder angreift); der Angreifer zieht los.
   if (!B.engaged) {
     const c = foes.reduce((s, u) => [s[0] + u.x / foes.length, s[1] + u.y / foes.length], [0, 0]);
-    if (mine.some(u => Math.hypot(u.x - c[0], u.y - c[1]) < 420) || foes.some(u => u.hp < u.maxhp)) B.engaged = true;
+    if (mine.some(u => Math.hypot(u.x - c[0], u.y - c[1]) < 420) || foes.some(u => u.hp < u.maxhp)) { B.engaged = true; B.engT = G.t; }
   }
   if (B.engaged) for (const u of foes) {
-    if (u.order && u.order.t !== 'move') continue;
     let best = null, bd = 1e9;
     for (const e of mine) { const d = Math.hypot(e.x - u.x, e.y - u.y); if (d < bd) { bd = d; best = e; } }
+    // Verteidiger halten die Linie, bis der Angreifer nahe ist (höchstens 75 Sekunden nach dem ersten Kontakt).
+    // Im Turnier gemessen: Schützen in Deckung zu schicken zerreißt die Linie und schwächt den Verteidiger; Linie halten stärkt ihn.
+    if (B.playerAttacks && G.t - (B.engT || 0) < 75 && bd > 300) continue;
+    if (u.order && u.order.t !== 'move') continue;
     if (best) setOrder(u, { t: 'amove', x: best.x + (simR() - .5) * 30, y: best.y + (simR() - .5) * 30 });
   }
   if (B.E === 1) aiSkirmish(1, 0);
