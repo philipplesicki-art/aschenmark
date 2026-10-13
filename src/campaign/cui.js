@@ -13,6 +13,7 @@ import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
 import { storyStart, currentChapter, CHAPTERS } from './cstory.js';
+import { paintBase, paintOwners, settlement, paintFrame } from './cmapart.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
@@ -74,73 +75,26 @@ function pick(e) {
 }
 
 /* ---------- Kartenbild ---------- */
-function hash(x, y) { let h = (x * 374761393 + y * 668265263) >>> 0; h = (h ^ (h >>> 13)) * 1274126177 >>> 0; return (h & 1023) / 1023; }
+let baseCache = { seed: null, img: null };
 function buildBase() {
-  const c = document.createElement('canvas'); c.width = MW; c.height = MH; const x = c.getContext('2d'), img = x.createImageData(MW, MH), d = img.data;
-  const col = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-  const bc = {}; for (const k of Object.keys(BIOMES)) bc[k] = col(BIOMES[k].col);
-  for (let i = 0; i < MW * MH; i++) {
-    const px = i % MW, py = (i / MW) | 0, p = MAP.pid[i], n = hash(px, py) * .16 - .08 + Math.sin(px * .21 + py * .13) * .04;
-    let r, g, b;
-    if (p < 0) { const w = .7 + Math.sin(px * .3 + py * .2) * .04; r = 26 * w; g = 44 * w; b = 62 * w; } // Meer
-    else { [r, g, b] = bc[pinfo(p).biome]; const k = 1 + n; r *= k; g *= k; b *= k; if (BIOMES[pinfo(p).biome].cold) { r += 16; g += 18; b += 22; } }
-    d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = 255;
-  }
-  x.putImageData(img, 0, 0);
-  const big = document.createElement('canvas'); big.width = MW * SC; big.height = MH * SC; const bx = big.getContext('2d');
-  bx.imageSmoothingEnabled = true; bx.drawImage(c, 0, 0, big.width, big.height);
-  // Küstenlinie hell, Meer mit Wellenstrichen
-  bx.strokeStyle = 'rgba(200,220,230,.35)'; bx.lineWidth = 2; bx.beginPath();
-  for (let y = 0; y < MH; y++) for (let x2 = 0; x2 < MW; x2++) {
-    const a = MAP.pid[y * MW + x2] >= 0;
-    if (x2 + 1 < MW && a !== (MAP.pid[y * MW + x2 + 1] >= 0)) { bx.moveTo((x2 + 1) * SC, y * SC); bx.lineTo((x2 + 1) * SC, (y + 1) * SC); }
-    if (y + 1 < MH && a !== (MAP.pid[(y + 1) * MW + x2] >= 0)) { bx.moveTo(x2 * SC, (y + 1) * SC); bx.lineTo((x2 + 1) * SC, (y + 1) * SC); }
-  }
-  bx.stroke();
-  // Geländezeichen: Bäume im Wald, Spitzen im Bergland, Halme im Sumpf
-  for (const p of MAP.provs) {
-    const R = (k) => hash(p.id * 31 + k, k * 7 + 3);
-    for (let k = 0; k < 14; k++) {
-      const x0 = (p.x + (R(k) - .5) * 26) * SC, y0 = (p.y + (R(k + 50) - .5) * 20) * SC;
-      if (MAP.pid[Math.floor(y0 / SC) * MW + Math.floor(x0 / SC)] !== p.id) continue;
-      bx.fillStyle = 'rgba(20,30,26,.35)'; bx.strokeStyle = 'rgba(20,24,26,.4)';
-      if (p.biome === 'wald') { bx.beginPath(); bx.moveTo(x0, y0 - 9); bx.lineTo(x0 + 5, y0 + 3); bx.lineTo(x0 - 5, y0 + 3); bx.fill(); }
-      else if (p.biome === 'berg') { bx.beginPath(); bx.moveTo(x0 - 9, y0 + 5); bx.lineTo(x0, y0 - 8); bx.lineTo(x0 + 9, y0 + 5); bx.fillStyle = 'rgba(40,36,34,.4)'; bx.fill(); bx.fillStyle = 'rgba(230,236,240,.5)'; bx.beginPath(); bx.moveTo(x0 - 3, y0 - 3); bx.lineTo(x0, y0 - 8); bx.lineTo(x0 + 3, y0 - 3); bx.fill(); }
-      else if (p.biome === 'sumpf') { bx.lineWidth = 1; bx.beginPath(); bx.moveTo(x0 - 3, y0 + 3); bx.lineTo(x0 - 2, y0 - 4); bx.moveTo(x0 + 2, y0 + 3); bx.lineTo(x0 + 3, y0 - 5); bx.stroke(); }
-      else if (p.biome === 'asch') { bx.fillStyle = 'rgba(255,110,40,.25)'; bx.fillRect(x0, y0, 3, 1.5); }
-    }
-  }
-  return big;
+  if (baseCache.seed !== C.seed + ':' + C.nProv) baseCache = { seed: C.seed + ':' + C.nProv, img: paintBase(MAP, C.seed) };
+  return baseCache.img;
 }
 function buildOwners() {
-  const c = document.createElement('canvas'); c.width = MW * SC; c.height = MH * SC; const x = c.getContext('2d');
-  const tint = document.createElement('canvas'); tint.width = MW; tint.height = MH; const tx = tint.getContext('2d'), img = tx.createImageData(MW, MH), d = img.data;
-  const rgb = {}; for (const f of Object.keys(FACTIONS)) { const h = FACTIONS[f].color; rgb[f] = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
-  for (let i = 0; i < MW * MH; i++) { const p = MAP.pid[i]; const o = p >= 0 ? C.provs[p].owner : null; if (o) { d[i * 4] = rgb[o][0]; d[i * 4 + 1] = rgb[o][1]; d[i * 4 + 2] = rgb[o][2]; d[i * 4 + 3] = 70; } }
-  tx.putImageData(img, 0, 0); x.imageSmoothingEnabled = true; x.drawImage(tint, 0, 0, c.width, c.height);
-  // Grenzen: Provinzgrenzen dünn, Reichsgrenzen kräftig in der Reichsfarbe
-  const edge = (lw, sty, test) => {
-    x.lineWidth = lw; x.strokeStyle = sty; x.beginPath();
-    for (let y = 0; y < MH; y++) for (let xx = 0; xx < MW; xx++) {
-      const a = MAP.pid[y * MW + xx]; if (a < 0) continue;
-      if (xx + 1 < MW) { const b = MAP.pid[y * MW + xx + 1]; if (b >= 0 && b !== a && test(a, b)) { x.moveTo((xx + 1) * SC, y * SC); x.lineTo((xx + 1) * SC, (y + 1) * SC); } }
-      if (y + 1 < MH) { const b = MAP.pid[(y + 1) * MW + xx]; if (b >= 0 && b !== a && test(a, b)) { x.moveTo(xx * SC, (y + 1) * SC); x.lineTo((xx + 1) * SC, (y + 1) * SC); } }
-    }
-    x.stroke();
-  };
-  edge(1.2, 'rgba(15,18,20,.45)', () => true);
-  for (const f of Object.keys(FACTIONS)) edge(3.2, FACTIONS[f].color, (a, b) => (C.provs[a].owner === f) !== (C.provs[b].owner === f));
-  return c;
+  const colors = {}; for (const f of Object.keys(FACTIONS)) colors[f] = FACTIONS[f].color;
+  return paintOwners(MAP, id => C.provs[id].owner, colors);
 }
-
 /* ---------- Zeichnen ---------- */
 let banners = [];
 export function render() {
   if (!campaignOpen() || !C) return;
-  if (!base) base = buildBase();
+  if (!base) { // erstes Malen der Karte dauert etwas: Hinweis zeigen, dann im nächsten Takt malen
+    if (baseCache.seed !== C.seed + ':' + C.nProv) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b1218'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.fillStyle = '#d2a05a'; ctx.font = '700 ' + Math.round(22 * view.dpr) + 'px Cinzel, serif'; ctx.textAlign = 'center'; ctx.fillText('Die Karte von Orsa wird gezeichnet', cv.width / 2, cv.height / 2); if (!render.wait) render.wait = setTimeout(() => { render.wait = null; base = buildBase(); render(); }, 30); return; }
+    base = buildBase();
+  }
   if (!owners) owners = buildOwners();
   const s = view.s, X = cx => view.ox + cx * SC * s, Y = cy => view.oy + cy * SC * s;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d1820'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); { const g = ctx.createRadialGradient(cv.width / 2, cv.height / 2, 0, cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * .7); g.addColorStop(0, '#16303c'); g.addColorStop(1, '#070d12'); ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height); } // offenes Meer rings um die Karte
   ctx.drawImage(base, view.ox, view.oy, MW * SC * s, MH * SC * s); ctx.drawImage(owners, view.ox, view.oy, MW * SC * s, MH * SC * s);
   // Hervorhebung: Auswahl und Mauszeiger
   const hl = (id, col, w) => { if (id < 0) return; ctx.save(); ctx.globalAlpha = .9; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
@@ -163,19 +117,18 @@ export function render() {
     }
   }
   // Siedlungen und Namen
-  const fs = Math.max(10, 13 * s * 1.25) * view.dpr;
+  const fs = Math.max(10, 13 * s * 1.25) * view.dpr, sk = view.dpr * Math.max(.9, Math.min(1.4, s * 1.3));
+  paintFrame(ctx, view.ox, view.oy, MW * SC * s, MH * SC * s, view.dpr * Math.max(.75, Math.min(1.3, s)));
   for (const pi of MAP.provs) {
     const p = C.provs[pi.id], x = X(pi.x), y = Y(pi.y), cap = Object.values(C.emp).some(e => e.capital === pi.id);
-    if (p.lvl > 0) { // Siedlung: Rundmarke, Größe nach Stufe; Hauptstadt mit Krone
-      const r = (4 + p.lvl * 1.6) * view.dpr;
-      ctx.fillStyle = p.owner ? facColor(p.owner) : '#9a9a9a'; ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5 * view.dpr;
-      ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.stroke();
-      if (cap) { ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.moveTo(x - r, y + 14 * view.dpr - r); for (let k = 0; k <= 4; k++) ctx.lineTo(x - r + k * r / 2, y + 14 * view.dpr - r - (k % 2 ? 0 : 6 * view.dpr)); ctx.fill(); }
-    } else if (!p.owner && unitCount(p.garrison) > 0) { ctx.fillStyle = 'rgba(155,176,106,.9)'; ctx.font = (11 * view.dpr) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('⚔', x, y + 18 * view.dpr); }
+    if (p.lvl > 0) settlement(ctx, x, y + 22 * view.dpr, p.lvl, p.owner ? facColor(p.owner) : '#7d7a74', sk, cap, (p.blds.walls || 0) > 0); // Siedlung: Bauten nach Stufe
+    else if (!p.owner && unitCount(p.garrison) > 0) { // wilde Besatzung: gekreuzte Klingen im dunklen Rund
+      const r = 7 * view.dpr; ctx.fillStyle = 'rgba(15,14,12,.7)'; ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,200,150,.8)'; ctx.lineWidth = 1.4 * view.dpr; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x + r * .55, y + 14 * view.dpr + r * .55); ctx.moveTo(x + r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x - r * .55, y + 14 * view.dpr + r * .55); ctx.stroke(); }
     if (p.rift) { const g = ctx.createRadialGradient(x, y + 10 * view.dpr, 2, x, y + 10 * view.dpr, 26 * view.dpr); g.addColorStop(0, 'rgba(255,120,60,.95)'); g.addColorStop(.45, 'rgba(160,60,190,.55)'); g.addColorStop(1, 'rgba(60,20,80,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + 10 * view.dpr, 26 * view.dpr, 0, 7); ctx.fill(); }
     if (p.site) { const sy = y - fs * 1.15; ctx.font = (15 * view.dpr) + 'px serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(SITES[p.site].glyph, x + 1, sy + 1); ctx.fillStyle = '#ffd98a'; ctx.fillText(SITES[p.site].glyph, x, sy); }
     ctx.font = '700 ' + Math.round(fs * .82) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillText(pi.name, x + 1, y - 2); ctx.fillStyle = p.owner ? '#f2efe6' : '#cfd2c4'; ctx.fillText(pi.name, x, y - 3);
+    ctx.lineJoin = 'round'; ctx.lineWidth = 3.2 * view.dpr; ctx.strokeStyle = 'rgba(12,10,8,.82)'; ctx.strokeText(pi.name, x, y - 3); ctx.fillStyle = p.owner ? '#f4ead6' : '#d6d2c2'; ctx.fillText(pi.name, x, y - 3);
   }
   // Heere als Banner
   banners = [];
