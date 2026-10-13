@@ -1,11 +1,11 @@
 // Echtzeit-Schlacht aus der Kampagne: ein Gefecht ohne Basisbau. Beide Heere stehen sich im Kernland gegenüber,
 // der Verteidiger hat Türme (für jede Mauerstufe zwei) und Bürgerwehr (Siedlungsstufe). Die Jahreszeit der Runde gilt auch hier.
 // Ende, wenn eine Seite keine Kämpfer mehr hat oder der Spieler abzieht. Reine Simulation: kein DOM, kein Three.js.
-import { G, hooks, simR } from './state.js';
+import { G, hooks, simR, rng } from './state.js';
 import { newWorld, mkUnit, mkBld, mkCreep, setBlock, free } from './world.js';
 import { setOrder } from './path.js';
 import { aiSkirmish } from './ai.js';
-import { TS } from './config.js';
+import { TS, GW, GH } from './config.js';
 import { SEASONS } from './economy.js';
 import { FACTIONS, otherFac, defOf, XP_STEPS, MAX_HERO_LVL } from './factions.js';
 
@@ -37,7 +37,10 @@ export function newBattle(spec) {
   G.battle = { sites, name: spec.name || '', playerAttacks: !!spec.playerAttacks, scale, E, t0: G.t, engaged: !spec.playerAttacks, over: null,
     start: { p: { ...spec.player.units }, e: { ...spec.enemy.units }, pHero: !!spec.player.hero, eHero: !!spec.enemy.hero } };
   const pc = at(.33), ec = at(.67), dir = [ec[0] - pc[0], ec[1] - pc[1]], dl = Math.hypot(dir[0], dir[1]), fwd = [dir[0] / dl, dir[1] / dl];
+  G.battle.biome = spec.biome || 'grenz';
+  battleTerrain(G.battle.biome, rng((spec.seed ^ 0x2f6b) >>> 0), pc, ec, fwd);
   const defIsPlayer = !spec.playerAttacks;
+  if (spec.walls > 0 && !wild) cityWalls(defIsPlayer ? 0 : 1, defIsPlayer ? pc : ec, defIsPlayer ? fwd : [-fwd[0], -fwd[1]], spec.walls);
   deploy(0, spec.player, pc, fwd, scale, defIsPlayer ? spec.militia : 0, false);
   deploy(E, spec.enemy, ec, [-fwd[0], -fwd[1]], scale, defIsPlayer ? 0 : spec.militia, wild);
   if (spec.towers && !wild) towers(defIsPlayer ? 0 : 1, defIsPlayer ? pc : ec, defIsPlayer ? fwd : [-fwd[0], -fwd[1]], Math.min(6, spec.towers));
@@ -82,6 +85,48 @@ function heroAt(h, lvl, hpMul) {
   h.maxhp = Math.round(h.maxhp * hpMul); h.hp = h.maxhp; h.dmgMul = 1 + .1 * (h.lvl - 1); h.xp = XP_STEPS[h.lvl - 2] || 0;
 }
 // Türme vor dem Verteidiger
+/* ---------- Schlachtfeld nach dem Gelände der Provinz ---------- */
+// Wald: dichte Haine mit Schneisen. Bergland: Felsgrate mit Durchlässen. Sumpf: Tümpel. Küste: Meer an einer Flanke.
+// Trockenland: karg, Felsen. Aschenfelder: tote Bäume, Krater. Die Mitte zwischen den Heeren bleibt immer gangbar.
+const noise = (R) => { const g = []; for (let i = 0; i < 64; i++) g.push(R()); return (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, h = (a, b) => g[((a * 7 + b * 13) % 64 + 64) % 64], u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  return h(xi, yi) * (1 - u) * (1 - v) + h(xi + 1, yi) * u * (1 - v) + h(xi, yi + 1) * (1 - u) * v + h(xi + 1, yi + 1) * u * v; }; };
+function battleTerrain(biome, R, pc, ec, fwd) {
+  // Zufallsbäume der Gefechtskarte entfernen (Rand und Grate bleiben)
+  for (const t of G.trees) if (!t.fx) G.blk[Math.floor(t.y / TS) * GW + Math.floor(t.x / TS)] = 0;
+  G.trees = G.trees.filter(t => t.fx);
+  G.water = new Uint8Array(GW * GH); G.rocks = [];
+  const n1 = noise(R), n2 = noise(R), n3 = noise(R);
+  const fbm = (n, x, y) => n(x, y) * .6 + n(x * 2.1 + 5, y * 2.1 + 3) * .3 + n(x * 4.3, y * 4.3) * .1;
+  const ax = pc[0] / TS, ay = pc[1] / TS, bx = ec[0] / TS, by = ec[1] / TS, side = [-fwd[1], fwd[0]];
+  const along = (cx, cy) => (cx - ax) * fwd[0] + (cy - ay) * fwd[1], across = (cx, cy) => (cx - ax) * side[0] + (cy - ay) * side[1];
+  const L = Math.hypot(bx - ax, by - ay);
+  const clear = (cx, cy) => Math.hypot(cx - ax, cy - ay) < 8 || Math.hypot(cx - bx, cy - by) < 8 || (along(cx, cy) > -4 && along(cx, cy) < L + 4 && Math.abs(across(cx, cy)) < 2.2);
+  const tree = (cx, cy, s) => { G.blk[cy * GW + cx] = 1; G.trees.push({ x: (cx + .5 + (R() - .5) * .5) * TS, y: (cy + .6 + (R() - .5) * .4) * TS, s: s || 15 + R() * 9, v: R() }); };
+  const rock = (cx, cy) => { G.blk[cy * GW + cx] = 1; G.rocks.push({ x: (cx + .5 + (R() - .5) * .3) * TS, y: (cy + .5 + (R() - .5) * .3) * TS, s: .7 + R() * .9, v: R() }); };
+  const water = (cx, cy) => { G.blk[cy * GW + cx] = 1; G.water[cy * GW + cx] = 1; };
+  const P = { grenz: [.66, 0, 0], wald: [.47, 0, 0], berg: [.74, .045, 0], sumpf: [.7, 0, .63], kueste: [.78, 0, 0], trocken: [.86, .012, 0], asch: [.8, .02, 0] }[biome] || [.66, 0, 0];
+  for (let cy = 2; cy < 54; cy++) for (let cx = 2; cx < 78; cx++) {
+    if (G.blk[cy * GW + cx] || clear(cx, cy)) continue;
+    const x = cx / 9, y = cy / 9;
+    if (biome === 'kueste' && across(cx, cy) + (n3(cx / 6, cy / 6) - .5) * 6 > 11) { water(cx, cy); continue; } // Meer an der Flanke
+    if (P[2] && fbm(n3, x * 1.3, y * 1.3) > P[2]) { water(cx, cy); continue; } // Tümpel
+    if (biome === 'berg' && Math.abs(fbm(n2, x * .8, y * .8) - .5) < P[1] && n1(x * 3, y * 3) > .28) { rock(cx, cy); continue; } // Grate mit Lücken
+    if (P[1] && biome !== 'berg' && R() < P[1]) { rock(cx, cy); continue; }
+    if (fbm(n1, x, y) > P[0] + (R() - .5) * .05) tree(cx, cy);
+  }
+  // Am Meer: der Strand vor dem Wasser bleibt frei, kein Baum direkt am Wasser
+  G.trees.sort((a, b) => a.y - b.y);
+}
+// Stadtmauer im Bogen vor dem Verteidiger, mit einem Tor (zwei Felder breit) in der Mitte
+function cityWalls(team, c, fwd, level) {
+  const r = 7.2, cx = c[0] / TS, cy = c[1] / TS, a0 = Math.atan2(fwd[1], fwd[0]), hp = 600 + 250 * level, done = new Set();
+  for (let a = -1.25; a <= 1.25; a += .045) {
+    if (Math.abs(a) < .17) continue; // Tor
+    const gx = Math.round(cx + Math.cos(a0 + a) * r - .5), gy = Math.round(cy + Math.sin(a0 + a) * r - .5), k = gy * GW + gx;
+    if (done.has(k) || !free(gx, gy)) continue; done.add(k);
+    const w = mkBld('wall', team, gx, gy, true); w.hp = w.maxhp = hp; w.rot = a0 + a;
+  }
+}
 function towers(team, c, fwd, n) {
   const s = defOf(G.fac[team], 'tower').size, side_ = [-fwd[1], fwd[0]];
   for (let i = 0; i < n; i++) {

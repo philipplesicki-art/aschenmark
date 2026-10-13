@@ -1214,6 +1214,7 @@ function frameWindows(g) {
 }
 export function buildBld(fac, type, seed = 1) {
   initTextures();
+  if (type === 'wall') return bake(wallSeg(fac), 'b:' + fac + ':wall', new Set());
   const file = fromFile(fac + ':' + type);
   if (file) return withScaffold(file);
   RV = makeVariant(seed); RV.fac = fac;
@@ -1223,6 +1224,18 @@ export function buildBld(fac, type, seed = 1) {
   (fac === 'asch' ? detailA : detailW)(g, type);
   withScaffold(g);
   return bake(g, 'b:' + fac + ':' + type + ':' + seed, keepOf(g));
+}
+// Stadtmauer (Schlachten aus der Kampagne): ein Mauerstück mit Wehrgang und Zinnen, Stein nach Fraktion
+let WALLST = null;
+function wallSeg(fac) {
+  WALLST ||= { wacht: surf(0x8a8b8f, 'stone', {}, .25), asch: surf(0x55565b, 'stone', {}, .2, .8), salz: surf(0xb8b1a1, 'stone', {}, .25) }; // wenig Schnee, damit der Stein sichtbar bleibt
+  const g = new THREE.Group(), st = WALLST[fac] || L.stone;
+  part(g, box(2.25, .3, 1.25), L.stoneD, 0, .15, 0, true);
+  part(g, box(2.1, 1.9, 1.0), st, 0, 1.1, 0, true);
+  part(g, box(2.2, .16, 1.14), L.stoneD, 0, 2.1, 0, true);
+  for (const x of [-.78, 0, .78]) part(g, box(.44, .46, .32), st, x, 2.4, .4, true);
+  for (const x of [-.78, 0, .78]) part(g, box(.44, .3, .26), st, x, 2.33, -.42, true);
+  return g;
 }
 // Baugerüst, das während des Baus sichtbar ist
 function withScaffold(g) {

@@ -289,8 +289,8 @@ function choose(pb) {
   const hero = s => s.hero ? ' und ' + (s.fac !== 'wild' ? FACTIONS[s.fac].units.hero.name : 'Held') + ' (Stufe ' + s.hero + ')' : '';
   dlg('<h2>' + (spec.playerAttacks ? 'Angriff auf ' : 'Überfall auf ') + spec.name + '</h2>'
     + '<p>' + (spec.playerAttacks ? 'Dein Heer steht vor ' + spec.name + '.' : empireName(a.owner) + ' greift ' + spec.name + ' an!') + ' ' + BIOMES[spec.biome].name + ', ' + season().name + '.</p>'
-    + '<ul class="help"><li><b>' + empireName(pl.fac) + ':</b> ' + unitList(pl.fac, pl.units) + hero(pl) + (!spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (!spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + '</li>'
-    + '<li><b>' + (en.fac === 'wild' ? 'Wilde' : empireName(en.fac)) + ':</b> ' + unitList(en.fac, en.units) + hero(en) + (spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + '</li></ul>'
+    + '<ul class="help"><li><b>' + empireName(pl.fac) + ':</b> ' + unitList(pl.fac, pl.units) + hero(pl) + (!spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (!spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (!spec.playerAttacks && spec.walls ? ', Stadtmauer' : '') + '</li>'
+    + '<li><b>' + (en.fac === 'wild' ? 'Wilde' : empireName(en.fac)) + ':</b> ' + unitList(en.fac, en.units) + hero(en) + (spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (spec.playerAttacks && spec.walls ? ', Stadtmauer mit Tor' : '') + '</li></ul>'
     + '<p class="sub">Geschätzte Siegchance beim Berechnen: ' + mineChance + ' %. In der Schlacht zählt nur, wer am Ende noch steht.</p>'
     + '<div class="row end"><button class="btn" data-d="auto" type="button">Automatisch berechnen</button>'
     + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',

@@ -62,6 +62,16 @@ ein Reich 40 Prozent hält): Ein Schlund bricht in einer Bergprovinz möglichst 
 drei Runden hält, versiegelt ihn: Heere dauerhaft 15 Prozent stärker. Kapitel 4 und 5 sind für alle Fraktionen der Kampf gegen die
 Erwachten. Bündnisse ohne gemeinsamen Feind erlöschen nach sechs Runden; bleiben nur zwei Reiche, sucht der Stärkere die Entscheidung.
 
+**Schlachtfelder nach Gelände** (`battleTerrain` in battle.js, Boden in render3d.js): Grenzland Haine, Waldmeer dichter Wald mit
+Schneisen, Bergland Felsgrate mit Durchlässen, Sumpf Tümpel, Küste Meer an einer Flanke, Trockenland karg mit Felsen, Aschenfelder
+glühende Risse, Krater und tote Bäume. Die Mitte zwischen den Heeren bleibt immer frei. Schnee nur in kalten Gebieten oder im
+Hartfrost. Wer eine ummauerte Provinz oder eine Hauptstadt stürmt, steht vor einer Stadtmauer im Bogen mit Tor (Lebenspunkte je
+Mauerstufe); Belagerungsgerät aus der Forschung senkt die wirksame Mauerstufe.
+
+**Weltkarte gemalt** (`cmapart.js`): Relief aus Rauschen und Küstenabstand, Schnee auf Höhen, Meerestiefe mit Brandungslinien,
+Geländezeichen (Bäume, Berge, Tümpel, Glutrisse, Dünen), Siedlungen als Bauten nach Stufe, leuchtende Reichsgrenzen, Rahmen,
+Windrose, Titelkartusche. Gemalt einmal je Kampagne (rund 1 s, mit Hinweis).
+
 **Stätten:** sieben besondere Provinzen fern der Hauptstädte, 60 Prozent stärker bewacht: Alte Schmiede (Rekruten billiger),
 Sternwarte (Forschung), Salzsee (Vorräte, Handel), Heiligtum (Unruhe), Hünengrab (Heldenerfahrung), Eisengrube (Erz), Söldnerlager.
 

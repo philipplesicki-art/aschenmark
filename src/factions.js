@@ -109,7 +109,9 @@ export const FAC_IDS = Object.keys(FACTIONS);
 // Gegner, wenn keiner gewählt ist: die nächste Fraktion in der Liste.
 export const otherFac = fac => FAC_IDS[(FAC_IDS.indexOf(fac) + 1) % FAC_IDS.length];
 
-export const NEUTRAL = { mine: { name: 'Erzader', kind: 'dep', size: 2 } };
+export const NEUTRAL = { mine: { name: 'Erzader', kind: 'dep', size: 2 },
+  // Stadtmauer in Schlachten aus der Kampagne (gehört dem Verteidiger, greift nicht an)
+  wall: { name: 'Stadtmauer', kind: 'bld', size: 1, hp: 700, sight: 120, cost: 0, wood: 0, time: 0 } };
 
 for (const f of Object.values(FACTIONS)) {
   for (const d of Object.values(f.units)) d.kind = 'unit';

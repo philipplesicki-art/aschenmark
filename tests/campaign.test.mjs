@@ -129,7 +129,7 @@ import { setOrder } from '../src/path.js';
   assert.equal(CS.orderMove(foeArmy, tgt), true, 'im Frieden kein Angriff'); assert.equal(C.provs[tgt].owner, 'wacht');
   CS.setDip('asch', 'wacht', 'war'); foeArmy.moved = 0;
   const r2 = CS.orderMove(foeArmy, tgt);
-  assert.ok(r2 && r2.pending); const s2 = CS.battleSpec(r2.pending); assert.ok(!s2.playerAttacks); assert.equal(s2.player.fac, 'wacht'); assert.ok(s2.militia > 0);
+  assert.ok(r2 && r2.pending); const s2 = CS.battleSpec(r2.pending); assert.ok(!s2.playerAttacks); assert.equal(s2.player.fac, 'wacht'); assert.ok(s2.militia > 0, 'Bürgerwehr ' + JSON.stringify({ prov: r2.pending.prov, tgt, owner: C.provs[r2.pending.prov].owner, lvl: C.provs[r2.pending.prov].lvl }));
   const rep2 = CS.resolvePending(r2.pending); assert.ok(rep2 && !rep2.fought);
   // Rückzug: Niederlage, ein Teil der Truppen bleibt
   CS.cHooks.ask = false;
@@ -189,5 +189,22 @@ import { setOrder } from '../src/path.js';
   rp.owner = 'wacht'; rp.garrison = { melee: 0 }; C.story.riftHeld = 2;
   CS.endTurn(); assert.equal(C.story.sealedBy, 'wacht', 'versiegelt'); assert.ok(!C.armies.some(a => a.owner === 'wild'), 'Erwachte zerfallen');
   console.log('Handlungsbogen ok: Schlund in ' + MAP.provs[rp.id].name);
+}
+
+// Schlachtfelder nach Gelände: Wald dicht, Sumpf mit Wasser, Bergland mit Felsen, Küste mit Meer; Stadtmauer mit Tor
+{
+  const base = { player: { fac: 'wacht', units: { melee: 10, ranged: 6 }, hero: 1, tech: {} }, enemy: { fac: 'asch', units: { melee: 10, ranged: 6 }, hero: 0, tech: {} }, playerAttacks: true, towers: 0, militia: 2, season: 'thaw', name: 'Test', seed: 11, diff: 'normal' };
+  const look = {};
+  for (const b of ['grenz', 'wald', 'berg', 'sumpf', 'kueste', 'trocken', 'asch']) { newBattle({ ...base, biome: b, walls: b === 'grenz' ? 2 : 0 }); look[b] = { t: G.trees.length, r: G.rocks.length, w: G.water.reduce((a, x) => a + x, 0), m: G.ents.filter(e => e.type === 'wall').length }; }
+  assert.ok(look.wald.t > look.grenz.t * 1.5, 'Wald dichter'); assert.ok(look.sumpf.w > 50, 'Sumpf mit Tümpeln'); assert.ok(look.kueste.w > 200, 'Küste mit Meer');
+  assert.ok(look.berg.r > 50, 'Felsgrate'); assert.ok(look.grenz.m > 8, 'Stadtmauer'); assert.equal(look.wald.m, 0);
+  // Die Heere erreichen sich: Pfad vom Spieler zum Gegner frei
+  newBattle({ ...base, biome: 'berg', walls: 2 });
+  const p = G.ents.find(e => e.team === 0 && e.kind === 'unit'), q = G.ents.find(e => e.team === 1 && e.kind === 'unit');
+  let res = null; hooks.battleEnd = x => { res = x; };
+  for (const u of G.ents.filter(e => e.team === 0 && e.kind === 'unit')) setOrder(u, { t: 'amove', x: q.x, y: q.y });
+  for (let i = 0; i < 20 * 300 && !res; i++) step(.05);
+  assert.ok(res, 'Schlacht im Bergland endet'); 
+  console.log('Schlachtfelder ok: ' + Object.entries(look).map(([b, v]) => b + ' ' + v.t + 'B/' + v.r + 'F/' + v.w + 'W').join(', '));
 }
 console.log('Kampagnentests bestanden');

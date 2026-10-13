@@ -96,7 +96,7 @@ export function refreshUI() {
   $('pp').textContent = G.pp[0].toFixed(1);
   renderQuest();
   { const cx = cam.x + view.w / cam.z / 2, cy = cam.y + view.h / cam.z / 2;
-    $('reg').textContent = REGIONS[regionAt(cx, cy)].name;
+    $('reg').textContent = G.battle ? G.battle.name : REGIONS[regionAt(cx, cy)].name; // in der Schlacht: die Provinz
     const ev = G.ev, chip = $('evChip');
     if (ev && ev.id) {
       const here = evAt(cx, cy) > 0, ph = ev.ph === 'omen' ? 'Vorzeichen' : ev.ph === 'peak' ? 'Höhepunkt' : 'Abklingen';

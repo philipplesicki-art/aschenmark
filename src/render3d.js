@@ -52,7 +52,18 @@ const objs = new Map(), corpseObjs = new Map(), tmp = new THREE.Vector3(), ray =
 
 /* ---------- Höhenfeld (nur Optik, die Simulation bleibt flach) ---------- */
 const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let wgrid = null; // Wassertiefe je Feld (Schlachten aus der Kampagne), weich verwischt
+function waterAt(X, Z) {
+  if (!wgrid) return 0;
+  const u = X / S / TS - .5, v = Z / S / TS - .5, xi = Math.floor(u), yi = Math.floor(v), fx = u - xi, fy = v - yi;
+  const g = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? 0 : wgrid[y * GW + x]);
+  return g(xi, yi) * (1 - fx) * (1 - fy) + g(xi + 1, yi) * fx * (1 - fy) + g(xi, yi + 1) * (1 - fx) * fy + g(xi + 1, yi + 1) * fx * fy;
+}
 function hAt(X, Z) {
+  const wd = waterAt(X, Z); if (wd > 0) return hAt0(X, Z) * (1 - wd) - wd * 1.4;
+  return hAt0(X, Z);
+}
+function hAt0(X, Z) {
   const dx = Math.max(0, -X, X - WU), dz = Math.max(0, -Z, Z - HU), out = Math.hypot(dx, dz);
   const dune = .22 * Math.sin(X * .21 + Z * .13) + .15 * Math.sin(X * .09 - Z * .17) + .08 * Math.sin(X * .47 + Z * .41);
   const rim = out > 0 ? Math.pow(out / 6, 1.55) * .95 * (1 + .3 * Math.sin(X * .5) * Math.sin(Z * .6)) : 0;
@@ -181,6 +192,49 @@ function toScreen3(wx, wy, h) {
 export function shake(a) { if (!G) return; G.shakeA = Math.min(9, Math.max(G.shakeA, a)); G.shakeT = .35; }
 
 /* ---------- Gelände ---------- */
+// Böden der Schlachtfelder je Gelände: Grundton, dunkle und helle Flecken, kalt (Schneerippen) oder warm
+const BATTLE_GROUND = {
+  grenz:   { base: '#7e8a97', dark: 'rgba(34,48,70,.12)', light: 'rgba(236,243,250,.12)', cold: true },
+  wald:    { base: '#6c7a76', dark: 'rgba(24,40,32,.30)', light: 'rgba(210,226,220,.10)', cold: true },
+  berg:    { base: '#858892', dark: 'rgba(40,40,46,.30)', light: 'rgba(240,244,250,.18)', cold: true, stone: true },
+  asch:    { base: '#4b4442', dark: 'rgba(14,12,12,.45)', light: 'rgba(120,108,100,.18)', cold: false, ember: true },
+  trocken: { base: '#a58a5e', dark: 'rgba(110,82,48,.38)', light: 'rgba(224,200,150,.34)', cold: false },
+  sumpf:   { base: '#4c5848', dark: 'rgba(22,34,26,.45)', light: 'rgba(124,142,98,.30)', cold: false },
+  kueste:  { base: '#b3a57c', dark: 'rgba(84,88,80,.34)', light: 'rgba(238,226,190,.42)', cold: false }
+};
+// Schnee: in kalten Gebieten, auf jedem Schlachtfeld im Hartfrost
+const coldAt = (x, y) => (G.battle ? (BATTLE_GROUND[G.battle.biome] || {}).cold || G.season === 'frost' : REGIONS[regionAtCell(Math.floor(x / TS), Math.floor(y / TS))].cold);
+function paintBattle(t, R, P) {
+  t.fillStyle = P.base; t.fillRect(0, 0, WW, WH);
+  for (let k = 0; k < Math.round(WW * WH / 5200); k++) {
+    const x = R() * WW, y = R() * WH, rad = 50 + R() * 160, g = t.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, R() < .5 ? P.dark : P.light); g.addColorStop(1, 'rgba(0,0,0,0)'); t.fillStyle = g; t.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  if (P.stone) for (let k = 0; k < 900; k++) { const x = R() * WW, y = R() * WH, r = 4 + R() * 16; t.fillStyle = R() < .5 ? 'rgba(60,60,66,.25)' : 'rgba(210,214,220,.18)'; t.beginPath(); t.ellipse(x, y, r, r * .6, R() * 3, 0, 7); t.fill(); }
+  if (P.ember) for (let pass = 0; pass < 2; pass++) { // glühende Risse über das ganze Feld
+    t.strokeStyle = pass ? 'rgba(255,150,60,.8)' : 'rgba(255,80,20,.2)'; t.lineWidth = pass ? 1.5 : 6;
+    const R2 = rng(G.seed * 7 + 3);
+    for (let i = 0; i < 160; i++) { let x = R2() * WW, y = R2() * WH; t.beginPath(); t.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (R2() - .5) * 50; y += (R2() - .5) * 50; t.lineTo(x, y); } t.stroke(); }
+  }
+  // Felsen werfen dunkle Flecken
+  for (const r of G.rocks || []) { const g = t.createRadialGradient(r.x, r.y + 6, 2, r.x, r.y + 6, 40 * r.s); g.addColorStop(0, 'rgba(30,30,32,.45)'); g.addColorStop(1, 'rgba(30,30,32,0)'); t.fillStyle = g; t.fillRect(r.x - 45, r.y - 40, 90, 90); }
+}
+// Wasser: weiche Ufer aus der verwischten Wassermaske, dunkel in der Tiefe, heller Saum am Ufer
+function paintWater(t, R) {
+  if (!G.water) return;
+  const c = t.canvas, layer = (cells, blur, col) => {
+    const m = document.createElement('canvas'); m.width = GW; m.height = GH; const mx = m.getContext('2d'); mx.fillStyle = '#fff';
+    for (let i = 0; i < GW * GH; i++) if (cells(i)) mx.fillRect(i % GW, (i / GW) | 0, 1, 1);
+    const L = document.createElement('canvas'); L.width = c.width; L.height = c.height; const lx = L.getContext('2d');
+    lx.filter = 'blur(' + blur + 'px)'; lx.imageSmoothingEnabled = true; lx.drawImage(m, MARGIN * TSC, MARGIN * TSC, WW * TSC, WH * TSC); lx.filter = 'none';
+    lx.globalCompositeOperation = 'source-in'; lx.fillStyle = col; lx.fillRect(0, 0, L.width, L.height);
+    t.save(); t.setTransform(1, 0, 0, 1, 0, 0); t.drawImage(L, 0, 0); t.restore();
+  };
+  const w = i => G.water[i], deep = i => w(i) && w(i - 1) && w(i + 1) && w(i - GW) && w(i + GW);
+  layer(w, 14, 'rgba(150,170,160,.55)'); // nasser Uferschlamm
+  layer(w, 8, 'rgba(52,78,82,.92)');
+  layer(deep, 10, 'rgba(14,28,36,.95)');
+}
 function paintGround() {
   const R = rng((G.seed ^ 0x5bd1e995) >>> 0);
   const c = document.createElement('canvas'); c.width = Math.round((WW + MARGIN * 2) * TSC); c.height = Math.round((WH + MARGIN * 2) * TSC);
@@ -194,8 +248,10 @@ function paintGround() {
     }
   };
   blot(Math.round(560 * WW * WH / 4587520), 0, 0, WW, WH); blot(160, -MARGIN, -MARGIN, WW + MARGIN * 2, WH + MARGIN * 2);
+  const BP = G.battle && BATTLE_GROUND[G.battle.biome];
+  if (BP) paintBattle(t, R, BP);
   // Gebiete mit eigenem Boden: Grundfarbe je Zelle, danach Flecken in der Palette des Gebiets
-  for (const r of Object.values(REGIONS)) {
+  for (const r of BP ? [] : Object.values(REGIONS)) {
     if (r.base) {
       t.fillStyle = r.base;
       for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) if (regionAtCell(cx, cy) === r.id) t.fillRect(cx * TS - .5, cy * TS - .5, TS + 1, TS + 1);
@@ -216,7 +272,7 @@ function paintGround() {
   road(); t.strokeStyle = 'rgba(38,36,40,.45)'; t.lineWidth = 78; t.stroke();
   road(); t.strokeStyle = 'rgba(70,64,62,.6)'; t.lineWidth = 50; t.stroke();
   road(); t.strokeStyle = 'rgba(120,108,96,.28)'; t.lineWidth = 22; t.stroke();
-  for (const h of hqs) {
+  for (const h of BP ? [] : hqs) { // Schlacht: keine Burgplätze
     if (h.fac === 'asch') { // Ruß und glühende Risse
       const g = t.createRadialGradient(h.x, h.y + 20, 40, h.x, h.y + 20, 340);
       g.addColorStop(0, 'rgba(18,15,14,.95)'); g.addColorStop(.6, 'rgba(34,28,26,.65)'); g.addColorStop(1, 'rgba(34,28,26,0)');
@@ -248,11 +304,12 @@ function paintGround() {
       t.fillStyle = w; t.fillRect(h.x - 270, h.y - 250, 540, 540);
     }
   }
+  if (BP) paintWater(t, R);
   const dirt = (x, y, r, col) => { const g = t.createRadialGradient(x, y, r * .3, x, y, r); g.addColorStop(0, col); g.addColorStop(1, 'rgba(60,50,44,0)'); t.fillStyle = g; t.fillRect(x - r, y - r, r * 2, r * 2); };
   for (const e of G.ents) { if (e.type === 'hq') dirt(e.x, e.y + 20, 150, 'rgba(60,52,48,.6)'); else if (e.kind === 'dep') dirt(e.x, e.y, 90, 'rgba(34,30,30,.7)'); }
   // Vom Wind geformter Schnee: lange, flache Rippen in einer Richtung, im Licht hell, auf der Leeseite kalt-dunkel
   for (let i = 0; i < Math.round(2600 * WW * WH / 4587520); i++) {
-    const x = R() * WW, y = R() * WH; if (!REGIONS[regionAtCell(Math.floor(x / TS), Math.floor(y / TS))].cold) continue;
+    const x = R() * WW, y = R() * WH; if (!coldAt(x, y)) continue;
     const L = 30 + R() * 110, a = -.35 + (R() - .5) * .25, bend = (R() - .5) * 14, ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L;
     t.lineWidth = .8 + R() * 1.6; t.strokeStyle = 'rgba(244,248,255,.055)';
     t.beginPath(); t.moveTo(x, y); t.quadraticCurveTo((x + ex) / 2, (y + ey) / 2 + bend, ex, ey); t.stroke();
@@ -260,7 +317,7 @@ function paintGround() {
     t.beginPath(); t.moveTo(x + 1, y + 3); t.quadraticCurveTo((x + ex) / 2 + 1, (y + ey) / 2 + bend + 3, ex + 1, ey + 3); t.stroke();
   }
   for (let i = 0; i < Math.round(3200 * WW * WH / 4587520); i++) { // Schneeflocken und Schatten im Detail
-    const x = R() * WW, y = R() * WH; if (!REGIONS[regionAtCell(Math.floor(x / TS), Math.floor(y / TS))].cold) continue; t.strokeStyle = R() < .5 ? 'rgba(248,251,255,.45)' : 'rgba(40,56,78,.35)'; t.lineWidth = 1.2;
+    const x = R() * WW, y = R() * WH; if (!coldAt(x, y)) continue; t.strokeStyle = R() < .5 ? 'rgba(248,251,255,.45)' : 'rgba(40,56,78,.35)'; t.lineWidth = 1.2;
     t.beginPath(); t.moveTo(x, y); t.lineTo(x + (R() - .5) * 6, y + (R() - .5) * 3); t.stroke();
   }
   return c;
@@ -284,6 +341,12 @@ function clearWorld() {
 export function buildTerrain() {
   clearWorld();
   world = new THREE.Group(); scene.add(world);
+  wgrid = null;
+  if (G.battle && G.water) { // weich verwischte Wassertiefe
+    wgrid = new Float32Array(GW * GH); for (let i = 0; i < GW * GH; i++) wgrid[i] = G.water[i] ? 1 : 0;
+    const tmp = new Float32Array(GW * GH);
+    for (let pass = 0; pass < 2; pass++) { for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) { let s = 0, n = 0; for (let k = -1; k <= 1; k++) { const xx = pass ? x : x + k, yy = pass ? y + k : y; if (xx < 0 || yy < 0 || xx >= GW || yy >= GH) continue; s += wgrid[yy * GW + xx]; n++; } tmp[y * GW + x] = s / n; } wgrid.set(tmp); }
+  }
   const gc = paintGround();
   const tex = new THREE.CanvasTexture(gc); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
   const det = detailTexture(), PW = (WW + MARGIN * 2) * S, PD = (WH + MARGIN * 2) * S;
@@ -296,11 +359,26 @@ export function buildTerrain() {
     sh.fragmentShader = 'uniform sampler2D detailMap;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
   };
   const ground = new THREE.Mesh(g, m); ground.receiveShadow = true; ground.userData.own = true; world.add(ground);
+  if (wgrid) { // Wasserspiegel: liegt unter dem Gelände und zeigt sich nur in den Senken
+    const wm = new THREE.MeshStandardMaterial({ color: 0x1f3c48, roughness: .12, metalness: .35, transparent: true, opacity: .82, envMapIntensity: 1.3 });
+    const wp = new THREE.Mesh(new THREE.PlaneGeometry(WU, HU), wm); wp.rotation.x = -Math.PI / 2; wp.position.set(WU / 2, -.55, HU / 2); wp.userData.own = true; world.add(wp);
+  }
+  if (G.battle && G.rocks && G.rocks.length) { // Felsen als Instanzen aus wenigen Grundformen
+    const RM = new THREE.MeshStandardMaterial({ color: G.battle.biome === 'asch' ? 0x2c2828 : G.battle.biome === 'trocken' ? 0x6e5a44 : 0x4a4b50, roughness: .96, flatShading: true });
+    for (let k = 0; k < 4; k++) {
+      const list = G.rocks.filter((r, i) => i % 4 === k); if (!list.length) continue;
+      const im = new THREE.InstancedMesh(MD.rockGeo(k + 21, 1), RM, list.length), d = new THREE.Object3D();
+      list.forEach((r, i) => { const X = r.x * S, Z = r.y * S; d.position.set(X, hAt(X, Z) + .2, Z); d.rotation.set(0, r.v * 9, 0); d.scale.set(1.3 * r.s, 1.1 * r.s + .3, 1.2 * r.s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+      im.castShadow = true; im.receiveShadow = true; world.add(im);
+    }
+  }
 
   // Bäume: je eine instanzierte Gruppe für Kiefern und tote Bäume.
   const ah = G.ents.find(e => e.type === 'hq' && e.fac === 'asch');
   const live = [], dead = [], warm = { trocken: [], sumpf: [], kueste: [] };
   for (const tr of G.trees) {
+    const bb = G.battle && G.battle.biome;
+    if (bb) { if (warm[bb]) warm[bb].push(tr); else if (bb === 'asch') dead.push(tr); else live.push(tr); continue; }
     const rg = REGIONS[regionAt(tr.x, tr.y)];
     if (!rg.cold) warm[rg.id].push(tr); else (ah && Math.hypot(tr.x - ah.x, tr.y - ah.y) < 520 && tr.v < .75 ? dead : live).push(tr);
   }
@@ -315,7 +393,7 @@ export function buildTerrain() {
   mk(MD.deadTreeGeometry(), dead, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), 1.1);
 
   // Ruinen um die wilden Lager und an Wegmarken der Außengebiete (nur Kulisse)
-  [[95, 14], [104, 40], [10, 70], [28, 76], [55, 72], [100, 70]].forEach(([mx, my], i) => {
+  if (!G.battle) [[95, 14], [104, 40], [10, 70], [28, 76], [55, 72], [100, 70]].forEach(([mx, my], i) => {
     for (const [dx, dy, sd] of [[-5.5, 3.5, 1], [6.5, -2.5, 2]]) {
       const rg = MD.ruinsGroup(i * 7 + sd), X = (mx + dx) * TS * S, Z = (my + dy) * TS * S;
       rg.position.set(X, hAt(X, Z) - .05, Z); rg.rotation.y = i + sd; rg.scale.setScalar(.9 + sd * .1); world.add(rg);
@@ -394,6 +472,7 @@ function makeObj(e) {
     o = { g, e, m, j: m.userData.j || {}, rot: e.face, spin: 0 };
   } else if (e.kind === 'bld') {
     const m = MD.buildBld(e.fac, e.type, e.id); g.add(m);
+    if (e.type === 'wall' && e.rot !== undefined) m.rotation.y = -(e.rot + Math.PI / 2); // Mauerstück quer zur Angriffsrichtung
     g.add(meltDecal(e));
     o = { g, e, m, built: e.built, fireSp: null };
   } else {

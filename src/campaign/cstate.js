@@ -305,7 +305,9 @@ export function battleSpec(pb) {
   const att = side(a.owner, { ...a.units }, a.hero), dfd = side(dFac, units, def.armies.some(d => d.hero));
   const playerAttacks = a.owner === C.player;
   return { player: playerAttacks ? att : dfd, enemy: playerAttacks ? dfd : att, playerAttacks,
-    towers: p.owner ? 2 * Math.max(0, (p.blds.walls || 0) - cfx(a.owner, 'breach') - (a.hero && hasTrait(a.owner, 'belagerer') ? 1 : 0)) : 0, militia: p.owner ? Math.min(8, 2 * p.lvl) : 0,
+    towers: p.owner ? 2 * Math.max(0, (p.blds.walls || 0) - cfx(a.owner, 'breach') - (a.hero && hasTrait(a.owner, 'belagerer') ? 1 : 0)) : 0,
+    walls: p.owner ? Math.max(0, (p.blds.walls || 0) - cfx(a.owner, 'breach')) + (C.emp[p.owner].capital === pb.prov ? 1 : 0) : 0, // Hauptstadt: immer eine Mauer
+    militia: p.owner ? Math.min(8, 2 * p.lvl) : 0,
     season: season().id, biome: pinfo(pb.prov).biome, name: pinfo(pb.prov).name, seed: (C.seed * 31 + C.turn * 977 + pb.prov) >>> 0, diff: C.diff,
     atkPow: Math.round(armyPower(a.units, a.owner, a.hero)), defPow: Math.round(def.pow) };
 }
