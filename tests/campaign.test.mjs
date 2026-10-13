@@ -13,6 +13,9 @@ import { newBattle } from '../src/battle.js';
 import { G, hooks } from '../src/state.js';
 import { step } from '../src/sim.js';
 import { setOrder } from '../src/path.js';
+import * as T from '../src/terrain.js';
+import { hurt } from '../src/combat.js';
+import { GW } from '../src/config.js';
 
 // Karte: gleiche Saat, gleiche Karte; zusammenhängend; Hauptstädte im passenden Gelände
 {
@@ -206,5 +209,20 @@ import { setOrder } from '../src/path.js';
   for (let i = 0; i < 20 * 300 && !res; i++) step(.05);
   assert.ok(res, 'Schlacht im Bergland endet'); 
   console.log('Schlachtfelder ok: ' + Object.entries(look).map(([b, v]) => b + ' ' + v.t + 'B/' + v.r + 'F/' + v.w + 'W').join(', '));
+}
+
+// Gelände im Kampf: Deckung am Waldrand gegen Fernkampf, Schlamm an Tümpeln bremst
+{
+  const base = { player: { fac: 'wacht', units: { melee: 4 }, hero: 0, tech: {} }, enemy: { fac: 'asch', units: { ranged: 4 }, hero: 0, tech: {} }, playerAttacks: true, towers: 0, walls: 0, militia: 0, season: 'thaw', name: 'T', seed: 11, diff: 'normal' };
+  newBattle({ ...base, biome: 'wald' });
+  const tr = G.trees.find(t => !t.fx && T.coverAt(t.x + 32, t.y));
+  assert.ok(tr, 'Waldrand gefunden');
+  const u = G.ents.find(e => e.team === 0 && e.kind === 'unit'), s = G.ents.find(e => e.team === 1 && e.kind === 'unit');
+  u.x = tr.x + 32; u.y = tr.y; const hp0 = u.hp; hurt(u, 10, s); const inCover = hp0 - u.hp;
+  u.x = 40 * 32; u.y = 28 * 32; const hp1 = u.hp; if (!T.coverAt(u.x, u.y)) { hurt(u, 10, s); assert.ok(inCover < hp1 - u.hp, 'Deckung mindert Fernkampf'); }
+  newBattle({ ...base, biome: 'sumpf' });
+  const wi = G.water.findIndex(x => x), wx = (wi % GW + .5) * 32, wy = (Math.floor(wi / GW) + .5) * 32;
+  assert.ok(T.mudAt(wx + 32, wy) || T.mudAt(wx - 32, wy), 'Schlamm am Ufer');
+  console.log('Gelände im Kampf ok');
 }
 console.log('Kampagnentests bestanden');

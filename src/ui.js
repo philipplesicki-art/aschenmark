@@ -15,6 +15,7 @@ import { setVolumes, sfx } from './audio.js';
 import { platform, ACHIEVEMENTS } from './platform.js';
 import { questProgress, ENDINGS } from './quests.js';
 import { finishBattle } from './battle.js';
+import { coverAt, mudAt } from './terrain.js';
 
 const $ = id => document.getElementById(id);
 let btns = [];
@@ -51,6 +52,8 @@ function renderInfo() {
       h += bar(e.hp, e.maxhp) + '<div class="sub">' + Math.ceil(e.hp) + ' / ' + e.maxhp + ' Leben';
       if (e.type === 'worker' && e.team === 0 && e.carry > 0) h += ' · trägt ' + e.carry + (e.cres === 'wood' ? ' Holz' : ' Erz');
       if (e.type === 'hq') h += ' · Stufe ' + (e.tier || 1);
+      if (e.kind === 'unit' && coverAt(e.x, e.y)) h += ' · <span class="terr">Deckung</span>';
+      if (e.kind === 'unit' && mudAt(e.x, e.y)) h += ' · <span class="terr">Schlamm</span>';
       if (e.type === 'hero') {
         h += ' · Stufe ' + e.lvl;
         const next = XP_STEPS[e.lvl - 1], prev = e.lvl > 1 ? XP_STEPS[e.lvl - 2] : 0;

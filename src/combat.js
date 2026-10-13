@@ -3,6 +3,7 @@ import { G, hooks, byId, alive, simR } from './state.js';
 import { FACTIONS, XP_STEPS, MAX_HERO_LVL, heroLevel, facOf } from './factions.js';
 import { setBlock } from './world.js';
 import { setOrder } from './path.js';
+import { coverAt, COVER } from './terrain.js';
 import { damageDealtMul, damageTakenMul, xpMul, cooldownMul } from './economy.js';
 
 export function gap(a, t) {
@@ -55,6 +56,7 @@ export function hurt(t, d, src) {
   if (t.shield > 0) d *= .6;
   d *= damageTakenMul(t);
   if (t.d.rres && src && src.d && src.d.rng > 60) d *= 1 - t.d.rres; // Schildwache: Fernkampf wirkt schwächer
+  if (t.kind === 'unit' && src && src.d && src.d.rng > 60 && coverAt(t.x, t.y)) d *= COVER; // Deckung am Waldrand
   if (t.d.reflect && src && src.kind === 'unit' && src.d.rng <= 60 && alive(src)) { // Dornenpanzer: Nahkämpfer verletzen sich selbst
     src.hp -= d * t.d.reflect; src.hit = .12; if (src.hp <= 0) kill(src, t);
   }

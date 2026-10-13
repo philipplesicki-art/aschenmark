@@ -279,6 +279,12 @@ function afterBattle() {
   const pb = nextPending();
   if (pb) choose(pb); else if (!$('cDlg').hidden) closeDlg();
 }
+// Was das Gelände im Kampf bedeutet (für den Dialog vor der Schlacht)
+const TERRAIN_HINT = {
+  grenz: 'Haine am Rand des Feldes geben Deckung gegen Pfeile.', wald: 'Dichter Wald: an den Waldrändern ein Drittel weniger Schaden durch Fernkampf.',
+  berg: 'Felsgrate teilen das Feld; gekämpft wird an den Durchlässen.', sumpf: 'Tümpel versperren den Weg, im Schlamm an ihren Ufern kommt jeder nur langsam voran.',
+  kueste: 'Das Meer deckt eine Flanke.', trocken: 'Offenes Feld mit wenig Deckung.', asch: 'Asche und Glutrisse, kaum Deckung.'
+};
 const uName = (fac, r) => (FACTIONS[fac] && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r);
 const unitList = (fac, u) => Object.entries(u).filter(([, n]) => n > 0).map(([r, n]) => n + ' ' + (fac !== 'wild' && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : fac === 'wild' && WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r)).join(', ') || 'keine Truppen';
 // Wahl vor der Schlacht: selbst führen oder berechnen lassen
@@ -291,6 +297,7 @@ function choose(pb) {
     + '<p>' + (spec.playerAttacks ? 'Dein Heer steht vor ' + spec.name + '.' : empireName(a.owner) + ' greift ' + spec.name + ' an!') + ' ' + BIOMES[spec.biome].name + ', ' + season().name + '.</p>'
     + '<ul class="help"><li><b>' + empireName(pl.fac) + ':</b> ' + unitList(pl.fac, pl.units) + hero(pl) + (!spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (!spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (!spec.playerAttacks && spec.walls ? ', Stadtmauer' : '') + '</li>'
     + '<li><b>' + (en.fac === 'wild' ? 'Wilde' : empireName(en.fac)) + ':</b> ' + unitList(en.fac, en.units) + hero(en) + (spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (spec.playerAttacks && spec.walls ? ', Stadtmauer mit Tor' : '') + '</li></ul>'
+    + '<p class="sub">Gelände: ' + (TERRAIN_HINT[spec.biome] || '') + (spec.season === 'frost' ? ' Hartfrost: tiefer Schnee bremst alle.' : '') + '</p>'
     + '<p class="sub">Geschätzte Siegchance beim Berechnen: ' + mineChance + ' %. In der Schlacht zählt nur, wer am Ende noch steht.</p>'
     + '<div class="row end"><button class="btn" data-d="auto" type="button">Automatisch berechnen</button>'
     + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',
