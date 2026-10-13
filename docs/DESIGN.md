@@ -53,7 +53,22 @@ als Echtzeit-Gefecht (die bestehende Partie) oder automatisch berechnet.
   Siege über 30 Partien ausgeglichen (etwa 11/8/11).
 
 Etappen: K1 Kartenspiel mit berechneten Schlachten (fertig), K2 Echtzeit-Schlachten aus der Kampagne (fertig), K3 Forschungsbaum, Helden mit
-Werdegang, Diplomatie, Ereignisse (fertig), K4 Handlungsfäden der Kampagne (offen).
+Werdegang, Diplomatie, Ereignisse (fertig), K4 Handlungsbogen "Das Erwachen" und Stätten (fertig).
+
+**K4 Das Erwachen** (`cstory.js`): Akt I fünf Kapitel je Fraktion (Ziele wie Provinzen halten, Mauern, Küste, Bergwerke, Märkte,
+Bündnis; Belohnungen in Vorräten, Forschungen, Haltung). Akt II Vorzeichen (Runde 13 und 21). Akt III ab Jahr 8 (oder früher, wenn
+ein Reich 40 Prozent hält): Ein Schlund bricht in einer Bergprovinz möglichst gleich weit von allen Hauptstädten auf. Die Erwachten
+(Besitzer 'wild') ziehen alle zwei Runden aus und verwüsten Provinzen (sie fallen an die Wildnis zurück). Wer den Schlund erobert und
+drei Runden hält, versiegelt ihn: Heere dauerhaft 15 Prozent stärker. Kapitel 4 und 5 sind für alle Fraktionen der Kampf gegen die
+Erwachten. Bündnisse ohne gemeinsamen Feind erlöschen nach sechs Runden; bleiben nur zwei Reiche, sucht der Stärkere die Entscheidung.
+
+**Stätten:** sieben besondere Provinzen fern der Hauptstädte, 60 Prozent stärker bewacht: Alte Schmiede (Rekruten billiger),
+Sternwarte (Forschung), Salzsee (Vorräte, Handel), Heiligtum (Unruhe), Hünengrab (Heldenerfahrung), Eisengrube (Erz), Söldnerlager.
+
+**KI-Schärfung (Turnier):** `tests/`-unabhängig gemessen mit einer Fraktion mit Änderung gegen zwei ohne, 90 gepaarte Partien je
+Variante. Übernommen: Belagerungstrupps gegen Mauern, Besatzungen in unruhigen Provinzen, Wilde schon bei Gleichstand angreifen,
+Reiche etwas früher angreifen, Stätten und Schlund als Ziele. Verworfen (schadeten): allgemeine Grenzverteidigung, mehr Kasernen,
+frühere Siedlungsausbauten, Vorratskäufe mit Erz, Holz in Erz tauschen, Sammelpunkt-Angriffe.
 
 **K3 Tiefe:**
 - **Forschungsbaum** (`ctech.js`): 26 Forschungen in vier Zeitaltern mit Voraussetzungen. Kosten je Zeitalter, Dauer aus

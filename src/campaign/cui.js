@@ -7,11 +7,12 @@ import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, bui
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS } from './cdata.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES } from './cdata.js';
 import { FACTIONS, WILD, FAC_IDS } from '../factions.js';
 import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
+import { storyStart, currentChapter, CHAPTERS } from './cstory.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
@@ -29,6 +30,7 @@ export function openCampaign(exit) {
   cHooks.ask = true;
   base = null; owners = null;
   resize(); render();
+  if (C.story && !C.story.started && C.turn === 1) { C.story.started = true; storyStart(); }
   afterBattle(); // offene Schlacht aus einem gespeicherten Stand
 }
 export const campaignOpen = () => !!(root && !root.hidden);
@@ -36,7 +38,7 @@ export function closeCampaign() { if (root) root.hidden = true; }
 
 function build() {
   root = document.createElement('div'); root.id = 'camp'; root.hidden = true;
-  root.innerHTML = '<div id="cTop"></div><div id="cMain"><canvas id="cMap"></canvas><div id="cLog"></div></div><div id="cSide"></div><div id="cDlg" hidden><div class="card" id="cCard"></div></div>';
+  root.innerHTML = '<div id="cTop"></div><div id="cMain"><canvas id="cMap"></canvas><div id="cQuest"></div><div id="cLog"></div></div><div id="cSide"></div><div id="cDlg" hidden><div class="card" id="cCard"></div></div>';
   document.body.appendChild(root);
   cv = $('cMap'); ctx = cv.getContext('2d');
   new ResizeObserver(() => { resize(); render(); }).observe($('cMain'));
@@ -170,6 +172,8 @@ export function render() {
       ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.stroke();
       if (cap) { ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.moveTo(x - r, y + 14 * view.dpr - r); for (let k = 0; k <= 4; k++) ctx.lineTo(x - r + k * r / 2, y + 14 * view.dpr - r - (k % 2 ? 0 : 6 * view.dpr)); ctx.fill(); }
     } else if (!p.owner && unitCount(p.garrison) > 0) { ctx.fillStyle = 'rgba(155,176,106,.9)'; ctx.font = (11 * view.dpr) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('⚔', x, y + 18 * view.dpr); }
+    if (p.rift) { const g = ctx.createRadialGradient(x, y + 10 * view.dpr, 2, x, y + 10 * view.dpr, 26 * view.dpr); g.addColorStop(0, 'rgba(255,120,60,.95)'); g.addColorStop(.45, 'rgba(160,60,190,.55)'); g.addColorStop(1, 'rgba(60,20,80,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + 10 * view.dpr, 26 * view.dpr, 0, 7); ctx.fill(); }
+    if (p.site) { const sy = y - fs * 1.15; ctx.font = (15 * view.dpr) + 'px serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(SITES[p.site].glyph, x + 1, sy + 1); ctx.fillStyle = '#ffd98a'; ctx.fillText(SITES[p.site].glyph, x, sy); }
     ctx.font = '700 ' + Math.round(fs * .82) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillText(pi.name, x + 1, y - 2); ctx.fillStyle = p.owner ? '#f2efe6' : '#cfd2c4'; ctx.fillText(pi.name, x, y - 3);
   }
@@ -187,7 +191,7 @@ export function render() {
     if (a.owner === C.player && movesLeft(a) > 0) { ctx.fillStyle = '#9be07c'; ctx.beginPath(); ctx.arc(x + w / 2, y - h, 4 * view.dpr, 0, 7); ctx.fill(); }
     banners.push({ a, x, y, w, h });
   });
-  renderTop(); renderSide();
+  renderTop(); renderSide(); renderQuest();
 }
 
 /* ---------- Kopfleiste, Chronik ---------- */
@@ -220,10 +224,10 @@ function renderSide() {
     const a = C.armies.find(x => x.id === sel.id);
     if (!a) { sel = null; return renderSide(); }
     const mine = a.owner === C.player;
-    h += '<h3 style="color:' + facColor(a.owner) + '">' + (a.hero ? FACTIONS[a.owner].units.hero.name + 's Heer' : 'Heer') + '</h3>';
+    h += '<h3 style="color:' + facColor(a.owner) + '">' + (a.owner === 'wild' ? 'Heer der Erwachten' : a.hero ? FACTIONS[a.owner].units.hero.name + 's Heer' : 'Heer') + '</h3>';
     h += '<div class="sub">' + empireName(a.owner) + ' · in ' + pinfo(a.at).name + (mine ? ' · Züge ' + movesLeft(a) : '') + ' · Stärke ' + Math.round(armyPower(a.units, a.owner, a.hero)) + '</div>';
     if (a.hero) h += '<div class="sub">Held Stufe ' + C.emp[a.owner].heroLvl + ' von ' + heroCap(a.owner) + ': +' + Math.round(12 * (C.emp[a.owner].heroLvl + 1)) + ' Prozent Stärke' + ((C.emp[a.owner].traits || []).length ? '<br>' + C.emp[a.owner].traits.map(t => '<span title="' + HERO_TRAITS[t].desc + '">' + HERO_TRAITS[t].name + '</span>').join(', ') : '') + '</div>';
-    h += '<ul class="units">' + ROLES.filter(r => a.units[r]).map(r => '<li><span>' + FACTIONS[a.owner].units[r].name + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
+    h += '<ul class="units">' + Object.keys(a.units).filter(r => a.units[r]).map(r => '<li><span>' + uName(a.owner, r) + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
     if (mine) {
       h += '<p class="sub">Linksklick auf eine Provinz: dorthin ziehen. Gegner und Wilde werden beim Betreten angegriffen.</p>';
       if (a.path.length) h += btn('halt', 'Marsch anhalten');
@@ -234,6 +238,7 @@ function renderSide() {
     const p = prov(sel.id), pi = pinfo(sel.id), mine = p.owner === C.player, y = provYield(p);
     h += '<h3 style="color:' + (p.owner ? facColor(p.owner) : '#cfd2c4') + '">' + pi.name + '</h3>';
     h += '<div class="sub">' + BIOMES[pi.biome].name + ' · ' + (p.owner ? empireName(p.owner) : 'herrenlos') + (p.lvl ? ' · ' + settleName(p) + ' (Stufe ' + p.lvl + ')' : '') + '</div>';
+    if (p.site) h += '<div class="queue site"><b>' + SITES[p.site].glyph + ' ' + SITES[p.site].name + '</b><br>' + SITES[p.site].desc + (p.owner ? '' : ' Stärker bewacht als andere Provinzen.') + '</div>';
     if (p.owner) h += '<div class="yields"><span class="ore">' + Math.round(y.ore) + ' Erz</span><span class="wood">' + Math.round(y.wood) + ' Holz</span><span class="food">' + Math.round(y.food) + ' Vorr.</span></div>';
     if (p.owner && p.unrest > 0) h += '<div class="queue unrest">Unruhe, noch ' + p.unrest + ' Runde(n): Ertrag ein Viertel, Bürgerwehr halb.'
       + (armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3) ? ' Das Heer hier beruhigt doppelt so schnell.' : ' Ohne Heer (ab 3 Trupps) droht ein Aufstand!') + '</div>';
@@ -314,12 +319,14 @@ function showBattle(r) {
 // Nächste offene Schlacht anbieten, sonst zurück zur Karte (oder zum Ende)
 function afterBattle() {
   if (C.over) return showOver();
+  if (C.story && C.story.msgs && C.story.msgs.length) return showStory(C.story.msgs[0]);
   if (C.heroPick && C.heroPick.length) return chooseTrait();
   if (C.events && C.events.length) return showEvent(C.events[0]);
   if (C.offers && C.offers.length) return showOffer(C.offers[0]);
   const pb = nextPending();
   if (pb) choose(pb); else if (!$('cDlg').hidden) closeDlg();
 }
+const uName = (fac, r) => (FACTIONS[fac] && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r);
 const unitList = (fac, u) => Object.entries(u).filter(([, n]) => n > 0).map(([r, n]) => n + ' ' + (fac !== 'wild' && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : fac === 'wild' && WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r)).join(', ') || 'keine Truppen';
 // Wahl vor der Schlacht: selbst führen oder berechnen lassen
 function choose(pb) {
@@ -339,7 +346,22 @@ function choose(pb) {
     else if (d === 'fight') fight(pb, spec);
   });
 }
-const waiting = () => !!(nextPending() || (C.heroPick && C.heroPick.length) || (C.events && C.events.length) || (C.offers && C.offers.length));
+const waiting = () => !!((C.story && C.story.msgs && C.story.msgs.length) || nextPending() || (C.heroPick && C.heroPick.length) || (C.events && C.events.length) || (C.offers && C.offers.length));
+// Erzählung: Kapitel, Vorzeichen, Schlund
+function showStory(m) {
+  dlg('<h2>' + m.title + '</h2><div class="prose">' + m.text.split('\n\n').map(t => '<p>' + t + '</p>').join('') + '</div><div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>',
+    () => { C.story.msgs.shift(); render(); afterBattle(); });
+}
+// Kapitelanzeige oben links auf der Karte
+function renderQuest() {
+  const el = $('cQuest'); if (!el || !C.story) return;
+  const ch = currentChapter(), S = C.story, n = CHAPTERS[C.player].length;
+  let h = '';
+  if (ch) h += '<div class="qt">Kapitel ' + (S.ch + 1) + ' von ' + n + ': ' + ch.title + '</div><div class="qg">' + (ch.when && !ch.when() ? 'Noch verborgen. Die Zeit wird es zeigen.' : ch.goal) + '</div><div class="qr">Belohnung: ' + ch.rewardText + '</div>';
+  else h += '<div class="qt">Das Erwachen ist überstanden</div>';
+  if (S.rift >= 0 && S.rift !== null) { const p = prov(S.rift); h += '<div class="qx">Der Schlund in ' + pinfo(S.rift).name + (p.owner ? ': gehalten von ' + empireName(p.owner) + ', ' + S.riftHeld + ' von 3 Runden' : ' ist offen.') + '</div>'; }
+  el.innerHTML = h;
+}
 // Ereignis mit Entscheidung
 function showEvent(ev) {
   const E = CEVENTS[ev.id];

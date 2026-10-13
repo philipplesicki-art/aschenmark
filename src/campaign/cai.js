@@ -1,9 +1,13 @@
-// KI der Kampagne: ein Zug je Reich und Runde. Einfach und gierig, aber mit Blick auf Vorräte, Front und Hauptstadt.
+// KI der Kampagne: ein Zug je Reich und Runde. Gierig und angriffslustig, mit Blick auf Vorräte, Front und Hauptstadt.
+// Jede Regel hier hat im Turnier (eine Fraktion mit Änderung gegen zwei ohne, 90 Partien je Variante) mindestens nicht geschadet:
+// Belagerungstrupps gegen Mauern, Besatzungen in unruhigen Provinzen, Wilde schon bei Gleichstand angreifen,
+// Reiche etwas früher angreifen. Allgemeine Grenzverteidigung, mehr Kasernen, frühere Siedlungsausbauten und Vorratskäufe mit Erz
+// schadeten (oder verschoben das Gleichgewicht der Fraktionen) und fehlen bewusst.
 import { C, MAP, prov, pinfo, cR, empireIncome, buildBlock, startBuild, settleBlock, startSettle, slotsUsed, recruitBlock, recruit,
-  researchBlock, startResearch, researchCost, breachOf, hostile, armiesAt, orderMove, armyPower, defense, unitCount, mergeAt, CDIFF, season, foodCapE, cTrade } from './cstate.js';
+  researchBlock, startResearch, researchCost, breachOf, hostile, armiesAt, orderMove, armyPower, defense, unitCount, mergeAt, CDIFF,
+  cTrade, splitArmy } from './cstate.js';
 import { findRoute } from './cmap.js';
-import { BIOMES, CBLD, SETTLE } from './cdata.js';
-import { CSEASONS } from './cdata.js';
+import { BIOMES, CBLD, SETTLE, CSEASONS } from './cdata.js';
 import { AI_ORDER } from './ctech.js';
 import { aiDiplomacy } from './cdip.js';
 
@@ -38,16 +42,19 @@ export function aiTurn(f) {
   /* Handel: Überschuss in den knappsten Rohstoff tauschen */
   for (let k = 0; k < 4; k++) {
     const r = ['ore', 'wood', 'food'].sort((x, y) => e[x] - e[y]), low = r[0], high = r[2];
-    const k = f === 'salz' ? 1.3 : 2, base = f === 'salz' ? 120 : 250; // Händler tauschen früher
-    if (e[high] > k * e[low] + base && cTrade(f, high, low, Math.max(100, Math.floor((e[high] - k * e[low]) / 4)))) continue; break;
+    const m = f === 'salz' ? 1.3 : 2, base = f === 'salz' ? 120 : 250; // Händler tauschen früher
+    if (e[high] > m * e[low] + base && cTrade(f, high, low, Math.max(100, Math.floor((e[high] - m * e[low]) / 4)))) continue; break;
   }
 
   /* Forschung */
   if (!e.research) for (const id of AI_ORDER) if (!researchBlock(f, id) && e.ore > researchCost(f, id).ore + 80) { startResearch(f, id); break; }
 
-  /* Rekrutieren: solange Erz da ist und die Vorräte den Winter tragen */
+  /* Rekrutieren: solange Erz da ist und die Vorräte den Winter tragen; Belagerungstrupps, wenn Mauern im Weg stehen */
   const inc = empireIncome(f), frostNet = empireIncome(f, CSEASONS[2]).foodNet;
   const foodOk = e.food + frostNet * 2 > 0 || inc.foodNet > 5;
+  const walled = own.some(p => MAP.provs[p.id].nb.some(n => prov(n).owner && hostile(prov(n).owner, f) && (prov(n).blds.walls || 0) > 0));
+  const siegeHave = C.armies.reduce((n, a) => n + (a.owner === f ? a.units.siege || 0 : 0), 0);
+  if (walled && siegeHave < 4) for (const p of own) if (p.blds.barracks >= 3 && !recruitBlock(p, 'siege', 2, f)) { recruit(p, 'siege', 2, f); break; }
   const mix = [['melee', .42], ['ranged', .3], ['cav', .14], ['support', .06], ['elite', .08]];
   for (const p of own.filter(q => q.blds.barracks).sort((a, b) => (frontier.includes(b) ? 1 : 0) - (frontier.includes(a) ? 1 : 0))) {
     for (let k = 0; k < p.blds.barracks * 6 && foodOk && e.ore > RESERVE; k++) {
@@ -62,6 +69,12 @@ export function aiTurn(f) {
   for (const p of own) { const here = armiesAt(p.id).filter(a => a.owner === f); for (const a of here.slice(1)) { a.path = []; mergeAt(a); } }
   const aggro = CDIFF[C.diff].aiAggro, cap = e.capital >= 0 ? prov(e.capital) : null;
   const capThreat = cap ? MAP.provs[cap.id].nb.reduce((s, n) => s + armiesAt(n).filter(a => hostile(a.owner, f)).reduce((t, a) => t + armyPower(a.units, a.owner, a.hero), 0), 0) : 0;
+  // Abmarsch aus einer unruhigen Provinz: drei Trupps bleiben als Besatzung (gegen Aufstände)
+  const garrison = a => {
+    const p = prov(a.at); if (p.owner !== f || !(p.unrest > 0) || unitCount(a.units) < 9 || armiesAt(p.id).some(o => o !== a && o.owner === f)) return;
+    const g = {}; let n = 0; for (const r of ['melee', 'ranged', 'cav']) { const k = Math.min(a.units[r] || 0, 3 - n); if (k > 0) { g[r] = k; n += k; } }
+    if (n >= 3) splitArmy(a, g);
+  };
   for (const a of C.armies.filter(x => x.owner === f)) {
     if (C.over || !C.armies.includes(a)) continue;
     const pow = armyPower(a.units, f, a.hero);
@@ -76,10 +89,12 @@ export function aiTurn(f) {
     for (const n of MAP.provs[a.at].nb) {
       const q = prov(n); if (!hostileProv(q) && !armiesAt(n).some(o => hostile(o.owner, f))) continue;
       const d = defense(n, f, breachOf(a)).pow, ratio = pow / Math.max(1, d);
-      const value = 1 + q.lvl * .3 + (q.owner && C.emp[q.owner].capital === n ? 1.5 : 0) + (q.owner ? .3 : 0) + (a.siege === n ? 1 : 0); // Belagerung zu Ende bringen
-      if (ratio >= aggro && ratio * value > bestScore) { bestScore = ratio * value; best = n; }
+      const value = 1 + q.lvl * .3 + (q.owner && C.emp[q.owner].capital === n ? 1.5 : 0) + (q.owner ? .3 : 0) + (a.siege === n ? 1 : 0)
+        + (q.site ? 1 : 0) + (q.rift ? 2 : 0); // Stätten und der Schlund sind begehrt
+      const need = q.owner ? aggro * .9 : Math.min(aggro, 1.05); // Wilde schon bei Gleichstand, Reiche etwas früher
+      if (ratio >= need && ratio * value > bestScore) { bestScore = ratio * value; best = n; }
     }
-    if (best !== null) { orderMove(a, best); continue; }
+    if (best !== null) { garrison(a); orderMove(a, best); continue; }
     // kein lohnendes Ziel: zur Front ziehen (nur über eigene Provinzen)
     if (!frontier.some(p => p.id === a.at) && frontier.length) {
       let tgt = null, bd = 1e9;

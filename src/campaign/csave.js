@@ -7,7 +7,7 @@ export function deserializeCampaign(text) {
   const c = JSON.parse(text);
   if (!c || c.v !== 1 || !Array.isArray(c.provs)) throw new Error('Kampagnenstand passt nicht zu dieser Version');
   c.pending ||= []; // Stände vor den Echtzeit-Schlachten
-  c.offers ||= []; c.events ||= []; if (!c.dip) { c.dip = {}; const F = Object.keys(c.emp); for (const a of F) for (const b of F) if (a < b) c.dip[a + '|' + b] = { st: 'war', since: 1, truce: 0 }; } // vor der Diplomatie: alle im Krieg
+  c.offers ||= []; c.events ||= []; c.story ||= { ch: 0, act: 1, rift: null, riftHeld: 0, sealedBy: null, awkKills: {}, caps: {}, msgs: [] }; if (!c.dip) { c.dip = {}; const F = Object.keys(c.emp); for (const a of F) for (const b of F) if (a < b) c.dip[a + '|' + b] = { st: 'war', since: 1, truce: 0 }; } // vor der Diplomatie: alle im Krieg
   for (const e of Object.values(c.emp || {})) { // Stände vor dem Forschungsbaum
     e.ctech ||= {}; e.traits ||= [];
     if (e.research && e.research.need === undefined) e.research = null;

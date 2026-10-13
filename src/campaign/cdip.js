@@ -78,9 +78,15 @@ export function aiDiplomacy(f) {
   for (const g of others(f)) {
     const d = dipOf(f, g); if (!d) continue;
     const r = mine / Math.max(1, might(g)), op = opinion(f, g);
+    if (d.st === 'ally') { // Bündnisse ohne gemeinsamen Feind schlafen ein
+      const common = others(f).some(h => h !== g && hostile(f, h) && hostile(g, h)) || (C.story && C.story.rift >= 0 && C.story.rift !== null);
+      d.idle = common ? 0 : (d.idle || 0) + 1;
+      if (d.idle > 6 && (g !== C.player || cR() < .5)) { setDip(f, g, 'peace'); addLog('Das Bündnis zwischen ' + empireName(f) + ' und ' + empireName(g) + ' ist erloschen.', f === C.player || g === C.player ? 'bad' : ''); }
+      continue;
+    }
     if (d.st === 'war') {
       const turns = C.turn - d.since;
-      if (r < .7 || (turns > 14 && r < 1.3 && cR() < .3) || (turns > 24 && cR() < .2)) {
+      if (r < .7 || (turns > 14 && r < 1.3 && cR() < .3) || (turns > 24 && r < 1.8 && cR() < .2)) { // Sieger beenden lange Kriege nur, wenn kein Durchbruch in Sicht ist
         if (g !== C.player || !cHooks.ask) { if (acceptsPeace(g, f)) makePeace(f, g); }
         else if (!(C.offers || []).some(o => o.from === f) && (d.asked || 0) + 4 <= C.turn) { d.asked = C.turn; (C.offers ||= []).push({ from: f, kind: 'peace' }); }
       }
@@ -99,7 +105,8 @@ export function aiDiplomacy(f) {
       const stuck = !C.provs.some(p => p.owner === f && MAP.provs[p.id].nb.some(n => prov(n).owner === null));
       // Nicht auf einen Gegner einprügeln, der schon im Krieg steht (außer gegen die Führungsmacht)
       const busy = others(g).some(h => h !== f && hostile(g, h)), lead = isLeader(g);
-      const need = D.warRatio * (stuck ? .85 : 1.1) * (1 + wars * .5) * (busy && !lead ? 1.5 : 1) * (lead ? .85 : 1);
+      const duel = others(f).length === 1;
+      const need = (duel ? .8 : 1) * D.warRatio * (stuck ? .85 : 1.1) * (1 + wars * .5) * (busy && !lead ? 1.5 : 1) * (lead ? .85 : 1);
       if (r >= need && op < 10 && cR() < (stuck ? .35 : .15)) declareWar(f, g);
     }
   }

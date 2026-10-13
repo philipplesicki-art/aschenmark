@@ -5,6 +5,7 @@ import * as CS from '../src/campaign/cstate.js';
 import { aiTurn } from '../src/campaign/cai.js';
 import * as D from '../src/campaign/cdip.js';
 import * as E from '../src/campaign/cevents.js';
+import * as S from '../src/campaign/cstory.js';
 import { serializeCampaign, deserializeCampaign } from '../src/campaign/csave.js';
 import { FAC_IDS } from '../src/factions.js';
 import { unitStrength, ROLES, CBLD } from '../src/campaign/cdata.js';
@@ -169,5 +170,24 @@ import { setOrder } from '../src/path.js';
   e.ore = 0; const m = { id: 'mercs', f: 'wacht', turn: 1 }; assert.ok(!E.optOk(m, 1), 'zu teuer'); E.resolveEvent(m, 1); assert.equal(e.ore, 0, 'unbezahlbare Wahl fällt auf die erste zurück');
   CS.cHooks.ask = false;
   console.log('Ereignisse ok');
+}
+
+// Handlungsbogen: Kapitel mit Belohnung, Schlund öffnet sich, Erwachte ziehen aus, Versiegeln nach drei Runden
+{
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 5150 });
+  const C = CS.C, MAP = CS.MAP;
+  assert.equal(S.currentChapter().title, 'Die Feuer der Mark');
+  const free = C.provs.filter(p => !p.owner && !p.site).slice(0, 5); for (const p of free) { p.owner = 'wacht'; p.lvl = 1; }
+  const wood0 = C.emp.wacht.wood; CS.endTurn();
+  assert.equal(C.story.ch, 1, 'erstes Kapitel erfüllt'); assert.ok(C.emp.wacht.wood >= wood0 + 300 - 50);
+  assert.ok(C.provs.filter(p => p.site).length >= 5, 'Stätten verteilt');
+  while (C.story.rift === null && C.turn < 40) { aiTurn('wacht'); CS.endTurn(aiTurn); }
+  assert.ok(C.story.rift >= 0, 'Schlund geöffnet in Runde ' + C.turn); const rp = C.provs[C.story.rift];
+  assert.ok(rp.rift && !rp.owner, 'Schlund ist wild');
+  CS.endTurn(aiTurn); CS.endTurn(aiTurn);
+  assert.ok(C.armies.some(a => a.owner === 'wild') || C.provs.some(p => !p.owner && p.garrison.brute > 1), 'Erwachte ziehen aus');
+  rp.owner = 'wacht'; rp.garrison = { melee: 0 }; C.story.riftHeld = 2;
+  CS.endTurn(); assert.equal(C.story.sealedBy, 'wacht', 'versiegelt'); assert.ok(!C.armies.some(a => a.owner === 'wild'), 'Erwachte zerfallen');
+  console.log('Handlungsbogen ok: Schlund in ' + MAP.provs[rp.id].name);
 }
 console.log('Kampagnentests bestanden');

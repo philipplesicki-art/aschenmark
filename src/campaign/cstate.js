@@ -4,12 +4,15 @@ import { rng } from '../state.js';
 import { FACTIONS, FAC_IDS, WILD } from '../factions.js';
 import { CTECH, CTECH_IDS, ERAS, ctechName } from './ctech.js';
 import { rollEvents } from './cevents.js';
+import { newStory, storyTurn, storyBattle } from './cstory.js';
 import { genMap, findRoute } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, unitStrength, UPKEEP_FOOD, CSEASONS, CAPITAL_BASE, HERO_TRAITS, HERO_TRAIT_IDS } from './cdata.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, unitStrength, UPKEEP_FOOD, CSEASONS, CAPITAL_BASE, HERO_TRAITS, HERO_TRAIT_IDS, SITES, SITE_IDS } from './cdata.js';
 
 export let C = null, MAP = null;
 // Summe einer Forschungswirkung (fx in ctech.js) und Züge des Helden
 export function cfx(f, k) { const e = C.emp[f]; if (!e || !e.ctech) return 0; let v = 0; for (const id in e.ctech) { const x = CTECH[id] && CTECH[id].fx; if (x && x[k]) v += x[k]; } return v; }
+// Stätten im Besitz eines Reiches
+export const hasSite = (f, s) => !!C && C.provs.some(p => p.site === s && p.owner === f);
 export const hasTrait = (f, t) => !!(C.emp[f] && C.emp[f].traits && C.emp[f].traits.includes(t));
 export function setCampaign(c) { C = c; MAP = c ? genMap(c.seed, c.nProv) : null; }
 // Oberfläche hängt sich hier ein. ask: Schlachten mit dem Spieler warten auf seine Wahl (Schlacht schlagen oder berechnen)
@@ -28,7 +31,7 @@ export const pinfo = id => MAP.provs[id]; // feste Kartendaten: Name, Gelände, 
 export const isAI = fac => fac !== C.player;
 
 const emptyUnits = () => Object.fromEntries(ROLES.map(r => [r, 0]));
-export const unitCount = u => ROLES.reduce((n, r) => n + (u[r] || 0), 0);
+export const unitCount = u => Object.values(u || {}).reduce((n, v) => n + (v || 0), 0); // alle Truppenarten, auch wilde (brute)
 export const popOf = (u, fac) => ROLES.reduce((n, r) => n + (u[r] || 0) * ((FACTIONS[fac] && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].pop : 1) || 1), 0);
 
 /* ---------- Neue Kampagne ---------- */
@@ -43,7 +46,7 @@ export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.ra
   const map = genMap(seed, nProv);
   const c = {
     v: 1, seed, nProv, turn: 1, player, diff, nid: 1, rs: (seed ^ 0xA5A5A5A5) >>> 0, over: null, log: [],
-    emp: {}, provs: [], armies: [], recruits: [], battles: 0, pending: [], dip: {}, offers: [], events: []
+    emp: {}, provs: [], armies: [], recruits: [], battles: 0, pending: [], dip: {}, offers: [], events: [], story: newStory()
   };
   C = c; MAP = map;
   for (const f of FAC_IDS) c.emp[f] = { ore: 300, wood: 300, food: 250, tech: {}, ctech: {}, traits: [], research: null, capital: map.capitals[f], alive: true, heroXp: 0, heroLvl: 1, heroDown: 0 };
@@ -52,6 +55,15 @@ export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.ra
     c.provs.push({ id: p.id, owner: cap || null, lvl: cap ? 2 : 0, blds: Object.fromEntries(CBLD_IDS.map(b => [b, 0])), queue: null,
       garrison: cap ? emptyUnits() : wildGarrison(p) });
     if (cap) Object.assign(c.provs[p.id].blds, { farm: 1, barracks: 1 });
+  }
+  // Stätten: sieben besondere Provinzen fern der Hauptstädte, stärker bewacht
+  const capSet = new Set(Object.values(map.capitals)), near = new Set([...capSet].flatMap(id => [id, ...map.provs[id].nb]));
+  const pool = map.provs.filter(p => !near.has(p.id)).map(p => p.id);
+  for (const s of SITE_IDS) {
+    if (!pool.length) break;
+    const i = Math.floor(cR() * pool.length), id = pool.splice(i, 1)[0], p = c.provs[id];
+    p.site = s; for (const r of Object.keys(p.garrison)) p.garrison[r] = Math.round(p.garrison[r] * 1.6); p.garrison.brute = (p.garrison.brute || 0) + 1;
+    for (const n of map.provs[id].nb) { const k = pool.indexOf(n); if (k >= 0) pool.splice(k, 1); } // Stätten nicht nebeneinander
   }
   // Jede Fraktion beginnt mit ihrem Helden und einem kleinen Heer in der Hauptstadt
   for (const f of FAC_IDS) mkArmy(f, map.capitals[f], { melee: 6, ranged: 4 }, true);
@@ -81,6 +93,7 @@ export function provYield(p) {
     for (const id of CBLD_IDS) { const L = p.blds[id]; if (!L) continue; const d = CBLD[id]; v += L * (((d.yieldMul && d.yieldMul[r]) || 0) * b[r] * (1 + cfx(p.owner, id)) + ((d.yieldAdd && d.yieldAdd[r]) || 0) * (1 + cfx(p.owner, id))); }
     if (r === 'ore') v += (p.blds.market || 0) * cfx(p.owner, 'marketOre');
     v += (p.bonus && p.bonus[r]) || 0; // Ereignisse (neue Erzader)
+    if (p.site === 'ironpit' && r === 'ore') v += 45; if (p.site === 'saltlake' && r === 'food') v += 40;
     y[r] = v * (1 + .1 * (p.blds.market || 0)) * (1 + cfx(p.owner, 'yieldAll'));
   }
   return y;
@@ -142,7 +155,7 @@ export const settleName = p => SETTLE_NAMES[p.lvl] || '';
 // Kosten in der Kampagne folgen der Kampfstärke (berechnete Schlachten kennen kein Gegenspiel der Truppenarten),
 // aufgeteilt auf Erz (Waffen), Holz (Gerät) und Vorräte (Proviant), damit jedes Gelände etwas wert ist.
 // Kosten nach Stärke. Der Salzbund wirbt mit Salz und Vorräten an: weniger Erz, mehr Vorräte
-export const recruitCost = (f, role) => { const s = unitStrength(f, role), d = FACTIONS[f].units[role], z = f === 'salz'; const k = C && C.emp[f] ? 1 - cfx(f, 'recruit') : 1; return { ore: Math.round(s * (z ? 2.2 : 3.2) * k), wood: Math.round((s * 2 + (d.wood || 0) * .5) * k), food: Math.round(s * (z ? 4 : 2.4) * k) }; };
+export const recruitCost = (f, role) => { const s = unitStrength(f, role), d = FACTIONS[f].units[role], z = f === 'salz'; const k = C && C.emp[f] ? (1 - cfx(f, 'recruit')) * (hasSite(f, 'forge') ? .9 : 1) : 1; return { ore: Math.round(s * (z ? 2.7 : 3.2) * k), wood: Math.round((s * 2 + (d.wood || 0) * .5) * k), food: Math.round(s * (z ? 3.4 : 2.4) * k) }; };
 export function recruitBlock(p, role, n = 1, f = C.player) {
   if (p.owner !== f) return 'Nicht deine Provinz';
   const bar = p.blds.barracks || 0; if (!bar) return 'Kaserne nötig';
@@ -164,7 +177,7 @@ export function recruit(p, role, n = 1, f = C.player) {
 /* ---------- Forschung (reichsweit; die Stufen gelten in jeder Schlacht) ---------- */
 // Forschungsbaum (ctech.js). Kosten nach Zeitalter; Dauer aus Forschungspunkten und der Forschungsrate (Gelehrtenhäuser, Akademien).
 export const RESEARCH_IDS = CTECH_IDS;
-export const researchRate = f => 1 + Math.min(1.5, .25 * C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.school || 0 : 0), 0)) + cfx(f, 'research');
+export const researchRate = f => 1 + Math.min(1.5, .25 * C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.school || 0 : 0), 0)) + cfx(f, 'research') + (hasSite(f, 'observatory') ? .5 : 0);
 export function researchCost(f, id) {
   const t = CTECH[id]; if (!t || C.emp[f].ctech[id]) return null;
   const E = ERAS[t.era]; return { ...E.cost, pts: E.pts, turns: Math.ceil(E.pts / researchRate(f)) };
@@ -191,7 +204,7 @@ function finishResearch(f, id) {
 /* ---------- Handel: über Händler der Hauptstadt immer möglich, Märkte verbessern den Kurs ---------- */
 export const marketLevels = f => C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.market || 0 : 0), 0);
 // Der Salzbund ist ein Handelsbund: bessere Kurse von Beginn an
-export const cTradeRate = f => Math.min(f === 'salz' ? .95 : .9, .6 + .06 * marketLevels(f) + (f === 'salz' ? .15 : 0) + cfx(f, 'trade'));
+export const cTradeRate = f => Math.min(f === 'salz' ? .95 : .9, .6 + .06 * marketLevels(f) + (f === 'salz' ? .1 : 0) + cfx(f, 'trade') + (hasSite(f, 'saltlake') ? .05 : 0));
 export function cTrade(f, from, to, amt = 100) {
   const e = C.emp[f];
   if (from === to || e[from] < amt) return false;
@@ -317,6 +330,7 @@ export function armyPower(units, fac, hero, f = fac) {
   for (const r of Object.keys(units)) s += (units[r] || 0) * (fac === 'wild' ? wildStr(r === 'brute' ? 'brute' : r) : unitStrength(fac, r));
   if (fac !== 'wild') { const t = C.emp[f].tech; s *= (1 + .1 * (t.weapons || 0)) / (1 - .08 * (t.armor || 0)); }
   if (hero) s *= (1 + .12 * (C.emp[f].heroLvl + 1)) * (hasTrait(f, 'feldherr') ? 1.1 : 1);
+  if (C.emp[f] && C.emp[f].sealed) s *= 1.15; // Ruhm: Schlund versiegelt
   return s;
 }
 // Verteidiger einer Provinz: Heere darin plus Besatzung (neutral) bzw. Bürgerwehr (Siedlungsstufe), Mauern, Gelände.
@@ -364,11 +378,13 @@ export function attack(a, id, out) {
       const back = MAP.provs[id].nb.find(n => prov(n).owner === d.owner);
       if (back !== undefined && unitCount(d.units) > 0) { d.at = back; d.path = []; } else { if (d.hero) heroFalls(d.owner); C.armies = C.armies.filter(o => o !== d); }
     }
-    capture(id, a.owner);
+    capture(id, a.owner, a);
   } else if (unitCount(a.units) === 0) { if (a.hero) heroFalls(a.owner); C.armies = C.armies.filter(o => o !== a); }
   else if (!won) for (const d of def.armies) if (unitCount(d.units) === 0 && !d.hero) C.armies = C.armies.filter(o => o !== d);
-  const nameA = FACTIONS[a.owner].name;
-  addLog((won ? nameA + ' erobert ' : nameA + ' scheitert an ') + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ', Verteidiger: ' + nameD + ')', a.owner === C.player ? (won ? 'good' : 'bad') : (report.def === C.player ? (won ? 'bad' : 'good') : ''));
+  const nameA = empireName(a.owner);
+  report.awk = a.owner === 'wild' || def.armies.some(d => d.owner === 'wild'); report.awkDef = p.owner || (def.armies[0] && def.armies[0].owner);
+  storyBattle(report, a);
+  if (a.owner === 'wild') { if (!won) addLog('Die Erwachten scheitern an ' + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ')', report.def === C.player ? 'good' : ''); } else addLog((won ? nameA + ' erobert ' : nameA + ' scheitert an ') + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ', Verteidiger: ' + nameD + ')', a.owner === C.player ? (won ? 'good' : 'bad') : (report.def === C.player ? (won ? 'bad' : 'good') : ''));
   cHooks.battle(report);
   return report;
 }
@@ -389,8 +405,18 @@ export function pickTrait(t) {
   if (o && o.includes(t) && !e.traits.includes(t)) { e.traits.push(t); addLog(FACTIONS[C.player].units.hero.name + ' wird ' + HERO_TRAITS[t].name + ': ' + HERO_TRAITS[t].desc, 'good'); }
 }
 function heroFalls(f) { const e = C.emp[f]; e.heroDown = 3; if (f === C.player) addLog(FACTIONS[f].units.hero.name + ' ist verwundet und kehrt in drei Runden zurück', 'bad'); }
-function capture(id, f) {
+function capture(id, f, att) {
   const p = prov(id), old = p.owner;
+  if (f === 'wild') { // Die Erwachten erobern nicht, sie verwüsten: die Provinz fällt an die Wildnis, das Heer bleibt als Besatzung
+    const a = att && C.armies.includes(att) ? att : null;
+    p.owner = null; p.queue = null; p.unrest = 0; p.lvl = Math.max(0, p.lvl - 1); p.garrison = emptyUnits();
+    if (a) { for (const r of Object.keys(a.units)) p.garrison[r] = (p.garrison[r] || 0) + a.units[r]; C.armies = C.armies.filter(x => x !== a); }
+    C.recruits = C.recruits.filter(r => r.prov !== id);
+    addLog('Die Erwachten verwüsten ' + pinfo(id).name + '.', old === C.player ? 'bad' : '');
+    if (old && C.emp[old].capital === id) { const rest = C.provs.filter(q => q.owner === old).sort((x, y) => y.lvl - x.lvl); C.emp[old].capital = rest.length ? rest[0].id : -1; }
+    checkEnd(); return;
+  }
+  if (p.site && (f === C.player || old === C.player)) addLog((f === C.player ? 'Gewonnen: ' : 'Verloren: ') + SITES[p.site].name + ' in ' + pinfo(id).name + '. ' + SITES[p.site].desc, f === C.player ? 'good' : 'bad');
   p.owner = f; p.queue = null; p.garrison = emptyUnits(); p.lvl = Math.max(1, p.lvl); p.unrest = unrestTurns(p);
   if (p.blds.walls) p.blds.walls--;
   C.recruits = C.recruits.filter(r => r.prov !== id);
@@ -427,7 +453,7 @@ export function endTurn(aiTurn) {
   for (const p of C.provs) if (p.owner && p.unrest > 0) {
     const held = armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3);
     const vogt = armiesAt(p.id).some(a => a.owner === p.owner && a.hero && hasTrait(p.owner, 'landvogt'));
-    p.unrest = Math.max(0, p.unrest - (held ? 2 : 1) - cfx(p.owner, 'garrison') - (vogt ? 3 : 0));
+    p.unrest = Math.max(0, p.unrest - (held ? 2 : 1) - cfx(p.owner, 'garrison') - (vogt ? 3 : 0) - (hasSite(p.owner, 'shrine') ? 1 : 0));
     if (!held && p.unrest > 0 && cR() < REVOLT * (cfx(p.owner, 'garrison') ? .5 : 1)) {
       const old = p.owner; p.owner = null; p.unrest = 0; p.queue = null; p.garrison = wildGarrison(MAP.provs[p.id]);
       C.recruits = C.recruits.filter(r => r.prov !== p.id);
@@ -451,6 +477,10 @@ export function endTurn(aiTurn) {
   C.recruits = [];
   for (const d of Object.values(C.dip || {})) if (d.truce > 0) d.truce--;
   rollEvents();
+  storyTurn();
+  // Stätten: Hünengrab und Söldnerlager wirken je Runde
+  for (const p of C.provs) if (p.owner && p.site === 'barrow') heroXp(p.owner, 15);
+  for (const p of C.provs) if (p.owner && p.site === 'camp' && C.turn % 2 === 0) { const a = armiesAt(p.id).find(x => x.owner === p.owner); if (a) a.units.melee += 2; else mkArmy(p.owner, p.id, { melee: 2 }); }
   // Neue Runde: Bewegungspunkte zurück, Heere setzen ihren Weg fort
   C.turn++;
   for (const a of C.armies) a.moved = 0;
@@ -476,4 +506,4 @@ export function checkEnd() {
   const capsHeld = FAC_IDS.filter(f => f !== C.player).every(f => !C.emp[f].alive || C.provs[MAP.capitals[f]].owner === C.player);
   if (capsHeld || own >= Math.ceil(C.provs.length * .75)) { C.over = { win: true }; addLog('Orsa gehört dir. Der Sieg ist errungen.', 'good'); }
 }
-export const empireName = f => (f ? FACTIONS[f].name : 'Wilde');
+export const empireName = f => (f && FACTIONS[f] ? FACTIONS[f].name : f === 'wild' ? 'Die Erwachten' : 'Wilde');

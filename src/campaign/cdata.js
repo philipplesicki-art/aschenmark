@@ -74,7 +74,7 @@ export const NAME_PARTS = {
 
 // Startprovinzen (Lage als Anteil der Kartengröße) und Farbe je Fraktion.
 export const CAPITALS = { wacht: [.21, .17], asch: [.79, .17], salz: [.5, .89] }; // gleichseitiges Dreieck auf der 240×168-Karte (je ~140 Zellen)
-export const facColor = fac => (FACTIONS[fac] ? FACTIONS[fac].color : '#9bb06a');
+export const facColor = fac => (FACTIONS[fac] ? FACTIONS[fac].color : fac === 'wild' ? '#9a5bb5' : '#9bb06a'); // wild: die Erwachten
 
 // Werdegang des Helden: bei jedem Stufenaufstieg wählt das Reich einen von drei angebotenen Zügen.
 export const HERO_TRAITS = {
@@ -87,3 +87,15 @@ export const HERO_TRAITS = {
   zahlmeister: { name: 'Zahlmeister', desc: 'Das Heer des Helden kostet nur halben Unterhalt.' }
 };
 export const HERO_TRAIT_IDS = Object.keys(HERO_TRAITS);
+
+// Stätten: besondere Orte auf der Weltkarte. Stärker bewacht, aber ihr Besitz gibt dem ganzen Reich einen Vorteil.
+export const SITES = {
+  forge:       { name: 'Alte Schmiede', glyph: '⚒', desc: 'Rekruten kosten im ganzen Reich ein Zehntel weniger.' },
+  observatory: { name: 'Sternwarte', glyph: '✶', desc: 'Forschung ein halber Punkt mehr je Runde.' },
+  saltlake:    { name: 'Salzsee', glyph: '◈', desc: 'Hier 40 Vorräte mehr, Handelskurs plus 5 Punkte.' },
+  shrine:      { name: 'Heiligtum der Frostmutter', glyph: '✦', desc: 'Unruhe klingt im ganzen Reich eine Runde schneller ab.' },
+  barrow:      { name: 'Hünengrab', glyph: '☗', desc: 'Der Held gewinnt jede Runde 15 Erfahrung.' },
+  ironpit:     { name: 'Eisengrube', glyph: '⛏', desc: 'Hier 45 Erz mehr je Runde.' },
+  camp:        { name: 'Söldnerlager', glyph: '⚑', desc: 'Jede zweite Runde schließen sich hier zwei Söldner dem Reich an.' }
+};
+export const SITE_IDS = Object.keys(SITES);
