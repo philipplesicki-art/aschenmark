@@ -2,17 +2,20 @@
 // Die Regeln stehen in cstate.js; hier wird nur gezeichnet und weitergereicht.
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
   recruitBlock, recruit, recruitCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, armiesAt, movesLeft, orderMove,
-  unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy } from './cstate.js';
+  unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
+  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
 import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor } from './cdata.js';
-import { FACTIONS } from '../factions.js';
+import { FACTIONS, WILD } from '../factions.js';
 import { techName, techDesc, TECH } from '../economy.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
 const SC = 6; // Bildpunkte je Rasterzelle im Kartenbild
+// fight(spec, done): Echtzeit-Schlacht starten (main.js); done(res) bringt den Ausgang zurück
+export const cfg = { fight: null };
 
 /* ---------- Aufbau ---------- */
 export function openCampaign(exit) {
@@ -21,8 +24,10 @@ export function openCampaign(exit) {
   root.hidden = false; sel = { kind: 'prov', id: C.emp[C.player].capital };
   cHooks.changed = () => { owners = null; render(); };
   cHooks.log = () => renderLog();
+  cHooks.ask = true;
   base = null; owners = null;
   resize(); render();
+  afterBattle(); // offene Schlacht aus einem gespeicherten Stand
 }
 export const campaignOpen = () => !!(root && !root.hidden);
 export function closeCampaign() { if (root) root.hidden = true; }
@@ -259,7 +264,8 @@ function moveTo(id) {
   const a = sel && sel.kind === 'army' ? C.armies.find(x => x.id === sel.id) : null;
   if (!a || a.owner !== C.player || id < 0 || id === a.at) return;
   const res = orderMove(a, id);
-  if (res && typeof res === 'object' && 'won' in res) showBattle(res);
+  if (res && res.pending) choose(res.pending);
+  else if (res && typeof res === 'object' && 'won' in res) showBattle(res);
   owners = null; render();
 }
 
@@ -285,9 +291,45 @@ function openLog() {
   dlg('<h2>Chronik</h2><div class="clog">' + C.log.slice().reverse().map(l => '<div class="' + l.kind + '"><small>R' + l.turn + '</small> ' + l.text + '</div>').join('') + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>', () => closeDlg());
 }
 function showBattle(r) {
-  const att = empireName(r.att), def = r.def === 'wild' ? 'Wilde' : empireName(r.def);
-  dlg('<h2>' + (r.won ? 'Sieg bei ' : 'Niederlage bei ') + pinfo(r.prov).name + '</h2><p>' + att + ' (Stärke ' + r.atkPow + ') gegen ' + def + ' (Stärke ' + r.defPow + ').</p>'
-    + '<p class="sub">' + (r.won ? 'Die Provinz gehört nun ' + att + '.' : 'Das Heer zieht sich zurück und leckt seine Wunden.') + '</p><div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => closeDlg());
+  const att = empireName(r.att), def = r.def === 'wild' ? 'Wilde' : empireName(r.def), mine = r.att === C.player || r.def !== C.player ? r.won : !r.won;
+  dlg('<h2>' + (mine ? 'Sieg bei ' : 'Niederlage bei ') + pinfo(r.prov).name + '</h2><p>' + att + ' (Stärke ' + r.atkPow + ') greift ' + def + ' (Stärke ' + r.defPow + ') an.'
+    + (r.fought ? ' Die Schlacht wurde geschlagen.' : ' Der Ausgang wurde berechnet.') + '</p>'
+    + '<p class="sub">Verluste: Angreifer ' + (r.atkLost || 0) + ', Verteidiger ' + (r.defLost || 0) + '. '
+    + (r.won ? 'Die Provinz gehört nun ' + att + '.' : 'Der Angriff ist abgewehrt.') + '</p><div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => afterBattle());
+}
+// Nächste offene Schlacht anbieten, sonst zurück zur Karte (oder zum Ende)
+function afterBattle() {
+  if (C.over) return showOver();
+  const pb = nextPending();
+  if (pb) choose(pb); else if (!$('cDlg').hidden) closeDlg();
+}
+const unitList = (fac, u) => Object.entries(u).filter(([, n]) => n > 0).map(([r, n]) => n + ' ' + (fac !== 'wild' && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : fac === 'wild' && WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r)).join(', ') || 'keine Truppen';
+// Wahl vor der Schlacht: selbst führen oder berechnen lassen
+function choose(pb) {
+  const a = pendingArmy(pb), spec = battleSpec(pb); if (!a || !spec) return afterBattle();
+  const pl = spec.player, en = spec.enemy, chance = Math.round(100 * spec.atkPow / Math.max(1, spec.atkPow + spec.defPow));
+  const mineChance = spec.playerAttacks ? chance : 100 - chance;
+  const hero = s => s.hero ? ' und ' + (s.fac !== 'wild' ? FACTIONS[s.fac].units.hero.name : 'Held') + ' (Stufe ' + s.hero + ')' : '';
+  dlg('<h2>' + (spec.playerAttacks ? 'Angriff auf ' : 'Überfall auf ') + spec.name + '</h2>'
+    + '<p>' + (spec.playerAttacks ? 'Dein Heer steht vor ' + spec.name + '.' : empireName(a.owner) + ' greift ' + spec.name + ' an!') + ' ' + BIOMES[spec.biome].name + ', ' + season().name + '.</p>'
+    + '<ul class="help"><li><b>' + empireName(pl.fac) + ':</b> ' + unitList(pl.fac, pl.units) + hero(pl) + (!spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (!spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + '</li>'
+    + '<li><b>' + (en.fac === 'wild' ? 'Wilde' : empireName(en.fac)) + ':</b> ' + unitList(en.fac, en.units) + hero(en) + (spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + '</li></ul>'
+    + '<p class="sub">Geschätzte Siegchance beim Berechnen: ' + mineChance + ' %. In der Schlacht zählt nur, wer am Ende noch steht.</p>'
+    + '<div class="row end"><button class="btn" data-d="auto" type="button">Automatisch berechnen</button>'
+    + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',
+  d => {
+    if (d === 'auto') { const r = resolvePending(pb); saveCampaign(); owners = null; render(); if (r) showBattle(r); else afterBattle(); }
+    else if (d === 'fight') fight(pb, spec);
+  });
+}
+function fight(pb, spec) {
+  saveCampaign(); $('cDlg').hidden = true; closeCampaign();
+  cfg.fight(spec, res => {
+    root.hidden = false; cHooks.ask = true;
+    const r = resolvePending(pb, battleOutcome(spec, res)); saveCampaign();
+    owners = null; resize(); render();
+    if (r) showBattle(r); else afterBattle();
+  });
 }
 function menu() {
   dlg('<h2>Kampagne</h2><div class="mlist compact"><button class="mbtn" data-d="resume" type="button"><span>Weiterspielen</span></button><button class="mbtn" data-d="save" type="button"><span>Speichern</span></button><button class="mbtn" data-d="exit" type="button"><span>Speichern und zum Hauptmenü</span></button></div>',
@@ -295,12 +337,13 @@ function menu() {
 }
 export function nextTurn() {
   if (C.over) return showOver();
+  if (nextPending()) return afterBattle(); // erst die offenen Schlachten
   const before = C.log.length;
   endTurn(aiTurn); saveCampaign();
   owners = null; render();
   // Angriffe auf das eigene Reich in dieser Runde zusammenfassen
   const hits = C.log.slice(before).filter(l => l.kind === 'bad');
-  if (C.over) showOver(); else if (hits.length) dlg('<h2>' + season().name + ', Jahr ' + year() + '</h2>' + hits.map(l => '<p>' + l.text + '</p>').join('') + '<div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => closeDlg());
+  if (C.over) showOver(); else if (nextPending()) afterBattle(); else if (hits.length) dlg('<h2>' + season().name + ', Jahr ' + year() + '</h2>' + hits.map(l => '<p>' + l.text + '</p>').join('') + '<div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => closeDlg());
 }
 function showOver() {
   const w = C.over.win;

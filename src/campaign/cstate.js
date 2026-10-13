@@ -8,7 +8,8 @@ import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, unitStr
 
 export let C = null, MAP = null;
 export function setCampaign(c) { C = c; MAP = c ? genMap(c.seed, c.nProv) : null; }
-export const cHooks = { log: () => {}, battle: () => {}, changed: () => {} }; // Oberfläche hängt sich hier ein
+// Oberfläche hängt sich hier ein. ask: Schlachten mit dem Spieler warten auf seine Wahl (Schlacht schlagen oder berechnen)
+export const cHooks = { log: () => {}, battle: () => {}, changed: () => {}, ask: false };
 
 // Zufall der Kampagne: Zustand in C.rs (gespeichert), damit Spielstände gleich weiterlaufen.
 export function cR() {
@@ -36,7 +37,7 @@ export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.ra
   const map = genMap(seed, nProv);
   const c = {
     v: 1, seed, nProv, turn: 1, player, diff, nid: 1, rs: (seed ^ 0xA5A5A5A5) >>> 0, over: null, log: [],
-    emp: {}, provs: [], armies: [], recruits: [], battles: 0
+    emp: {}, provs: [], armies: [], recruits: [], battles: 0, pending: []
   };
   C = c; MAP = map;
   for (const f of FAC_IDS) c.emp[f] = { ore: 300, wood: 300, food: 250, tech: {}, research: null, capital: map.capitals[f], alive: true, heroXp: 0, heroLvl: 1, heroDown: 0 };
@@ -178,6 +179,7 @@ export function advance(a) {
     const guarded = (p.owner === null && unitCount(p.garrison) > 0) || (p.owner && hostile(p.owner, a.owner));
     if (foes.length || guarded) { // Angriff: kostet alle restlichen Bewegungspunkte
       a.moved = movesOf(a); a.path = [];
+      if (asksPlayer(a, next)) { const pb = { army: a.id, prov: next }; (C.pending ||= []).push(pb); return { pending: pb }; }
       const res = attack(a, next);
       if (res.won) a.at = next;
       return res;
@@ -198,6 +200,57 @@ export function splitArmy(a, units) {
   for (const r of ROLES) if ((units[r] || 0) > a.units[r]) return null;
   for (const r of ROLES) a.units[r] -= units[r] || 0;
   const b = mkArmy(a.owner, a.at, units); b.moved = a.moved; return b;
+}
+
+/* ---------- Schlachten mit dem Spieler: warten auf seine Wahl ---------- */
+const asksPlayer = (a, id) => cHooks.ask && (a.owner === C.player || prov(id).owner === C.player || armiesAt(id).some(o => o.owner === C.player));
+// Noch gültig? Das Heer lebt, steht daneben und das Ziel ist weiter feindlich besetzt.
+export function pendingArmy(pb) {
+  const a = C.armies.find(x => x.id === pb.army), p = prov(pb.prov);
+  if (!a || unitCount(a.units) + (a.hero ? 1 : 0) === 0 || a.at === pb.prov || !MAP.provs[a.at].nb.includes(pb.prov)) return null;
+  const guarded = armiesAt(pb.prov).some(o => hostile(o.owner, a.owner)) || (p.owner === null && unitCount(p.garrison) > 0) || (p.owner && hostile(p.owner, a.owner));
+  return guarded ? a : null;
+}
+export function nextPending() {
+  while (C.pending && C.pending.length) { if (pendingArmy(C.pending[0])) return C.pending[0]; C.pending.shift(); }
+  return null;
+}
+// Schlacht ausführen: berechnet (ohne out) oder mit dem Ausgang der gespielten Schlacht
+export function resolvePending(pb, out) {
+  C.pending = (C.pending || []).filter(x => x !== pb);
+  const a = pendingArmy(pb); if (!a) return null;
+  const r = attack(a, pb.prov, out);
+  if (r.won && C.armies.includes(a)) { a.at = pb.prov; mergeAt(a); }
+  cHooks.changed();
+  return r;
+}
+// Aufstellung für die Echtzeit-Schlacht: wer kämpft, mit welchen Truppen, Türmen, Bürgerwehr, Jahreszeit
+export function battleSpec(pb) {
+  const a = pendingArmy(pb); if (!a) return null;
+  const p = prov(pb.prov), def = defense(pb.prov, a.owner), units = {};
+  for (const d of def.armies) for (const r of ROLES) units[r] = (units[r] || 0) + (d.units[r] || 0);
+  if (p.owner === null) for (const r of Object.keys(p.garrison)) units[r] = (units[r] || 0) + p.garrison[r];
+  const dFac = p.owner && hostile(p.owner, a.owner) ? p.owner : def.armies.length ? def.armies[0].owner : 'wild';
+  const side = (fac, u, hero) => ({ fac, units: u, hero: hero && fac !== 'wild' ? C.emp[fac].heroLvl : 0, tech: fac !== 'wild' ? { ...C.emp[fac].tech } : {} });
+  const att = side(a.owner, { ...a.units }, a.hero), dfd = side(dFac, units, def.armies.some(d => d.hero));
+  const playerAttacks = a.owner === C.player;
+  return { player: playerAttacks ? att : dfd, enemy: playerAttacks ? dfd : att, playerAttacks,
+    towers: p.owner ? 2 * (p.blds.walls || 0) : 0, militia: p.owner ? Math.min(8, 2 * p.lvl) : 0,
+    season: season().id, biome: pinfo(pb.prov).biome, name: pinfo(pb.prov).name, seed: (C.seed * 31 + C.turn * 977 + pb.prov) >>> 0, diff: C.diff,
+    atkPow: Math.round(armyPower(a.units, a.owner, a.hero)), defPow: Math.round(def.pow) };
+}
+// Ausgang der Echtzeit-Schlacht (Sicht des Spielers) in Angreifer/Verteidiger umrechnen
+export function battleOutcome(spec, res) {
+  return spec.playerAttacks
+    ? { won: res.won, atk: res.p, def: res.e, atkHero: res.pHero, defHero: res.eHero, fought: true }
+    : { won: !res.won, atk: res.e, def: res.p, atkHero: res.eHero, defHero: res.pHero, fought: true };
+}
+// Überlebende der Verteidiger auf ihre Heere verteilen (der Reihe nach auffüllen)
+function setDefenders(armies, p, surv) {
+  const left = { ...surv };
+  const fill = u => { for (const r of Object.keys(u)) { const k = Math.min(u[r] || 0, left[r] || 0); left[r] = (left[r] || 0) - k; u[r] = k; } };
+  for (const d of armies) fill(d.units);
+  if (p.owner === null) fill(p.garrison);
 }
 
 /* ---------- Schlachten (berechnet) ---------- */
@@ -223,16 +276,27 @@ export function defense(id, against) {
 function takeLosses(units, frac) {
   for (const r of Object.keys(units)) { const lost = Math.min(units[r], Math.round(units[r] * frac + (cR() < (units[r] * frac) % 1 ? 1 : 0))); units[r] -= lost; }
 }
-export function attack(a, id) {
+export function attack(a, id, out) {
   const p = prov(id), atk = armyPower(a.units, a.owner, a.hero), def = defense(id, a.owner);
-  const ratio = atk / Math.max(1, atk + def.pow) + (cR() - .5) * .12, won = ratio > .5;
+  const won = out ? out.won : atk / Math.max(1, atk + def.pow) + (cR() - .5) * .12 > .5;
   const stronger = Math.max(atk, def.pow), weaker = Math.min(atk, def.pow);
   const winLoss = Math.max(.05, Math.min(.85, weaker / Math.max(1, stronger) * .55)), loseLoss = Math.min(1, .55 + (stronger / Math.max(1, weaker)) * .2);
-  const report = { att: a.owner, def: p.owner || 'wild', prov: id, atkPow: Math.round(atk), defPow: Math.round(def.pow), won };
+  const report = { att: a.owner, def: p.owner || (def.armies[0] ? def.armies[0].owner : 'wild'), prov: id, atkPow: Math.round(atk), defPow: Math.round(def.pow), won, fought: !!(out && out.fought) };
+  const before = unitCount(a.units), beforeD = def.armies.reduce((n, d) => n + unitCount(d.units), 0) + (p.owner === null ? unitCount(p.garrison) : 0);
   const nameD = p.owner ? FACTIONS[p.owner].name : 'Wilde'; // vor der Eroberung festhalten
-  takeLosses(a.units, won ? winLoss : loseLoss);
-  for (const d of def.armies) takeLosses(d.units, won ? loseLoss : winLoss);
-  if (p.owner === null) takeLosses(p.garrison, won ? 1 : winLoss);
+  if (out) { // gespielte Schlacht: die Überlebenden zählen
+    for (const r of Object.keys(a.units)) a.units[r] = Math.min(a.units[r], (out.atk && out.atk[r]) || 0);
+    setDefenders(def.armies, p, out.def || {});
+    if (a.hero && !out.atkHero && unitCount(a.units) > 0) { a.hero = false; heroFalls(a.owner); }
+    for (const d of def.armies) if (d.hero && !out.defHero && unitCount(d.units) > 0) { d.hero = false; heroFalls(d.owner); }
+    if (won && p.owner === null) p.garrison = emptyUnits();
+  } else {
+    takeLosses(a.units, won ? winLoss : loseLoss);
+    for (const d of def.armies) takeLosses(d.units, won ? loseLoss : winLoss);
+    if (p.owner === null) takeLosses(p.garrison, won ? 1 : winLoss);
+  }
+  report.atkLost = before - unitCount(a.units);
+  report.defLost = beforeD - def.armies.reduce((n, d) => n + unitCount(d.units), 0) - (p.owner === null ? unitCount(p.garrison) : 0);
   C.battles++;
   heroXp(a.owner, 30 + (won ? 40 : 0)); for (const d of def.armies) heroXp(d.owner, 20 + (won ? 0 : 40));
   if (won) {
@@ -242,6 +306,7 @@ export function attack(a, id) {
     }
     capture(id, a.owner);
   } else if (unitCount(a.units) === 0) { if (a.hero) heroFalls(a.owner); C.armies = C.armies.filter(o => o !== a); }
+  else if (!won) for (const d of def.armies) if (unitCount(d.units) === 0 && !d.hero) C.armies = C.armies.filter(o => o !== d);
   const nameA = FACTIONS[a.owner].name;
   addLog((won ? nameA + ' erobert ' : nameA + ' scheitert an ') + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ', Verteidiger: ' + nameD + ')', a.owner === C.player ? (won ? 'good' : 'bad') : (report.def === C.player ? (won ? 'bad' : 'good') : ''));
   cHooks.battle(report);

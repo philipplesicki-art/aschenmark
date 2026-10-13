@@ -3,6 +3,7 @@ import { G, hooks } from './state.js';
 import { updUnit, updBld, separate, autoGather } from './units.js';
 import { updProjs, updZones, kill } from './combat.js';
 import { aiTick } from './ai.js';
+import { battleTick } from './battle.js';
 import { updEvents, evSight } from './events.js';
 import { updQuests } from './quests.js';
 import { tierOf, seasonAt, foodRates, foodCap } from './economy.js';
@@ -40,6 +41,7 @@ function updFood() {
     }
     G.season = s.id;
   }
+  if (G.battle) return; // in der Schlacht zählen nur die Truppen, keine Vorräte
   for (const t of [0, 1]) {
     const r = foodRates(t);
     G.food[t] = Math.max(0, Math.min(foodCap(t), G.food[t] + r.net));
@@ -81,7 +83,7 @@ export function step(dt) {
   G.ents = G.ents.filter(e => !e.dead);
   G.sel = G.sel.filter(id => G.map.has(id));
   G.qT = (G.qT || 0) - dt; if (G.qT <= 0) { G.qT = .5; updQuests(); }
-  G.aiT -= dt; if (G.aiT <= 0) { G.aiT = 1; aiTick(1); if (G.ai0) aiTick(0); }
+  G.aiT -= dt; if (G.aiT <= 0) { G.aiT = 1; if (G.battle) battleTick(); else { aiTick(1); if (G.ai0) aiTick(0); } }
   G.foodT -= dt; if (G.foodT <= 0) { G.foodT += 1; updFood(); }
   G.fogT -= dt; if (G.fogT <= 0) { G.fogT = .15; updFog(); }
 }

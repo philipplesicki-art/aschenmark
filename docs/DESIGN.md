@@ -44,8 +44,15 @@ als Echtzeit-Gefecht (die bestehende Partie) oder automatisch berechnet.
 - **KI-Reiche:** bauen, rekrutieren, greifen die schwächste Nachbarprovinz an, verteidigen ihre Hauptstadt.
 - **Sieg:** alle Hauptstädte erobern oder 70 Prozent der Provinzen halten.
 
-Etappen: K1 Kartenspiel mit berechneten Schlachten, K2 Echtzeit-Schlachten aus der Kampagne, K3 Forschungsbaum, Helden mit
+Etappen: K1 Kartenspiel mit berechneten Schlachten (fertig), K2 Echtzeit-Schlachten aus der Kampagne (fertig), K3 Forschungsbaum, Helden mit
 Werdegang, Diplomatie, Ereignisse und Handlungsfäden der Kampagne.
+
+**K2 Echtzeit-Schlachten:** Jeder Angriff mit Beteiligung des Spielers (auch Überfälle der KI) fragt: Schlacht schlagen oder
+automatisch berechnen. Die Schlacht nutzt genau die Truppen des Heeres samt Held (Stufe aus der Kampagne) und die Forschung
+beider Reiche. Der Verteidiger einer Siedlung bekommt Bürgerwehr (2 je Siedlungsstufe, höchstens 8) und 2 Türme je Mauerstufe.
+Die Jahreszeit der Runde gilt auch auf dem Schlachtfeld. Große Heere werden zusammengefasst (höchstens 48 Figuren je Seite,
+jede Figur steht dann für mehrere Krieger). Wer am Ende steht, kehrt auf die Karte zurück; ein Rückzug kostet ein Fünftel der
+Überlebenden. Fällt der Held, ist er drei Runden verwundet.
 
 ## Fahrplan
 

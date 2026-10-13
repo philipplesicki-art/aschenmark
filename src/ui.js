@@ -14,10 +14,11 @@ import { loadSettings, saveSettings } from './settings.js';
 import { setVolumes, sfx } from './audio.js';
 import { platform, ACHIEVEMENTS } from './platform.js';
 import { questProgress, ENDINGS } from './quests.js';
+import { finishBattle } from './battle.js';
 
 const $ = id => document.getElementById(id);
 let btns = [];
-export const cb = { start: () => {}, load: () => {}, restart: () => {}, menuScene: () => {}, campaign: () => {}, campaignLoad: () => {}, hasCampaign: () => false };
+export const cb = { start: () => {}, load: () => {}, restart: () => {}, menuScene: () => {}, campaign: () => {}, campaignLoad: () => {}, hasCampaign: () => false, battleBack: () => {} };
 
 export function ovOpen() { return !$('ov').hidden; }
 
@@ -91,7 +92,7 @@ export function refreshUI() {
     $('food').textContent = Math.floor(G.food[0]);
     fe.textContent = (net >= 0 ? '+' : '') + net.toFixed(1); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
     $('seasonN').textContent = s.name; $('seasonT').textContent = Math.floor(s.left / 60) + ':' + String(Math.floor(s.left % 60)).padStart(2, '0'); ch.className = 'stat season ' + s.id; }
-  $('pop').textContent = popUsed(0) + '/' + popCap(0);
+  $('pop').textContent = G.battle ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length : popUsed(0) + '/' + popCap(0);
   $('pp').textContent = G.pp[0].toFixed(1);
   renderQuest();
   { const cx = cam.x + view.w / cam.z / 2, cy = cam.y + view.h / cam.z / 2;
@@ -314,6 +315,7 @@ function creditsScreen() {
 export function openMenu() {
   if (!G || G.over || G.demo) return;
   G.paused = true; setMenuLook(false);
+  if (G.battle) return battleMenu();
   show('<h2>Pause</h2><nav class="mlist compact">'
     + mbtn('resume', 'Weiterspielen') + mbtn('save', 'Speichern') + (hasSave() ? mbtn('load', 'Letzten Spielstand laden') : '')
     + mbtn('settings', 'Einstellungen') + mbtn('help', 'Steuerung') + mbtn('menu', 'Hauptmenü') + (platform.canQuit ? mbtn('quit', 'Beenden') : '') + '</nav>',
@@ -326,6 +328,33 @@ export function openMenu() {
     else if (act === 'menu') confirmScreen('Zum Hauptmenü?', 'Nicht gespeicherter Fortschritt geht verloren.', () => cb.restart(), openMenu, true);
     else if (act === 'quit') confirmScreen('Spiel beenden?', 'Nicht gespeicherter Fortschritt geht verloren.', () => platform.quit(), openMenu, true);
   }, closeMenu);
+}
+// Pause in der Schlacht aus der Kampagne: Speichern geht nur auf der Weltkarte, statt Hauptmenü gibt es den Rückzug
+function battleMenu() {
+  show('<h2>Schlacht bei ' + G.battle.name + '</h2><nav class="mlist compact">'
+    + mbtn('resume', 'Weiterkämpfen') + mbtn('retreat', 'Rückzug', 'Die Schlacht ist verloren, ein Teil der Truppen entkommt')
+    + mbtn('settings', 'Einstellungen') + mbtn('help', 'Steuerung') + '</nav>',
+  act => {
+    if (act === 'resume') closeMenu();
+    else if (act === 'retreat') confirmScreen('Rückzug antreten?', 'Die Schlacht gilt als verloren. Wer noch steht, zieht sich zurück, ein Fünftel geht dabei verloren.', () => { closeOverlay(); G.paused = false; finishBattle(false, true); }, battleMenu);
+    else if (act === 'settings') settingsScreen(battleMenu);
+    else if (act === 'help') helpScreen(battleMenu);
+  }, closeMenu);
+}
+// Ende einer Schlacht aus der Kampagne: Bilanz, dann zurück auf die Weltkarte
+export function showBattleEnd(res) {
+  const B = G.battle, sum = u => Object.values(u).reduce((n, v) => n + v, 0), p0 = sum(B.start.p), e0 = sum(B.start.e);
+  const title = res.retreat ? 'Rückzug' : res.won ? 'Sieg bei ' + B.name : 'Niederlage bei ' + B.name;
+  sfx(res.won ? 'win' : 'lose');
+  setTimeout(() => {
+    setMenuLook(false); G.paused = true;
+    show('<h2>' + title + '</h2>'
+      + '<p>' + (res.won ? (B.playerAttacks ? 'Das Feld ist geräumt. ' + B.name + ' kann eingenommen werden.' : 'Der Angriff ist abgeschlagen.') : res.retreat ? 'Die Truppen lösen sich vom Feind.' : 'Das Heer ist geschlagen.') + '</p>'
+      + '<p class="sub">Dauer ' + Math.floor(res.time / 60) + ':' + String(Math.floor(res.time % 60)).padStart(2, '0') + ' · eigene Truppen ' + sum(res.p) + ' von ' + p0 + ' · Gegner ' + sum(res.e) + ' von ' + e0
+      + (B.scale > 1 ? '<br>Jede Figur stand für ' + B.scale + ' Krieger.' : '') + (B.start.pHero && !res.pHero ? '<br>Dein Held ist verwundet und fällt drei Runden aus.' : '') + '</p>'
+      + '<div class="row end"><button class="btn go" data-act="back" type="button">Zur Weltkarte</button></div>',
+    act => { if (act === 'back') { closeOverlay(); cb.battleBack(res); } }, null, '.go');
+  }, res.retreat ? 0 : 1400);
 }
 function confirmScreen(title, text, yes, back, offerSave) {
   show('<h2>' + title + '</h2><p>' + text + '</p><div class="row end"><button class="btn" data-act="no" type="button">Abbrechen</button>'

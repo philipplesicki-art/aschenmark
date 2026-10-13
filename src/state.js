@@ -13,7 +13,7 @@ const noop = () => {};
 // Die Simulation kennt weder DOM noch Audio. Darstellung und Ton hängen sich hier ein.
 export const hooks = {
   toast: noop, sfx: noop, burst: noop, float: noop, shake: noop, flash: noop,
-  endGame: noop, achieve: noop, levelUp: noop, music: noop, regionsChanged: noop, chainDone: noop, setFx: noop, setQuality: noop, treeFelled: noop
+  endGame: noop, achieve: noop, levelUp: noop, music: noop, regionsChanged: noop, chainDone: noop, setFx: noop, setQuality: noop, treeFelled: noop, battleEnd: noop
 };
 
 export const byId = id => G.map.get(id);

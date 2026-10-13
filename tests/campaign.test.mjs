@@ -6,6 +6,10 @@ import { aiTurn } from '../src/campaign/cai.js';
 import { serializeCampaign, deserializeCampaign } from '../src/campaign/csave.js';
 import { FAC_IDS } from '../src/factions.js';
 import { unitStrength, ROLES, CBLD } from '../src/campaign/cdata.js';
+import { newBattle } from '../src/battle.js';
+import { G, hooks } from '../src/state.js';
+import { step } from '../src/sim.js';
+import { setOrder } from '../src/path.js';
 
 // Karte: gleiche Saat, gleiche Karte; zusammenhängend; Hauptstädte im passenden Gelände
 {
@@ -89,5 +93,40 @@ import { unitStrength, ROLES, CBLD } from '../src/campaign/cdata.js';
   assert.ok(CS.C.over, 'Kampagne endet'); assert.ok(CS.C.turn > 20, 'und dauert ' + CS.C.turn + ' Runden');
   assert.ok(CS.C.log.length > 20 && CS.C.battles > 10);
   console.log('KI-Kampagne ok: ' + CS.C.turn + ' Runden, ' + CS.C.battles + ' Schlachten');
+}
+
+// Echtzeit-Schlacht aus der Kampagne: Wahl abwarten, Aufstellung bauen, ausfechten, Überlebende zurückschreiben
+{
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 21 });
+  CS.cHooks.ask = true;
+  const C = CS.C, MAP = CS.MAP, cap = C.emp.wacht.capital, a = C.armies.find(x => x.owner === 'wacht');
+  a.units.melee = 14; a.units.ranged = 8;
+  const tgt = MAP.provs[cap].nb.find(n => !C.provs[n].owner);
+  const r = CS.orderMove(a, tgt);
+  assert.ok(r && r.pending, 'Angriff des Spielers wartet auf die Wahl'); assert.equal(C.provs[tgt].owner, null); assert.equal(CS.nextPending(), r.pending);
+  const spec = CS.battleSpec(r.pending);
+  assert.equal(spec.player.fac, 'wacht'); assert.equal(spec.enemy.fac, 'wild'); assert.ok(spec.playerAttacks); assert.equal(spec.player.units.melee, 14); assert.ok(spec.player.hero >= 1);
+  newBattle(spec);
+  assert.equal(G.ents.filter(e => e.team === 0 && e.kind === 'unit').length, 14 + 8 + 1, 'Heer samt Held steht auf dem Feld');
+  assert.ok(G.ents.some(e => e.team === 3), 'wilde Besatzung steht gegenüber'); assert.ok(!G.ents.some(e => e.type === 'hq'), 'keine Burgen');
+  let res = null; hooks.battleEnd = x => { res = x; };
+  // Spieler greift an: alle eigenen Truppen auf die Wilden
+  const foe = G.ents.find(e => e.team === 3);
+  for (const u of G.ents.filter(e => e.team === 0 && e.kind === 'unit')) setOrder(u, { t: 'amove', x: foe.x, y: foe.y });
+  for (let i = 0; i < 20 * 240 && !res; i++) step(.05);
+  assert.ok(res, 'Schlacht endet'); assert.ok(res.won, 'die Übermacht siegt');
+  assert.ok(res.p.melee <= 14 && res.p.ranged <= 8);
+  const rep = CS.resolvePending(r.pending, CS.battleOutcome(spec, res));
+  assert.ok(rep.won && rep.fought); assert.equal(C.provs[tgt].owner, 'wacht'); assert.equal(a.at, tgt);
+  assert.equal(a.units.melee, res.p.melee, 'Überlebende übernommen'); assert.equal(C.pending.length, 0);
+  // Angriff der KI auf den Spieler wartet ebenso; berechnet löst er sich auf
+  const foeArmy = CS.mkArmy('asch', MAP.provs[tgt].nb.find(n => n !== cap && !C.provs[n].owner) ?? cap, { melee: 30 });
+  foeArmy.at = MAP.provs[tgt].nb.find(n => C.provs[n].owner !== 'wacht');
+  const r2 = CS.orderMove(foeArmy, tgt);
+  assert.ok(r2 && r2.pending); const s2 = CS.battleSpec(r2.pending); assert.ok(!s2.playerAttacks); assert.equal(s2.player.fac, 'wacht'); assert.ok(s2.militia > 0);
+  const rep2 = CS.resolvePending(r2.pending); assert.ok(rep2 && !rep2.fought);
+  // Rückzug: Niederlage, ein Teil der Truppen bleibt
+  CS.cHooks.ask = false;
+  console.log('Echtzeit-Schlacht ok: ' + Math.round(res.time) + ' s, ' + res.p.melee + '/14 Speerträger übrig');
 }
 console.log('Kampagnentests bestanden');

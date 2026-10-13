@@ -208,7 +208,7 @@ function paintGround() {
       g.addColorStop(0, pal[(R() * pal.length) | 0]); g.addColorStop(1, 'rgba(0,0,0,0)'); t.fillStyle = g; t.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
   }
-  const hqs = [G.ents.find(e => e.type === 'hq' && e.team === 0), G.ents.find(e => e.type === 'hq' && e.team === 1)];
+  const hqs = G.battle ? G.battle.sites : [G.ents.find(e => e.type === 'hq' && e.team === 0), G.ents.find(e => e.type === 'hq' && e.team === 1)]; // Schlacht: leere Burgplätze
   const a = hqs[0], b = hqs[1];
   const dx = b.x - a.x, dy = b.y - a.y, nl = Math.hypot(dx, dy), nx = -dy / nl * 90, ny = dx / nl * 90;
   const road = () => { t.beginPath(); t.moveTo(a.x, a.y + 10); t.bezierCurveTo(a.x + dx / 3 + nx, a.y + dy / 3 + ny, a.x + dx * 2 / 3 - nx, a.y + dy * 2 / 3 - ny, b.x, b.y + 10); };

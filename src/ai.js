@@ -140,7 +140,7 @@ function aiHero(hero) {
 }
 
 function aiPower(army) {
-  if (G.t < 240 || !canPower(T)) return;
+  if ((G.t < 240 && !G.battle) || !canPower(T)) return;
   const p = powerOf(T);
   if (p.id === 'rain' || p.id === 'surge') {
     const foes = G.ents.filter(e => !e.dead && e.team === O && e.kind === 'unit' && army.some(u => Math.hypot(u.x - e.x, u.y - e.y) < 320));
@@ -156,6 +156,15 @@ function aiPower(army) {
     }
     if (best && bs > 220) castPower(T, best.x, best.y);
   }
+}
+
+// Schlacht aus der Kampagne: nur Held und Machtwirken, die Truppen führt battle.js
+export function aiSkirmish(team, foe) {
+  T = team; O = foe;
+  const army = G.ents.filter(e => e.team === T && e.kind === 'unit' && !e.dead);
+  const hero = army.find(e => e.type === 'hero');
+  if (hero) aiHero(hero);
+  aiPower(army);
 }
 
 export function aiTick(team = 1) {

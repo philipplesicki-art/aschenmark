@@ -7,7 +7,7 @@ import { clampCam, centerOn, camInput } from './camera.js';
 import * as R2 from './render.js';
 import * as R3 from './render3d.js';
 import { initInput } from './input.js';
-import { wireHooks, wireTopBar, showStart, showChainEnd, refreshUI, ovOpen, cb, toast } from './ui.js';
+import { wireHooks, wireTopBar, showStart, showChainEnd, showBattleEnd, closeMenu, refreshUI, ovOpen, cb, toast } from './ui.js';
 import { initAudio, sfx, startMusic, stopMusic, setIntensity, setVolumes, setWeather, audioReady } from './audio.js';
 import { evAt } from './events.js';
 import { loadSettings } from './settings.js';
@@ -20,6 +20,7 @@ const { newCampaign } = CS;
 import * as CU from './campaign/cui.js';
 const { openCampaign, campaignOpen } = CU;
 import { saveCampaign, loadCampaign, hasCampaign } from './campaign/csave.js';
+import { newBattle } from './battle.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('c'), mm = $('mm'), gl = $('gl');
@@ -38,6 +39,7 @@ if (R.setQuality) R.setQuality(quality);
 const quiet = fn => (...a) => { if (!(G && G.demo)) fn(...a); };
 wireHooks({
   chainDone: () => showChainEnd(),
+  battleEnd: res => showBattleEnd(res),
   setFx: on => R.setPost && R.setPost(on),
   setQuality: q => R.setQuality && R.setQuality(q),
   treeFelled: tr => { if (R.treeFelled) R.treeFelled(tr); if (G && G.demo) return; burst(tr.x, tr.y - 12, 8, '#8a6a46', 10); burst(tr.x, tr.y - 12, 6, '#e6eef6', 16); },
@@ -133,6 +135,19 @@ cb.menuScene = menuScene;
 // Kampagne: Weltkarte über dem Spiel; zurück geht es ins Hauptmenü
 cb.hasCampaign = hasCampaign;
 cb.campaign = (fac, diff, size) => { audioOn(); newCampaign({ player: fac, diff, nProv: size }); saveCampaign(); openCampaign(() => showStart()); };
+// Echtzeit-Schlacht aus der Kampagne: Weltkarte schließt, das Gefecht läuft, danach geht der Ausgang zurück
+let battleDone = null;
+CU.cfg.fight = (spec, done) => {
+  audioOn(); battleDone = done;
+  newBattle(spec); closeMenu(); buildTerrain(); beginMatch(); document.body.classList.add('battle');
+  cam.z = view.w < 640 ? 1 : 1.25; clampCam();
+  const mine = G.ents.filter(e => e.team === 0 && e.kind === 'unit');
+  const cx = mine.reduce((s, u) => s + u.x, 0) / mine.length, cy = mine.reduce((s, u) => s + u.y, 0) / mine.length;
+  centerOn(cx + 120, cy - 60); select(mine.map(u => u.id));
+  refreshUI(); stopMusic(); startMusic(spec.player.fac); sfx('horn');
+  toast(spec.playerAttacks ? 'Angriff auf ' + spec.name + ': Vernichte die Verteidiger (Esc: Rückzug)' : 'Verteidige ' + spec.name + ': Halte stand, bis die Angreifer fallen', 'good');
+};
+cb.battleBack = res => { stopMusic(); document.body.classList.remove('battle'); const d = battleDone; battleDone = null; if (d) d(res); };
 cb.campaignLoad = () => { audioOn(); if (loadCampaign()) openCampaign(() => showStart()); else { toast('Kein Kampagnenstand gefunden', 'bad'); showStart(); } };
 
 if (R.setPost) R.setPost(loadSettings().fx !== false);

@@ -6,6 +6,7 @@ export function serializeCampaign() { return JSON.stringify(C); }
 export function deserializeCampaign(text) {
   const c = JSON.parse(text);
   if (!c || c.v !== 1 || !Array.isArray(c.provs)) throw new Error('Kampagnenstand passt nicht zu dieser Version');
+  c.pending ||= []; // Stände vor den Echtzeit-Schlachten
   setCampaign(c); return c;
 }
 export function saveCampaign() { try { localStorage.setItem(KEY, serializeCampaign()); return true; } catch (_) { return false; } }
