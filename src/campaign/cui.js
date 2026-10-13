@@ -28,6 +28,7 @@ export function openCampaign(exit) {
   root.hidden = false; sel = { kind: 'prov', id: C.emp[C.player].capital };
   cHooks.changed = () => { owners = null; render(); };
   cHooks.log = () => renderLog();
+  cHooks.moved = (a, from, to) => { const m = marches.get(a.id); if (m && performance.now() < m.t0 + m.steps.length * STEP_MS) m.steps.push(to); else marches.set(a.id, { t0: performance.now(), steps: [from, to] }); wake(); };
   cHooks.ask = true;
   base = null; owners = null;
   resize(); render();
@@ -122,6 +123,25 @@ function buildOwners() {
 }
 /* ---------- Zeichnen ---------- */
 let banners = [];
+// Märsche: Banner gleiten Schritt für Schritt von Provinz zu Provinz; ruhige Bewegung auf der Karte (Schlund pulsiert)
+const marches = new Map(), STEP_MS = 420;
+let animOn = false, lastDraw = 0;
+function wake() { if (!animOn) { animOn = true; requestAnimationFrame(animate); } }
+function animate(now) {
+  if (!campaignOpen()) { animOn = false; return; }
+  for (const [id, m] of marches) if (now > m.t0 + (m.steps.length - 1) * STEP_MS) marches.delete(id);
+  const ambient = C && C.story && C.story.rift >= 0 && C.story.rift !== null;
+  if (now - lastDraw > (marches.size ? 16 : 60)) { lastDraw = now; render(); }
+  if (marches.size || ambient) requestAnimationFrame(animate); else { animOn = false; render(); }
+}
+// Wo steht das Banner gerade (Zellkoordinaten)? Während eines Marsches zwischen zwei Provinzen
+function bannerAt(a) {
+  const m = marches.get(a.id), pi = pinfo(a.at);
+  if (!m) return [pi.x, pi.y];
+  const t = (performance.now() - m.t0) / STEP_MS, i = Math.min(m.steps.length - 2, Math.floor(t)), f = Math.max(0, Math.min(1, t - i)), e = f * f * (3 - 2 * f);
+  const A = pinfo(m.steps[i]), Bq = pinfo(m.steps[i + 1]);
+  return [A.x + (Bq.x - A.x) * e, A.y + (Bq.y - A.y) * e];
+}
 const outlines = new Map(); // weiche Umrisse je Provinz (Kartengeometrie ändert sich nicht)
 function outline(id) { const k = C.seed + ':' + id; let o = outlines.get(k); if (!o) { o = borderChains(MAP, (a, b) => a === id || b === id, true); outlines.set(k, o); } return o; }
 export function render() {
@@ -159,7 +179,7 @@ export function render() {
     else if (!p.owner && unitCount(p.garrison) > 0) { // wilde Besatzung: gekreuzte Klingen im dunklen Rund
       const r = 7 * view.dpr; ctx.fillStyle = 'rgba(15,14,12,.7)'; ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,200,150,.8)'; ctx.lineWidth = 1.4 * view.dpr; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x - r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x + r * .55, y + 14 * view.dpr + r * .55); ctx.moveTo(x + r * .55, y + 14 * view.dpr - r * .55); ctx.lineTo(x - r * .55, y + 14 * view.dpr + r * .55); ctx.stroke(); }
-    if (p.rift) { const g = ctx.createRadialGradient(x, y + 10 * view.dpr, 2, x, y + 10 * view.dpr, 26 * view.dpr); g.addColorStop(0, 'rgba(255,120,60,.95)'); g.addColorStop(.45, 'rgba(160,60,190,.55)'); g.addColorStop(1, 'rgba(60,20,80,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + 10 * view.dpr, 26 * view.dpr, 0, 7); ctx.fill(); }
+    if (p.rift) { wake(); const pul = 1 + .18 * Math.sin(performance.now() / 380), g = ctx.createRadialGradient(x, y + 10 * view.dpr, 2, x, y + 10 * view.dpr, 26 * view.dpr * pul); g.addColorStop(0, 'rgba(255,120,60,.95)'); g.addColorStop(.45, 'rgba(160,60,190,.55)'); g.addColorStop(1, 'rgba(60,20,80,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + 10 * view.dpr, 26 * view.dpr * pul, 0, 7); ctx.fill(); }
     if (p.site) { const sy = y - fs * 1.15; ctx.font = Math.round(fs * 1.25) + 'px serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(SITES[p.site].glyph, x + 1, sy + 1); ctx.fillStyle = '#ffd98a'; ctx.fillText(SITES[p.site].glyph, x, sy); }
     ctx.font = '700 ' + Math.round(fs * .82) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center';
     ctx.lineJoin = 'round'; ctx.lineWidth = 3.2 * view.dpr; ctx.strokeStyle = 'rgba(12,10,8,.82)'; ctx.strokeText(pi.name, x, y - 3); ctx.fillStyle = p.owner ? '#f4ead6' : '#d6d2c2'; ctx.fillText(pi.name, x, y - 3);
@@ -168,7 +188,7 @@ export function render() {
   banners = [];
   const byProv = {}; for (const a of C.armies) (byProv[a.at] ||= []).push(a);
   for (const [id, list] of Object.entries(byProv)) list.forEach((a, k) => {
-    const pi = pinfo(+id), w = 26 * view.dpr, h = 30 * view.dpr, x = X(pi.x) + 20 * sk + w / 2 + k * (w + 4 * view.dpr), y = Y(pi.y) + 8 * view.dpr + 13 * sk + 6 * view.dpr; // rechts neben der Siedlung
+    const [bx, by] = bannerAt(a), w = 26 * view.dpr, h = 30 * view.dpr, x = X(bx) + 20 * sk + w / 2 + (marches.has(a.id) ? 0 : k * (w + 4 * view.dpr)), y = Y(by) + 8 * view.dpr + 13 * sk + 6 * view.dpr; // rechts neben der Siedlung
     const selA = sel && sel.kind === 'army' && sel.id === a.id;
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x - w / 2 + 3, y - h + 3, w, h);
     ctx.fillStyle = facColor(a.owner); ctx.beginPath(); ctx.moveTo(x - w / 2, y - h); ctx.lineTo(x + w / 2, y - h); ctx.lineTo(x + w / 2, y - 8 * view.dpr); ctx.lineTo(x, y); ctx.lineTo(x - w / 2, y - 8 * view.dpr); ctx.closePath(); ctx.fill();

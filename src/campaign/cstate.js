@@ -16,7 +16,7 @@ export const hasSite = (f, s) => !!C && C.provs.some(p => p.site === s && p.owne
 export const hasTrait = (f, t) => !!(C.emp[f] && C.emp[f].traits && C.emp[f].traits.includes(t));
 export function setCampaign(c) { C = c; MAP = c ? genMap(c.seed, c.nProv) : null; }
 // Oberfläche hängt sich hier ein. ask: Schlachten mit dem Spieler warten auf seine Wahl (Schlacht schlagen oder berechnen)
-export const cHooks = { log: () => {}, battle: () => {}, changed: () => {}, ask: false };
+export const cHooks = { log: () => {}, battle: () => {}, changed: () => {}, moved: () => {}, ask: false };
 
 // Zufall der Kampagne: Zustand in C.rs (gespeichert), damit Spielstände gleich weiterlaufen.
 export function cR() {
@@ -251,9 +251,10 @@ export function advance(a) {
       a.moved = movesOf(a); a.path = []; a.siege = null;
       if (asksPlayer(a, next)) { const pb = { army: a.id, prov: next }; (C.pending ||= []).push(pb); return { pending: pb }; }
       const res = attack(a, next);
-      if (res.won) a.at = next;
+      if (res.won) { cHooks.moved(a, a.at, next); a.at = next; }
       return res;
     }
+    cHooks.moved(a, a.at, next); // für die Darstellung: Marsch von Provinz zu Provinz
     a.at = next; a.path.shift(); a.siege = null; a.moved += cfx(a.owner, 'roads') && p.owner === a.owner ? .5 : 1; // Heerstraßen
     mergeAt(a);
   }
@@ -290,7 +291,7 @@ export function resolvePending(pb, out) {
   C.pending = (C.pending || []).filter(x => x !== pb);
   const a = pendingArmy(pb); if (!a) return null;
   const r = attack(a, pb.prov, out);
-  if (r.won && C.armies.includes(a)) { a.at = pb.prov; mergeAt(a); }
+  if (r.won && C.armies.includes(a)) { cHooks.moved(a, a.at, pb.prov); a.at = pb.prov; mergeAt(a); }
   cHooks.changed();
   return r;
 }
