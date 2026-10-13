@@ -87,8 +87,61 @@ export function paintBase(MAP, seed) {
   // Küstenlinie als dunkle, leicht unruhige Feder
   const R = B / Q; ctx.fillStyle = 'rgba(18,22,24,.7)';
   for (let py = 1; py < H - 1; py++) for (let px = 1; px < W - 1; px++) { const k = py * W + px; if (isLand[k] && (!isLand[k - 1] || !isLand[k + 1] || !isLand[k - W] || !isLand[k + W])) ctx.fillRect(px * R - .3, py * R - .3, R * .9, R * .9); }
-  glyphs(ctx, MAP, seed, (x, y) => isLand[Math.floor(y / R) * W + Math.floor(x / R)], (x, y) => hgt[Math.floor(y / R) * W + Math.floor(x / R)], MW * B, MH * B);
+  const river = rivers(ctx, MAP, seed, sd, (u, v) => bil(sd, u, v));
+  glyphs(ctx, MAP, seed, (x, y) => isLand[Math.floor(y / R) * W + Math.floor(x / R)] && !river[Math.floor(y / B) * MW + Math.floor(x / B)], (x, y) => hgt[Math.floor(y / R) * W + Math.floor(x / R)], MW * B, MH * B);
   return c;
+}
+
+/* ---------- Flüsse: aus dem Bergland bergab zum Meer ---------- */
+// Quellen in Bergprovinzen weit im Landesinneren; jeder Schritt geht zum Nachbarn mit kleinerem Küstenabstand (mit etwas Zufall),
+// bis das Meer oder ein anderer Fluss erreicht ist. Gezeichnet geglättet, stromab breiter. Gibt die Flusszellen zurück.
+function rivers(ctx, MAP, seed, sd, sdAt) {
+  const mask = new Uint8Array(MW * MH), lines = [];
+  const src = [];
+  for (let i = 0; i < MW * MH; i++) { const p = MAP.pid[i]; if (p < 0) continue; const b = MAP.provs[p].biome; if ((b === 'berg' && sd[i] >= 4) || ((b === 'wald' || b === 'grenz' || b === 'sumpf') && sd[i] >= 10)) src.push(i); }
+  src.sort((a, b) => hash(a % MW, (a / MW) | 0, seed + 41) - hash(b % MW, (b / MW) | 0, seed + 41));
+  const starts = [];
+  for (const i of src) { if (starts.length >= 9) break; const x = i % MW, y = (i / MW) | 0; if (starts.every(j => Math.hypot(j % MW - x, ((j / MW) | 0) - y) > 18)) starts.push(i); }
+  // Fließen: in kleinen Schritten bergab (Küstenabstand plus weiches Rauschen), mit Schwung, damit Bögen statt Ecken entstehen
+  const H = (u, v) => sdAt(u, v) + (fbm(u * .05, v * .05, seed + 43, 2) - .5) * 2.2; // Rauschen flacher als das Gefälle zur Küste: keine Senken
+  const pool = [], lakes = [];
+  for (const s0 of starts) {
+    let u = s0 % MW + .5, v = ((s0 / MW) | 0) + .5, du = 0, dv = 0; const pts = [];
+    for (let step = 0; step < 700; step++) {
+      pts.push([u, v]);
+      if (sdAt(u, v) < -.6) break; // im Meer
+      if (step > 12 && pool.some(([x, y]) => Math.abs(x - u) < .8 && Math.abs(y - v) < .8)) break; // Zusammenfluss
+      const e = .6, gx = H(u + e, v) - H(u - e, v), gy = H(u, v + e) - H(u, v - e), gl = Math.hypot(gx, gy) || 1;
+      du = du * .55 - gx / gl * .45; dv = dv * .55 - gy / gl * .45; const dl = Math.hypot(du, dv) || 1;
+      u += du / dl * .55; v += dv / dl * .55;
+      if (u < 1 || v < 1 || u > MW - 1 || v > MH - 1) break;
+    }
+    if (pts.length < 14) continue;
+    // Kein Weg zum Meer: der Fluss endet in einem See (nur, wenn er nicht in einen anderen mündet)
+    const end = pts[pts.length - 1]; if (sdAt(end[0], end[1]) > 1 && !pool.some(([x, y]) => Math.abs(x - end[0]) < 1 && Math.abs(y - end[1]) < 1)) lakes.push(end);
+    for (const [x, y] of pts) { pool.push([x, y]); mask[Math.floor(y) * MW + Math.floor(x)] = 1; }
+    lines.push(pts);
+  }
+  for (const pts of lines) {
+    let p = pts; for (let it = 0; it < 1; it++) { const q = [p[0]]; for (let k = 0; k < p.length - 1; k++) { const A = p[k], C2 = p[k + 1]; q.push([A[0] * .75 + C2[0] * .25, A[1] * .75 + C2[1] * .25], [A[0] * .25 + C2[0] * .75, A[1] * .25 + C2[1] * .75]); } q.push(p[p.length - 1]); p = q; }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let k = 1; k < p.length; k++) { // stromab breiter: Abschnitt für Abschnitt
+      const t = k / p.length, w = 2 + t * 6;
+      ctx.strokeStyle = 'rgba(20,26,30,.7)'; ctx.lineWidth = w + 2; ctx.beginPath(); ctx.moveTo(p[k - 1][0] * B, p[k - 1][1] * B); ctx.lineTo(p[k][0] * B, p[k][1] * B); ctx.stroke();
+    }
+    for (let k = 1; k < p.length; k++) {
+      const t = k / p.length, w = 2 + t * 6;
+      ctx.strokeStyle = 'rgb(' + Math.round(70 - t * 20) + ',' + Math.round(110 - t * 20) + ',' + Math.round(124 - t * 14) + ')'; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(p[k - 1][0] * B, p[k - 1][1] * B); ctx.lineTo(p[k][0] * B, p[k][1] * B); ctx.stroke();
+    }
+  }
+  for (const [x, y] of lakes) { // See: dunkles Wasser mit hellem Saum
+    const X = x * B, Y = y * B, r = 2.6 * B;
+    ctx.fillStyle = 'rgba(20,26,30,.7)'; ctx.beginPath(); ctx.ellipse(X, Y, r + 2, r * .7 + 2, .3, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgb(48,86,98)'; ctx.beginPath(); ctx.ellipse(X, Y, r, r * .7, .3, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(220,232,236,.35)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(X, Y, r * .7, r * .45, .3, 3.6, 5.6); ctx.stroke();
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const cx = Math.floor(x) + i, cy = Math.floor(y) + j; if (cx >= 0 && cy >= 0 && cx < MW && cy < MH && Math.hypot(i, j) < 3) mask[cy * MW + cx] = 1; }
+  }
+  return mask;
 }
 
 /* ---------- Geländezeichen ---------- */
