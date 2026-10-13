@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { TS, GW, GH, WW, WH, QUALITY } from './config.js';
 import { REGIONS, regionAtCell, regionAt } from './regions.js';
 import { evAt } from './events.js';
+import { seasonAt } from './economy.js';
 import { makePost } from './post.js';
 import { G, UI, cam, view, rng, proj } from './state.js';
 import { FACTIONS, defOf, MAX_HERO_LVL, facOf } from './factions.js';
@@ -27,7 +28,8 @@ const FOGC = 0x5f6c7a, WU = WW * S, HU = WH * S;
 let renderer = null, scene = null, camera = null, octx = null, mm = null, mctx = null, glc = null, ovc = null;
 let world = null, sun = null, ready = false, dprNow = 1, shakeX = 0, shakeY = 0;
 let mmBg = null, fogC = null, fogCtx = null, fogImg = null, fogBig = null, fogBigCtx = null, fogTex = null;
-let post = null, postOn = true, wk = 0, snowK = 1;
+let post = null, postOn = true, wk = 0, snowK = 1, seasonK = 0; // seasonK: 0 mild bis 1 Hartfrost, weich nachgeführt
+const FROST_C = new THREE.Color(0x9db8d8);
 let Q = QUALITY.high;
 const postActive = () => !!(post && postOn && Q.post);
 export function setPost(on) { postOn = !!on; if (MD.GLOW) MD.GLOW.k = postActive() ? .2 : 1; }
@@ -163,8 +165,8 @@ function sync() {
   camera.userData = { cx, cz, D };
   const ev = G && G.ev, ek = ev && ev.id ? wk : 0;
   const W = ev && ev.id && WEATHER[ev.id];
-  scene.fog.density = .5 / D * (1 + ek * (W ? W.dens : 0));
-  FOG_TMP.set(FOGC); if (W) FOG_TMP.lerp(W.col, ek); scene.fog.color.copy(FOG_TMP); scene.background.copy(FOG_TMP);
+  scene.fog.density = .5 / D * (1 + ek * (W ? W.dens : 0)) * (1 + .3 * seasonK);
+  FOG_TMP.set(FOGC); FOG_TMP.lerp(FROST_C, .35 * seasonK); if (W) FOG_TMP.lerp(W.col, ek); scene.fog.color.copy(FOG_TMP); scene.background.copy(FOG_TMP);
 }
 function toWorld3(x, y) {
   ray.setFromCamera(new THREE.Vector2(x / view.w * 2 - 1, -(y / view.h * 2 - 1)), camera);
@@ -664,6 +666,7 @@ export function render(dt, selSet) {
   updateFx(dt); updateFogTex();
   { const rg = REGIONS[regionAt(cam.x + view.w / cam.z / 2, cam.y + view.h / cam.z / 2)], tk = rg && rg.cold ? 1 : Math.max(.06, wk); snowK += (tk - snowK) * Math.min(1, dt * 1.5); snow.material.uniforms.uK.value = snowK; }
   { const tgt = evAt(cam.x + view.w / cam.z / 2, cam.y + view.h / cam.z / 2); wk += (tgt - wk) * Math.min(1, dt * 2); }
+  { const sn = seasonAt(G.t), tk = sn.id === 'frost' ? 1 : sn.id === 'chill' ? .45 : sn.id === 'melt' ? .25 : 0; seasonK += (tk - seasonK) * Math.min(1, dt * .6); }
   sync();
   const sh = G.shakeT > 0 ? G.shakeA * (G.shakeT / .35) * .045 : 0;
   if (sh) camera.position.add(new THREE.Vector3((Math.random() - .5) * sh, (Math.random() - .5) * sh, (Math.random() - .5) * sh));

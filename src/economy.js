@@ -5,13 +5,42 @@ import { FACTIONS } from './factions.js';
 import { CARRY } from './config.js';
 
 /* ---------- Rohstoffe ---------- */
-export const START = { ore: 300, wood: 200 };
+export const START = { ore: 300, wood: 200, food: 200 };
 export const costOf = d => ({ ore: d.cost || 0, wood: d.wood || 0 });
 export const canAfford = (t, c) => G.ore[t] >= (c.ore || 0) && G.wood[t] >= (c.wood || 0);
 export const lack = (t, c) => (G.ore[t] < (c.ore || 0) ? 'Nicht genug Erz' : G.wood[t] < (c.wood || 0) ? 'Nicht genug Holz' : null);
 export function pay(t, c) { G.ore[t] -= c.ore || 0; G.wood[t] -= c.wood || 0; }
 export function refund(t, c, f = 1) { G.ore[t] += Math.floor((c.ore || 0) * f); G.wood[t] += Math.floor((c.wood || 0) * f); }
 export const costStr = c => [c.ore ? c.ore : '', c.wood ? c.wood + ' H' : ''].filter(Boolean).join(' + ') || '0';
+
+/* ---------- Jahreszeiten und Vorräte ---------- */
+// Das Jahr dauert 9 Minuten und beginnt mit der Tauzeit. Im Hartfrost ernten die Höfe kaum, die Truppen essen mehr.
+// prod: Faktor auf die Ernte, cons: Faktor auf den Verbrauch.
+export const SEASONS = [
+  { id: 'thaw',  name: 'Tauzeit',   dur: 240, prod: 1,   cons: 1 },
+  { id: 'chill', name: 'Frühfrost', dur: 90,  prod: .7,  cons: 1.2 },
+  { id: 'frost', name: 'Hartfrost', dur: 150, prod: .25, cons: 2 },
+  { id: 'melt',  name: 'Tauwetter', dur: 60,  prod: .8,  cons: 1 }
+];
+export const YEAR = SEASONS.reduce((n, x) => n + x.dur, 0);
+export function seasonAt(time) {
+  let m = time % YEAR;
+  for (let i = 0; i < SEASONS.length; i++) {
+    if (m < SEASONS[i].dur) return { ...SEASONS[i], i, left: SEASONS[i].dur - m, year: Math.floor(time / YEAR) + 1, next: SEASONS[(i + 1) % SEASONS.length] };
+    m -= SEASONS[i].dur;
+  }
+  return { ...SEASONS[0], i: 0, left: SEASONS[0].dur, year: 1, next: SEASONS[1] };
+}
+export const farmsOf = t => G.ents.filter(e => e.team === t && e.type === 'farm' && e.built && !e.dead).length;
+export const foodCap = t => 400 + 60 * farmsOf(t) + 300 * tl(t, 'storage');
+const HUNGER_PER_POP = .05; // Vorräte je Sekunde und belegtem Versorgungsplatz
+// Ernte und Verbrauch je Sekunde. season = Jahreszeit (Standard: die aktuelle); mit SEASONS[0] ergibt sich die Lage in der Tauzeit.
+export function foodRates(t, season = seasonAt(G.t)) {
+  const base = (hqOf(t) ? .5 : 0) + .35 * farmsOf(t); // Burg und je Hof
+  let pop = 0; for (const e of G.ents) if (e.team === t && e.kind === 'unit' && !e.dead) pop += e.d.pop || 1;
+  const prod = base * (1 + .25 * tl(t, 'harvest')) * season.prod, cons = pop * HUNGER_PER_POP * season.cons;
+  return { prod, cons, net: prod - cons, pop };
+}
 
 /* ---------- Burgstufen ---------- */
 // Index = Zielstufe. Stufe 2 schaltet Reiter, Werkstatt, Markt und die zweite Technikstufe frei, Stufe 3 die dritte.
@@ -50,6 +79,8 @@ export const TECH = {
   felling: { at: 'hq',       levels: L([1, 60, 80, 25], [2, 140, 160, 35]) },
   hero:    { at: 'hq',       levels: L([2, 200, 100, 40], [3, 350, 200, 50]) },
   fort:    { at: 'hq',       levels: L([2, 150, 150, 40], [3, 280, 250, 50]) },
+  harvest: { at: 'hq',       levels: L([1, 90, 70, 30], [2, 180, 140, 40]) },
+  storage: { at: 'hq',       levels: L([1, 70, 100, 30], [2, 150, 200, 40]) },
   weapons: { at: 'barracks', levels: L([1, 120, 60, 35], [2, 220, 120, 45], [3, 350, 200, 55]) },
   armor:   { at: 'barracks', levels: L([1, 100, 80, 35], [2, 200, 140, 45], [3, 320, 220, 55]) },
   sig:     { at: 'barracks', levels: L([2, 250, 200, 50]) },
@@ -62,18 +93,22 @@ export const techsAt = type => TECH_IDS.filter(id => TECH[id].at === type);
 const NAMES = {
   wacht: { carry: ['Tragejoche', 'Lastenschlitten'], mining: ['Eisenspitzhacken', 'Stollenstützen'], felling: ['Scharfe Äxte', 'Zugsägen'], hero: ['Waffenübung', 'Heldenlieder'],
     fort: ['Verstärkte Mauern', 'Steinzinnen'], weapons: ['Geschärfte Speere', 'Stahlspitzen', 'Meisterschmiedung'], armor: ['Wattierte Wämser', 'Kettenhemden', 'Plattenpanzer'],
-    sig: ['Schildwall-Drill'], siege: ['Eisenbeschlagene Rammen', 'Bergfried-Brecher'], trade: ['Handelsbriefe', 'Zollfreiheit'] },
+    sig: ['Schildwall-Drill'], siege: ['Eisenbeschlagene Rammen', 'Bergfried-Brecher'], trade: ['Handelsbriefe', 'Zollfreiheit'],
+    harvest: ['Eisenpflüge', 'Dreifelderwirtschaft'], storage: ['Wurzelkeller', 'Steinspeicher'] },
   asch: { carry: ['Rückentragen', 'Schleppgestelle'], mining: ['Glutmeißel', 'Schmelzöfen'], felling: ['Brandäxte', 'Rodungstrupps'], hero: ['Blutrituale', 'Ahnenruf'],
     fort: ['Dornenwälle', 'Schwarzstein-Zinnen'], weapons: ['Zackenklingen', 'Splitterschneiden', 'Aschenstahl'], armor: ['Hautpanzer', 'Hornplatten', 'Schwarzer Harnisch'],
-    sig: ['Brutstätten'], siege: ['Glühende Keulen', 'Bergbrecher'], trade: ['Beutetausch', 'Plünderrecht'] },
+    sig: ['Brutstätten'], siege: ['Glühende Keulen', 'Bergbrecher'], trade: ['Beutetausch', 'Plünderrecht'],
+    harvest: ['Wildfang', 'Treibjagd'], storage: ['Räucherkammern', 'Pökelgruben'] },
   salz: { carry: ['Salzkörbe', 'Seilwinden'], mining: ['Stahlmeißel', 'Hebelwerke'], felling: ['Treibholzsägen', 'Werftgespanne'], hero: ['Gezeitengesänge', 'Seherblick'],
     fort: ['Kalkmauern', 'Wellenbrecher'], weapons: ['Hakenstahl', 'Hohlschliff', 'Meeresstahl'], armor: ['Ölzeug', 'Schuppenpanzer', 'Perlmuttharnisch'],
-    sig: ['Gezeitenkunde'], siege: ['Eisbrocken', 'Sturmschleuder'], trade: ['Hafenrechte', 'Seehandel'] }
+    sig: ['Gezeitenkunde'], siege: ['Eisbrocken', 'Sturmschleuder'], trade: ['Hafenrechte', 'Seehandel'],
+    harvest: ['Fangnetze', 'Austernbänke'], storage: ['Salzfässer', 'Eishäuser'] }
 };
 const DESC = {
   carry: 'Arbeiter tragen vier Einheiten mehr je Fuhre.', mining: 'Erzabbau 20 Prozent schneller.', felling: 'Holzfällen 25 Prozent schneller.',
   hero: 'Helden sammeln 30 Prozent mehr Erfahrung.', fort: 'Gebäude nehmen 12 Prozent weniger Schaden.', weapons: 'Truppen richten 10 Prozent mehr Schaden an.',
-  armor: 'Truppen nehmen 8 Prozent weniger Schaden.', siege: 'Belagerungswaffen richten 20 Prozent mehr Schaden an.', trade: 'Besserer Kurs beim Tauschen von Erz und Holz.',
+  armor: 'Truppen nehmen 8 Prozent weniger Schaden.', siege: 'Belagerungswaffen richten 20 Prozent mehr Schaden an.', trade: 'Besserer Kurs beim Tauschen von Erz, Holz und Vorräten.',
+  harvest: 'Höfe und Burg liefern 25 Prozent mehr Vorräte.', storage: 'Das Lager fasst 300 Vorräte mehr.',
   sig: { wacht: 'Speerträger nehmen 20 Prozent weniger Schaden.', asch: 'Truppen werden 25 Prozent schneller ausgebildet.', salz: 'Fähigkeiten und Macht laden 25 Prozent schneller.' }
 };
 export const techName = (fac, id, lvl) => (NAMES[fac] && NAMES[fac][id] ? NAMES[fac][id][Math.min(lvl, NAMES[fac][id].length) - 1] : id);
@@ -134,11 +169,14 @@ export function damageTakenMul(e) {
 
 /* ---------- Handel ---------- */
 export const tradeRate = t => .75 + .1 * tl(t, 'trade');
-// amt Einheiten der Ware from gegen die Ware to tauschen ('ore' oder 'wood'); gibt false zurück, wenn zu wenig da ist.
+export const RES_NAME = { ore: 'Erz', wood: 'Holz', food: 'Vorräte' };
+const RES = { ore: () => G.ore, wood: () => G.wood, food: () => G.food };
+// amt Einheiten der Ware from gegen die Ware to tauschen ('ore', 'wood' oder 'food'); false, wenn zu wenig da ist oder das Lager voll wäre.
 export function trade(t, from, to, amt = 100) {
-  const A = from === 'ore' ? G.ore : G.wood, B = to === 'ore' ? G.ore : G.wood;
+  const A = RES[from](), B = RES[to](), got = Math.floor(amt * tradeRate(t));
   if (from === to || A[t] < amt) return false;
-  A[t] -= amt; B[t] += Math.floor(amt * tradeRate(t));
+  A[t] -= amt; B[t] += got;
+  if (to === 'food') B[t] = Math.min(B[t], foodCap(t));
   return true;
 }
-export const tradeBlock = (b, from) => (!b.built ? 'Gebäude im Bau' : (from === 'ore' ? G.ore : G.wood)[b.team] < 100 ? 'Nicht genug ' + (from === 'ore' ? 'Erz' : 'Holz') : null);
+export const tradeBlock = (b, from) => (!b.built ? 'Gebäude im Bau' : RES[from]()[b.team] < 100 ? 'Nicht genug ' + RES_NAME[from] : null);

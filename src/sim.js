@@ -1,11 +1,11 @@
 import { TS, GW, GH } from './config.js';
-import { G } from './state.js';
+import { G, hooks } from './state.js';
 import { updUnit, updBld, separate, autoGather } from './units.js';
-import { updProjs, updZones } from './combat.js';
+import { updProjs, updZones, kill } from './combat.js';
 import { aiTick } from './ai.js';
 import { updEvents, evSight } from './events.js';
 import { updQuests } from './quests.js';
-import { tierOf } from './economy.js';
+import { tierOf, seasonAt, foodRates, foodCap } from './economy.js';
 
 export function updFog() {
   const f = G.fog;
@@ -27,6 +27,28 @@ export function updFog() {
     }
   }
   G.fogDirty = true;
+}
+
+// Vorräte: einmal je Sekunde Ernte und Verbrauch verrechnen. Ist das Lager leer, verhungern Truppen langsam.
+const HUNGER_HP = .01; // Anteil der Lebenspunkte je Sekunde
+function updFood() {
+  const s = seasonAt(G.t);
+  if (G.season !== s.id) { // Jahreszeitenwechsel melden
+    if (G.season) {
+      const msg = { chill: 'Der Frost zieht an. Die Ernte sinkt, Vorräte anlegen!', frost: 'Hartfrost! Kaum Ernte, die Truppen essen mehr.', melt: 'Das Eis bricht. Die Felder erholen sich.', thaw: 'Tauzeit. Zeit zum Wachsen.' }[s.id];
+      hooks.toast(msg, s.id === 'frost' || s.id === 'chill' ? 'bad' : 'good'); hooks.sfx(s.id === 'frost' ? 'alarm' : 'done');
+    }
+    G.season = s.id;
+  }
+  for (const t of [0, 1]) {
+    const r = foodRates(t);
+    G.food[t] = Math.max(0, Math.min(foodCap(t), G.food[t] + r.net));
+    if (G.food[t] <= 0 && r.net < 0) {
+      G.hunger[t] = (G.hunger[t] || 0) + 1;
+      if (t === 0 && G.hunger[0] % 8 === 1) { hooks.toast('Hunger! Die Truppen verlieren Leben. Mehr Höfe oder Vorräte tauschen.', 'bad'); hooks.sfx('alarm'); }
+      for (const e of G.ents) if (e.team === t && e.kind === 'unit' && !e.dead) { e.hp -= e.maxhp * HUNGER_HP; if (e.hp <= 0) kill(e, null); }
+    } else G.hunger[t] = 0;
+  }
 }
 
 export function beginMatch() {
@@ -60,5 +82,6 @@ export function step(dt) {
   G.sel = G.sel.filter(id => G.map.has(id));
   G.qT = (G.qT || 0) - dt; if (G.qT <= 0) { G.qT = .5; updQuests(); }
   G.aiT -= dt; if (G.aiT <= 0) { G.aiT = 1; aiTick(1); if (G.ai0) aiTick(0); }
+  G.foodT -= dt; if (G.foodT <= 0) { G.foodT += 1; updFood(); }
   G.fogT -= dt; if (G.fogT <= 0) { G.fogT = .15; updFog(); }
 }

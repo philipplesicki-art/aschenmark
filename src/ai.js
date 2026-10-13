@@ -6,7 +6,7 @@ import { regionAt, openedRegion } from './regions.js';
 import { setOrder } from './path.js';
 import { autoGather, train, trainBlock } from './units.js';
 import { cast, canCast, abilityList, canPower, castPower, powerOf } from './combat.js';
-import { costOf, canAfford, pay, tierOf, UPGRADE, upgradeBlock, startUpgrade, TECH, techNext, techBlock, startResearch, trade, tradeBlock } from './economy.js';
+import { costOf, canAfford, pay, tierOf, UPGRADE, upgradeBlock, startUpgrade, TECH, techNext, techBlock, startResearch, trade, tradeBlock, foodRates, foodCap, farmsOf, SEASONS } from './economy.js';
 
 // Die KI spielt eine Seite (T) gegen die andere (O). Im Spiel ist das Team 1; für Balance-Tests kann auch
 // Team 0 von der KI gespielt werden (Zustand in G.ai0 statt G.ai).
@@ -91,12 +91,13 @@ function aiEconomy(hq, mine, ws, army, D) {
   if (D.trade && tier >= 2 && !mine.some(e => e.type === 'market') && G.ore[T] > 380 && G.wood[T] > 380) aiBuild('market', ws);
   const mk = mine.find(e => e.type === 'market' && e.built);
   if (mk && D.trade) {
-    if (G.ore[T] > 450 && G.wood[T] < 150 && !tradeBlock(mk, 'ore')) trade(T, 'ore', 'wood', 100);
+    if (G.food[T] < foodCap(T) * .35 && G.ore[T] > 350 && !tradeBlock(mk, 'ore')) trade(T, 'ore', 'food', 100);
+    else if (G.ore[T] > 450 && G.wood[T] < 150 && !tradeBlock(mk, 'ore')) trade(T, 'ore', 'wood', 100);
     else if (G.wood[T] > 450 && G.ore[T] < 150 && !tradeBlock(mk, 'wood')) trade(T, 'wood', 'ore', 100);
   }
   // Forschung
   if (!D.research || G.t < 200) return;
-  const order = D.research === 1 ? ['mining', 'felling', 'weapons', 'carry', 'armor', 'fort'] : ['mining', 'felling', 'weapons', 'armor', 'carry', 'sig', 'fort', 'hero', 'siege', 'trade'];
+  const order = D.research === 1 ? ['mining', 'felling', 'harvest', 'weapons', 'storage', 'carry', 'armor', 'fort'] : ['mining', 'felling', 'harvest', 'weapons', 'storage', 'armor', 'carry', 'sig', 'fort', 'hero', 'siege', 'trade'];
   for (const id of order) {
     if (!techNext(T, id)) continue;
     const b = mine.find(e => e.type === TECH[id].at && e.built && !e.rs); if (!b || techBlock(b, id)) continue;
@@ -161,7 +162,10 @@ export function aiTick(team = 1) {
 
   const queuedW = hq.queue.filter(q => q.type === 'worker').length;
   if (ws.length + queuedW < D.workers && hq.queue.length < 2 && !trainBlock(hq, 'worker')) train(hq, 'worker');
-  if (popUsed(T) >= popCap(T) - 3 && !sites.some(s => s.type === 'farm') && canAfford(T, costOf(defOf(G.fac[T], 'farm')))) aiBuild('farm', ws);
+  // Höfe: für die Versorgung und damit die Ernte in der Tauzeit den Verbrauch deckt (der Winter zehrt am Lager)
+  const thaw = foodRates(T, SEASONS[0]);
+  const farmNeed = popUsed(T) >= popCap(T) - 3 || (thaw.net < .3 + thaw.pop * .012 && G.t > 90 && farmsOf(T) < 12);
+  if (farmNeed && !sites.some(s => s.type === 'farm') && canAfford(T, costOf(defOf(G.fac[T], 'farm')))) aiBuild('farm', ws);
   const wantBars = Math.min(D.maxBars, 1 + Math.floor(G.t / D.barEvery));
   if (bars.length + sites.filter(s => s.type === 'barracks').length < wantBars && ws.length >= 4) aiBuild('barracks', ws);
   if (D.siege && G.t > D.siegeAt - 90 && tierOf(T) >= 2 && !shops.length && !sites.some(s => s.type === 'workshop') && hasBuilt(T, 'barracks') && ws.length >= 4) aiBuild('workshop', ws);

@@ -3,7 +3,7 @@ import { G, setG } from './state.js';
 import { defOf } from './factions.js';
 
 const KEY = 'aschenmark.save.v1';
-const VERSION = 2; // 2: Holz, Technik, Burgstufen, fällbare Bäume
+const VERSION = 3; // 2: Holz, Technik, Burgstufen, fällbare Bäume; 3: Vorräte, Jahreszeiten
 const SKIP = new Set(['map', 'parts', 'floats']);
 
 const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); };
@@ -20,11 +20,12 @@ export function serialize() {
 
 export function deserialize(text) {
   const o = JSON.parse(text, (k, val) => (val && typeof val === 'object' && val.__u8 !== undefined ? unb64(val.__u8) : val));
-  if (!o || (o.v !== VERSION && o.v !== 1)) throw new Error('Spielstand passt nicht zu dieser Version');
+  if (!o || (o.v !== VERSION && o.v !== 1 && o.v !== 2)) throw new Error('Spielstand passt nicht zu dieser Version');
   const g = o.g;
   // Version 1 kannte weder Holz noch Technik: mit Startwerten auffüllen
   if (!g.wood) g.wood = [200, 200];
   if (!g.tech) g.tech = [{}, {}];
+  if (!g.food) { g.food = [200, 200]; g.hunger = [0, 0]; g.foodT = 1; g.season = null; }
   if (g.ai && g.ai.p && g.ai.p.tierAt === undefined) g.ai.p = { ...g.ai.p, tierAt: [420, 900], research: 1, trade: true, maxCamps: 2 };
   g.map = new Map(); g.parts = []; g.floats = [];
   for (const e of g.ents) {

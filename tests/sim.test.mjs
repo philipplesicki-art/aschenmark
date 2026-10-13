@@ -404,3 +404,43 @@ console.log('Alle Tests bestanden');
   }
   console.log('KI-Wirtschaft ok');
 }
+
+// Vorräte und Jahreszeiten: Ernte, Verbrauch, Winter, Hunger, Lager, Handel.
+{
+  const E = await import('../src/economy.js');
+  assert.equal(E.YEAR, 540); assert.equal(E.seasonAt(0).id, 'thaw'); assert.equal(E.seasonAt(250).id, 'chill'); assert.equal(E.seasonAt(340).id, 'frost');
+  assert.equal(E.seasonAt(500).id, 'melt'); assert.equal(E.seasonAt(540).id, 'thaw'); assert.equal(E.seasonAt(540 + 335).year, 2);
+  newWorld({ fac0: 'wacht', fac1: 'asch', diff: 'easy', seed: 41 }); beginMatch(); G.ai.next = 1e9;
+  const hq = G.ents.find(e => e.type === 'hq' && e.team === 0);
+  assert.equal(G.food[0], 200);
+  const thaw = E.foodRates(0, E.SEASONS[0]), frost = E.foodRates(0, E.SEASONS[2]);
+  assert.ok(thaw.net > 0, 'Tauzeit: Burg deckt die Anfangstruppen'); assert.ok(frost.net < thaw.net - .3, 'Hartfrost: Ernte fällt, Verbrauch steigt');
+  assert.ok(Math.abs(frost.prod - thaw.prod * .25) < 1e-9);
+  const before = E.foodRates(0, E.SEASONS[0]).prod; mkBld('farm', 0, 18, 30, true); assert.ok(E.foodRates(0, E.SEASONS[0]).prod > before + .3, 'Hof erntet 0,35 je Sekunde');
+  G.tech[0].harvest = 2; assert.ok(Math.abs(E.foodRates(0, E.SEASONS[0]).prod - (.5 + .35) * 1.5) < 1e-9, 'Erntetechnik');
+  G.tech[0].storage = 1; assert.equal(E.foodCap(0), 400 + 60 + 300);
+  // Handel mit Vorräten, Lager als Grenze
+  G.ore[0] = 500; G.food[0] = 100; assert.ok(E.trade(0, 'ore', 'food', 100)); assert.equal(G.food[0], 175);
+  G.food[0] = E.foodCap(0) - 10; E.trade(0, 'ore', 'food', 100); assert.equal(G.food[0], E.foodCap(0), 'Lager läuft nicht über');
+  // Hunger: leeres Lager im Hartfrost kostet Leben und sperrt die Ausbildung
+  G.t = 345; G.season = 'frost'; G.tech[0] = {}; G.food[0] = 0;
+  const sp = mkUnit('melee', 0, hq.x + 100, hq.y + 100), hp0 = sp.hp;
+  assert.equal(trainBlock(hq, 'worker'), 'Vorräte erschöpft');
+  for (let i = 0; i < 20 * 20; i++) step(.05);
+  assert.ok(sp.hp < hp0 * .9 && G.hunger[0] > 10, 'Truppen hungern: ' + Math.round(sp.hp) + ' von ' + hp0);
+  G.food[0] = 300; G.t = 10; step(1.1); assert.equal(G.hunger[0], 0, 'Hunger endet mit Vorräten');
+  // Speichern und Laden behält Vorräte, Hunger und Jahreszeit; alte Spielstände bekommen Startvorräte
+  const { serialize, deserialize } = await import('../src/save.js');
+  G.food[0] = 321; const o = JSON.parse(serialize()); deserialize(JSON.stringify(o)); assert.equal(G.food[0], 321);
+  delete o.g.food; o.v = 2; deserialize(JSON.stringify(o)); assert.deepEqual(G.food, [200, 200]);
+  console.log('Vorräte und Jahreszeiten ok');
+}
+
+// Die KI übersteht Winter ohne Hunger auf Normal und baut genug Höfe.
+{
+  const E = await import('../src/economy.js'); let hunger = 0;
+  newWorld({ fac0: 'wacht', fac1: 'salz', diff: 'normal', seed: 5 }); beginMatch(); G.ai.next = 1e9;
+  for (let i = 0; i < 20 * 60 * 14; i++) { step(.05); if (G.hunger[1] > 0) hunger += .05; }
+  assert.ok(E.farmsOf(1) >= 3, 'KI baut Höfe: ' + E.farmsOf(1)); assert.ok(hunger < 20, 'KI verhungert kaum: ' + Math.round(hunger) + ' s');
+  console.log('KI-Winter ok (Hunger ' + Math.round(hunger) + ' s)');
+}

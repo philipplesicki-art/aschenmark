@@ -7,7 +7,7 @@ import { mkBld, canPlaceAt, hasBuilt, treeReach } from './world.js';
 import { setOrder } from './path.js';
 import { trainBlock, train } from './units.js';
 import { kill, cast, canCast, abilityList, canPower, castPower, powerOf, heroOf } from './combat.js';
-import { costOf, costStr, lack, pay, refund, UPGRADE, upgradeBlock, startUpgrade, cancelUpgrade, techsAt, techNext, techBlock, startResearch, cancelResearch, techName, techDesc, TECH, tradeBlock, trade, tradeRate, tierOf } from './economy.js';
+import { costOf, costStr, lack, pay, refund, UPGRADE, upgradeBlock, startUpgrade, cancelUpgrade, techsAt, techNext, techBlock, startResearch, cancelResearch, techName, techDesc, TECH, tradeBlock, trade, tradeRate, tierOf, RES_NAME } from './economy.js';
 
 export const selEnts = () => G.sel.map(id => G.map.get(id)).filter(Boolean);
 export function select(ids) { G.sel = ids; UI.sig = ''; }
@@ -220,9 +220,9 @@ export function cmdDefs() {
         title: techDesc(b.fac, id) + (lv.tier > 1 ? ' (Burgstufe ' + lv.tier + ')' : '') + ' · ' + lv.time + ' s' });
     }
     if (b.rs) defs.push({ id: 'rsc', label: 'Forschung abbrechen', en: () => true, fn: () => cancelResearch(b) });
-    if (b.type === 'market') for (const [from, to, lb] of [['ore', 'wood', '100 Erz → Holz'], ['wood', 'ore', '100 Holz → Erz']]) {
-      defs.push({ id: 'tr' + from, label: lb.replace(/100 /, '') + ' tauschen', cost: '100 → ' + Math.floor(100 * tradeRate(b.team)), en: () => !tradeBlock(b, from), fn: () => trade(b.team, from, to, 100),
-        title: 'Kurs: 100 gegen ' + Math.floor(100 * tradeRate(b.team)) });
+    if (b.type === 'market') for (const [from, to] of [['ore', 'wood'], ['wood', 'ore'], ['ore', 'food'], ['food', 'ore']]) {
+      defs.push({ id: 'tr' + from + to, label: RES_NAME[from] + ' → ' + RES_NAME[to], cost: '100 → ' + Math.floor(100 * tradeRate(b.team)), en: () => !tradeBlock(b, from), fn: () => trade(b.team, from, to, 100),
+        title: 'Tauschkurs: 100 ' + RES_NAME[from] + ' gegen ' + Math.floor(100 * tradeRate(b.team)) + ' ' + RES_NAME[to] });
     }
     return defs;
   }

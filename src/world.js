@@ -160,7 +160,7 @@ export function newWorld({ fac0 = 'wacht', fac1 = 'asch', diff = 'normal', seed,
   setG({
     t: 0, nid: 1, ents: [], map: new Map(), projs: [], parts: [], marks: [], zones: [], floats: [], corpses: [],
     blk: new Uint8Array(GW * GH), fog: new Uint8Array(GW * GH), fogDirty: true,
-    ore: [START.ore, START.ore], wood: [START.wood, START.wood], tech: [{}, {}], pp: [0, 0], ppCd: [0, 0], teamKills: [0, 0], kills: 0, lost: 0,
+    ore: [START.ore, START.ore], wood: [START.wood, START.wood], food: [START.food, START.food], hunger: [0, 0], foodT: 1, season: null, tech: [{}, {}], pp: [0, 0], ppCd: [0, 0], teamKills: [0, 0], kills: 0, lost: 0,
     over: null, paused: false, sel: [], groups: {}, alertT: -99, diff, trees: [], aiT: 3, fogT: 0, idleI: -1,
     fac: [fac0, fac1], seed, gates: {}, mined: [0, 0], regions: Object.fromEntries(Object.values(REGIONS).map(r => [r.id, r.open])), rs: (seed ^ 0x9E3779B9) >>> 0, combat: 0, shakeT: 0, shakeA: 0,
     ai: { p: P, k: 0, next: P.first, size: P.size0, wave: 0, active: false }

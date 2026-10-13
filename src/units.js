@@ -104,7 +104,7 @@ export function updUnit(u, dt) {
       if (u.carry > 0) deliver(u, dt);
       else if (dep) {
         if (gap(u, dep) <= 6) {
-          u.path = null; u.working = true; u.face = Math.atan2(dep.y - u.y, dep.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'ore');
+          u.path = null; u.working = true; u.face = Math.atan2(dep.y - u.y, dep.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'ore') * (G.hunger[u.team] ? .6 : 1);
           if (u.gt >= 1.6) {
             u.gt = 0; const take = Math.min(carryCap(u.team), dep.amt); dep.amt -= take; u.carry = take; u.cres = 'ore'; u.pdx = undefined; u.done = false;
           }
@@ -122,7 +122,7 @@ export function updUnit(u, dt) {
       if (u.carry > 0) deliver(u, dt);
       else if (tr) {
         if (Math.hypot(tr.x - u.x, tr.y - u.y) <= 56) { // Axtreichweite: auch vom diagonalen Nachbarfeld aus
-          o.walk = 0; u.path = null; u.working = true; u.face = Math.atan2(tr.y - u.y, tr.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'wood');
+          o.walk = 0; u.path = null; u.working = true; u.face = Math.atan2(tr.y - u.y, tr.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'wood') * (G.hunger[u.team] ? .6 : 1);
           if (u.gt >= 1.8) {
             u.gt = 0; const take = Math.min(carryCap(u.team), treeWood(tr)); tr.w -= take; u.carry = take; u.cres = 'wood'; u.pdx = undefined; u.done = false;
             if (u.team === 0) hooks.sfx('chop');
@@ -204,6 +204,7 @@ export function trainBlock(b, tp) {
   const d = defOf(b.fac, tp), t = b.team;
   if (!b.built) return 'Gebäude im Bau';
   if (d.tier && tierOf(t) < d.tier) return 'Burgstufe ' + d.tier + ' nötig';
+  if (G.food[t] <= 0) return 'Vorräte erschöpft';
   const lk = lack(t, costOf(d)); if (lk) return lk;
   if (popUsed(t) + d.pop > popCap(t)) return 'Mehr Höfe nötig';
   if (b.queue.length >= 5) return 'Warteschlange voll';

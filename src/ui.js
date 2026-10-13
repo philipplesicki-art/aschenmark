@@ -4,7 +4,7 @@ import { G, UI, hooks, cam, view } from './state.js';
 import { regionAt, REGIONS } from './regions.js';
 import { EVENTS, evAt } from './events.js';
 import { FACTIONS, FAC_IDS, XP_STEPS, MAX_HERO_LVL, defOf, bldName } from './factions.js';
-import { techName } from './economy.js';
+import { techName, seasonAt, foodRates } from './economy.js';
 import { DIFF, QUALITY } from './config.js';
 import { popUsed, popCap } from './world.js';
 import { cmdDefs, selEnts, selectArmy, selectIdle, usePower } from './commands.js';
@@ -87,6 +87,10 @@ export function refreshUI() {
   if (!G) return;
   $('ore').textContent = Math.floor(G.ore[0]);
   $('wood').textContent = Math.floor(G.wood[0]);
+  { const fr = foodRates(0), s = seasonAt(G.t), net = fr.net, fe = $('foodNet'), ch = $('seasonChip');
+    $('food').textContent = Math.floor(G.food[0]);
+    fe.textContent = (net >= 0 ? '+' : '') + net.toFixed(1); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
+    $('seasonN').textContent = s.name; $('seasonT').textContent = Math.floor(s.left / 60) + ':' + String(Math.floor(s.left % 60)).padStart(2, '0'); ch.className = 'stat season ' + s.id; }
   $('pop').textContent = popUsed(0) + '/' + popCap(0);
   $('pp').textContent = G.pp[0].toFixed(1);
   renderQuest();

@@ -19,6 +19,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font:600 16px/1.25 var(--ui)
 .stat b{font-variant-numeric:tabular-nums;font-weight:700}
 .stat.ore b{color:var(--brass)}
 .stat.wood b{color:#9ccb7e}
+.stat.food b{color:#e0c27a}
+.stat i{font-style:normal;font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.stat i.neg{color:var(--bad)}.stat i.pos{color:var(--good)}
+.stat.season{border-color:#3a5a73}.stat.season.chill{border-color:#6a8aa8}.stat.season.frost{border-color:#9fd2ff;background:#1b2b3a}.stat.season.melt{border-color:#7aa88a}
+.stat.season.frost b,.stat.season.frost span{color:#cfe9ff}
 .btn .c{white-space:nowrap}
 .btn{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:6px 12px;min-height:38px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{border-color:var(--brass)}
@@ -81,7 +86,7 @@ canvas#c{cursor:crosshair}
 @media(max-width:640px){#quest{max-width:190px;font-size:13px}#quest .qx{display:none}}
 
 .stat.ev{border-color:var(--bad);color:#ffd2c7}.stat.ev b{color:#ffd2c7;font-size:15px}
-@media(max-width:640px){#top .stat:nth-child(5){display:none}}
+@media(max-width:640px){#top .stat:has(#reg){display:none}}
 
 /* ---------- Hauptmenü: Karte links, dahinter die laufende Szene ---------- */
 #app.inmenu #top,#app.inmenu #panel,#app.inmenu #quest{display:none}
