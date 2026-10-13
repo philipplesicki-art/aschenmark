@@ -126,6 +126,8 @@ cb.restart = () => { stopMusic(); showStart(); };
 cb.menuScene = menuScene;
 
 if (R.setPost) R.setPost(loadSettings().fx !== false);
+// Modelle aus Blender (public/models) nachladen; ohne Dateien bleibt alles bei den Code-Modellen.
+if (R.loadFileModels) R.loadFileModels().then(n => { if (n) console.info(n + ' Modelle aus Dateien geladen'); });
 wireTopBar();
 initInput(cv, mm);
 

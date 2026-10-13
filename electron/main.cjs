@@ -1,7 +1,8 @@
 'use strict';
 // Desktop-Hülle für Aschenmark. Startet das Spiel aus dist/ (oder den Vite-Server im Entwicklungsmodus)
 // und reicht Steam-Erfolge über steamworks.js weiter, falls das Paket und der Steam-Client vorhanden sind.
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, protocol, net } = require('electron');
+const { pathToFileURL } = require('url');
 const path = require('path');
 const fs = require('fs');
 
@@ -22,6 +23,11 @@ try {
   if (sw.electronEnableSteamOverlay) sw.electronEnableSteamOverlay();
 } catch (_) { /* ohne Steam weiterspielen */ }
 
+// Eigenes Protokoll app://: Von file:// darf das Spiel keine Dateien nachladen (Modelle, Listen). app:// liefert
+// alles aus dist/ aus und erlaubt fetch. Muss vor app.ready angemeldet werden.
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+const DIST = path.join(__dirname, '..', 'dist');
+
 // Nur eine Instanz: ein zweiter Start holt das vorhandene Fenster nach vorne.
 const firstInstance = app.requestSingleInstanceLock();
 if (!firstInstance) app.quit();
@@ -41,7 +47,7 @@ function createWindow() {
   // Links öffnen keine neuen Fenster in der Hülle.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   const dev = process.env.VITE_DEV_SERVER_URL;
-  if (dev) win.loadURL(dev); else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  if (dev) win.loadURL(dev); else win.loadURL('app://spiel/index.html');
 }
 
 ipcMain.handle('achievement', (_e, id) => {
@@ -58,6 +64,12 @@ ipcMain.handle('fullscreen-set', (_e, on) => { if (win) win.setFullScreen(!!on);
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 if (firstInstance) app.whenReady().then(() => {
+  protocol.handle('app', req => {
+    const rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\/+/, '');
+    const file = path.normalize(path.join(DIST, rel || 'index.html'));
+    if (!file.startsWith(DIST)) return new Response('Nicht erlaubt', { status: 403 }); // nichts außerhalb von dist/
+    return net.fetch(pathToFileURL(file).toString());
+  });
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 /* ---------- Material- und Formcache ---------- */
 const mats = new Map();
@@ -657,6 +658,7 @@ function keepOf(g) {
 
 export function buildUnit(fac, type) {
   initTextures();
+  const file = fromFile(fac + ':' + type); if (file) return file;
   const g = fac === 'wild' ? wildUnit(type) : fac === 'asch' ? asch(type) : fac === 'salz' ? salz(type) : wacht(type);
   const capes = []; g.traverse(o => { if (o.userData.isCape) capes.push(o); }); g.userData.capes = capes; // auch Umhänge von Reitern
   return bake(g, 'u:' + fac + ':' + type, keepOf(g));
@@ -1091,17 +1093,81 @@ function frameWindows(g) {
 }
 export function buildBld(fac, type, seed = 1) {
   initTextures();
+  const file = fromFile(fac + ':' + type);
+  if (file) return withScaffold(file);
   RV = makeVariant(seed); RV.fac = fac;
   const g = fac === 'asch' ? bAsch(type) : fac === 'salz' ? bSalz(type) : bWacht(type);
   RV = null; frameWindows(g);
   g.userData.fac = fac;
   (fac === 'asch' ? detailA : detailW)(g, type);
+  withScaffold(g);
+  return bake(g, 'b:' + fac + ':' + type + ':' + seed, keepOf(g));
+}
+// Baugerüst, das während des Baus sichtbar ist
+function withScaffold(g) {
   const sc = new THREE.Group();
   for (let i = 0; i < 4; i++) { const px = (i % 2 ? 1 : -1) * 1.5, pz = (i < 2 ? 1 : -1) * 1.5; part(sc, box(.14, 2.6, .14), L.wood, px, 1.3, pz); }
   part(sc, box(3.2, .1, .1), L.wood, 0, 2.4, 1.5); part(sc, box(.1, .1, 3.2), L.wood, 1.5, 2.4, 0);
   sc.visible = false; g.add(sc); g.userData.scaffold = sc;
-  return bake(g, 'b:' + fac + ':' + type + ':' + seed, keepOf(g));
+  return g;
 }
+
+/* ---------- Modelle aus Dateien (Blender, glTF) ---------- */
+// public/models/index.json nennt die vorhandenen Dateien, Schlüssel Fraktion:Typ, z. B. { "wacht:melee": "wacht_melee.glb" }.
+// Fehlt ein Eintrag, baut der Code das Modell wie bisher. Maßstab: 1 = 1 Spieleinheit (16 Weltpixel), vorne ist +X.
+// Animationen heißen stehen, gehen, angriff, arbeit, tod. In Gebäuden werden leere Objekte namens Rauch…, Feuer…
+// und Teile namens Fahne… zu Rauchquellen, Flammen und wehenden Fahnen.
+const FILES = new Map();
+export function registerModel(key, gltf) {
+  const sc = gltf.scene;
+  sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  FILES.set(key, { scene: sc, clips: gltf.animations || [] });
+}
+export const hasModel = key => FILES.has(key);
+export const clearModels = () => FILES.clear();
+export async function loadModels(base = 'models/') {
+  let idx;
+  try { const r = await fetch(base + 'index.json'); if (!r.ok) return 0; idx = await r.json(); } catch (_) { return 0; }
+  const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+  const ld = new GLTFLoader(); let n = 0;
+  await Promise.all(Object.entries(idx).map(async ([k, f]) => {
+    try { registerModel(k, await ld.loadAsync(base + f)); n++; } catch (err) { console.warn('Modell fehlt oder ist defekt:', f, err); }
+  }));
+  return n;
+}
+function fromFile(key) {
+  const f = FILES.get(key); if (!f) return null;
+  const g = new THREE.Group(), m = skeletonClone(f.scene); g.add(m);
+  g.userData.j = {}; g.userData.capes = []; g.userData.smoke = []; g.userData.fromFile = true;
+  if (f.clips.length) {
+    const mixer = new THREE.AnimationMixer(m), actions = {};
+    for (const c of f.clips) actions[c.name.toLowerCase()] = mixer.clipAction(c);
+    g.userData.anim = { mixer, actions, cur: null };
+  }
+  g.updateMatrixWorld(true);
+  const marks = []; m.traverse(o => marks.push(o));
+  for (const o of marks) {
+    const n = o.name || '', p = new THREE.Vector3(); o.getWorldPosition(p);
+    if (/^Rauch/i.test(n)) g.userData.smoke.push([p.x, p.y, p.z]);
+    else if (/^Feuer/i.test(n)) fire(g, p.x, p.y, p.z, o.scale.x || 1);
+    else if (/^Fahne/i.test(n) && o.isMesh) (g.userData.flags ||= []).push(o);
+  }
+  return g;
+}
+// Welche Animation zum Zustand passt; fehlt sie im Modell, wird stehen bzw. die erste genommen.
+export function pickClip(e, striking) {
+  if (e.dead) return 'tod';
+  if (striking) return 'angriff';
+  if (e.working) return 'arbeit';
+  return e.moving ? 'gehen' : 'stehen';
+}
+export function playAnim(an, want, dt) {
+  const act = an.actions[want] || an.actions.stehen || Object.values(an.actions)[0];
+  if (act && an.cur !== act) { act.reset().fadeIn(.15).play(); if (an.cur) an.cur.fadeOut(.15); an.cur = act; an.name = want; }
+  an.mixer.update(dt);
+}
+// Kopie mit eigenem Skelett, damit jede Einheit ihre Animation unabhängig abspielt.
+const skeletonClone = o => SkeletonUtils.clone(o);
 export const BLD_H = { wacht: { hq: 9.0, barracks: 3.8, workshop: 3.8, farm: 2.8, tower: 7, outpost: 3.0 }, asch: { hq: 8.4, barracks: 3.2, workshop: 3.4, farm: 2, tower: 6, outpost: 3 }, salz: { hq: 9.4, barracks: 3.4, workshop: 3.4, farm: 2.6, tower: 7.2, outpost: 3.4 } };
 
 /* ---------- Erzader ---------- */

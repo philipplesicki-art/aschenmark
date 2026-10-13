@@ -419,6 +419,8 @@ function updateEnts(dt) {
       if (j.legs) j.legs.forEach((l, i) => { l.rotation.z = mv ? Math.sin(ph + (i % 2 ? Math.PI : 0) + (i > 1 ? 1.6 : 0)) * .8 : 0; });
       if (j.body && !j.ram) j.body.rotation.z = mv ? -.1 : 0;
       const sw = e.cd > 0 && e.cd > e.d.cd - .3 ? Math.sin((e.d.cd - e.cd) / .3 * Math.PI) : 0;
+      const an = o.m.userData.anim;
+      if (an) MD.playAnim(an, MD.pickClip(e, e.cd > 0 && e.cd > e.d.cd - .6), dt); // Modelle aus Blender: Skelettanimation
       if (j.weapon) { if (e.type === 'ranged') j.weapon.rotation.z = sw * .25; else j.weapon.rotation.z = -sw * 1.2; }
       if (j.tool) j.tool.rotation.z = e.working ? Math.sin(t * 14 + e.id) * .8 : 0;
       if (j.sack) j.sack.visible = e.carry > 0;
@@ -685,5 +687,11 @@ export function drawMini() {
   mctx.closePath(); mctx.stroke();
 }
 
+// Modelle aus public/models laden; vorhandene Objekte neu aufbauen, damit sie die Dateien verwenden.
+export async function loadFileModels() {
+  const n = await MD.loadModels();
+  if (n) { for (const o of objs.values()) scene.remove(o.g); objs.clear(); }
+  return n;
+}
 export function stats() { const i = renderer.info.render, by = {}; const cnt = (k, g) => g.traverse(o => { if ((o.isMesh || o.isSprite || o.isPoints) && o.visible) by[k] = (by[k] || 0) + 1; }); for (const o of objs.values()) if (o.g.visible) cnt(o.e.kind + ':' + o.e.type, o.g); by.smoke = smokes.filter(s => s.visible).length; by.corpse = corpseObjs.size; by.world = 0; if (world) cnt('world', world); return { by, calls: i.calls, tris: i.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, progs: (renderer.info.programs || []).length }; }
 export function dbg() { const mm = [...objs.values()].filter(o => o.e.kind === 'bld').map(o => { const d = o.g.children.find(c => c.material === meltMat); if (!d) return 'none'; d.updateWorldMatrix(true, false); const v = new THREE.Vector3(); d.getWorldPosition(v); return [v.y.toFixed(2), d.visible, d.material.map && d.material.map.image && d.material.map.image.width, d.material.opacity]; }); return { mm, objs: objs.size, kinds: [...objs.values()].reduce((a, o) => { a[o.e.kind + ':' + o.e.type] = (a[o.e.kind + ':' + o.e.type] || 0) + 1; return a; }, {}), camPos: camera.position.toArray().map(v => +v.toFixed(1)), ud: camera.userData }; }

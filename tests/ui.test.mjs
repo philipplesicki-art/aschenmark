@@ -105,6 +105,27 @@ for (const [f0, f1] of [['wacht', 'asch'], ['asch', 'wacht'], ['salz', 'asch'], 
   assert.ok(worst.bld <= 45, 'Gebäude mit zu vielen Zeichenaufrufen: ' + worst.bld);
   console.log('Modelle ok, höchstens', worst.unit, 'Aufrufe je Einheit und', worst.bld, 'je Gebäude');
 }
+// Modelle aus Dateien: ein registriertes Modell ersetzt das Code-Modell, Animationen folgen dem Zustand.
+{
+  const MD = await import('../src/models3d.js'), THREE = await import('three');
+  const sc = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1)); body.name = 'Koerper'; sc.add(body);
+  const smoke = new THREE.Object3D(); smoke.name = 'Rauch1'; smoke.position.set(0, 3, 0); sc.add(smoke);
+  const clip = (name, y) => new THREE.AnimationClip(name, 1, [new THREE.NumberKeyframeTrack('Koerper.position[y]', [0, 1], [0, y])]);
+  MD.registerModel('wacht:melee', { scene: sc, animations: [clip('stehen', 0), clip('gehen', .2)] });
+  MD.registerModel('wacht:barracks', { scene: sc.clone(true), animations: [] });
+  const u = MD.buildUnit('wacht', 'melee'), an = u.userData.anim;
+  assert.ok(u.userData.fromFile && an && an.actions.gehen, 'Einheit nutzt das Dateimodell mit Animationen');
+  assert.ok(MD.buildUnit('asch', 'melee').userData.fromFile !== true, 'ohne Datei bleibt das Code-Modell');
+  const e = { moving: true, working: false, dead: false };
+  MD.playAnim(an, MD.pickClip(e, false), .1); assert.equal(an.name, 'gehen');
+  e.moving = false; MD.playAnim(an, MD.pickClip(e, false), .1); assert.equal(an.name, 'stehen');
+  assert.equal(MD.pickClip(e, true), 'angriff'); MD.playAnim(an, 'angriff', .1); assert.ok(an.cur, 'fehlende Animation fällt auf stehen zurück');
+  const b = MD.buildBld('wacht', 'barracks', 3);
+  assert.ok(b.userData.fromFile && b.userData.smoke.length === 1 && b.userData.scaffold, 'Gebäude aus Datei mit Rauchpunkt und Baugerüst');
+  MD.clearModels();
+  assert.ok(!MD.buildUnit('wacht', 'melee').userData.fromFile, 'nach dem Leeren wieder Code-Modelle');
+  console.log('Dateimodelle ok');
+}
 UIm.handleEnd('win'); UIm.openMenu();
 A.sfx('hit');
 console.log('UI-Rauchtest bestanden');
