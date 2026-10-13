@@ -13,7 +13,7 @@ import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
 import { storyStart, currentChapter, CHAPTERS } from './cstory.js';
-import { paintBase, paintOwners, settlement, paintFrame } from './cmapart.js';
+import { paintBase, paintOwners, settlement, paintFrame, borderChains, tracePath } from './cmapart.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
@@ -122,6 +122,8 @@ function buildOwners() {
 }
 /* ---------- Zeichnen ---------- */
 let banners = [];
+const outlines = new Map(); // weiche Umrisse je Provinz (Kartengeometrie ändert sich nicht)
+function outline(id) { const k = C.seed + ':' + id; let o = outlines.get(k); if (!o) { o = borderChains(MAP, (a, b) => a === id || b === id, true); outlines.set(k, o); } return o; }
 export function render() {
   if (!campaignOpen() || !C) return;
   if (!base) { // erstes Malen der Karte dauert etwas: Hinweis zeigen, dann im nächsten Takt malen
@@ -133,12 +135,8 @@ export function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); { const g = ctx.createRadialGradient(cv.width / 2, cv.height / 2, 0, cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * .7); g.addColorStop(0, '#16303c'); g.addColorStop(1, '#070d12'); ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height); } // offenes Meer rings um die Karte
   ctx.drawImage(base, view.ox, view.oy, MW * SC * s, MH * SC * s); ctx.drawImage(owners, view.ox, view.oy, MW * SC * s, MH * SC * s);
   // Hervorhebung: Auswahl und Mauszeiger
-  const hl = (id, col, w) => { if (id < 0) return; ctx.save(); ctx.globalAlpha = .9; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
-    for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { if (MAP.pid[y * MW + x] !== id) continue;
-      if (x + 1 >= MW || MAP.pid[y * MW + x + 1] !== id) { ctx.moveTo(X(x + 1), Y(y)); ctx.lineTo(X(x + 1), Y(y + 1)); }
-      if (x === 0 || MAP.pid[y * MW + x - 1] !== id) { ctx.moveTo(X(x), Y(y)); ctx.lineTo(X(x), Y(y + 1)); }
-      if (y + 1 >= MH || MAP.pid[(y + 1) * MW + x] !== id) { ctx.moveTo(X(x), Y(y + 1)); ctx.lineTo(X(x + 1), Y(y + 1)); }
-      if (y === 0 || MAP.pid[(y - 1) * MW + x] !== id) { ctx.moveTo(X(x), Y(y)); ctx.lineTo(X(x + 1), Y(y)); } }
+  const hl = (id, col, w) => { if (id < 0) return; ctx.save(); ctx.globalAlpha = .9; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath();
+    for (const ch of outline(id)) tracePath(ctx, ch, SC * s, view.ox, view.oy);
     ctx.stroke(); ctx.restore(); };
   hl(hover, 'rgba(255,255,255,.45)', 1.5 * view.dpr);
   const selProv = sel && sel.kind === 'prov' ? sel.id : sel && sel.kind === 'army' ? (C.armies.find(a => a.id === sel.id) || {}).at ?? -1 : -1;

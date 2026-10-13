@@ -151,12 +151,7 @@ export function paintOwners(MAP, owner, colors) {
   const t = document.createElement('canvas'); t.width = MW; t.height = MH; const tx = t.getContext('2d'), img = tx.createImageData(MW, MH), d = img.data;
   for (let i = 0; i < MW * MH; i++) { const o = own(i); if (o && colors[o]) { const c3 = rgb(colors[o]); d[i * 4] = c3[0]; d[i * 4 + 1] = c3[1]; d[i * 4 + 2] = c3[2]; d[i * 4 + 3] = 52; } }
   tx.putImageData(img, 0, 0); x.imageSmoothingEnabled = true; x.drawImage(t, 0, 0, W, H);
-  const edges = test => { x.beginPath();
-    for (let y = 0; y < MH; y++) for (let xx = 0; xx < MW; xx++) {
-      const a = MAP.pid[y * MW + xx]; if (a < 0) continue;
-      if (xx + 1 < MW) { const b = MAP.pid[y * MW + xx + 1]; if (b >= 0 && b !== a && test(a, b)) { x.moveTo((xx + 1) * B, y * B); x.lineTo((xx + 1) * B, (y + 1) * B); } }
-      if (y + 1 < MH) { const b = MAP.pid[(y + 1) * MW + xx]; if (b >= 0 && b !== a && test(a, b)) { x.moveTo(xx * B, (y + 1) * B); x.lineTo((xx + 1) * B, (y + 1) * B); } }
-    } };
+  const edges = test => { x.beginPath(); for (const ch of borderChains(MAP, test)) tracePath(x, ch, B, 0, 0); };
   // Provinzgrenzen: feine gepunktete Linien
   x.setLineDash([2, 3]); x.lineWidth = 1.2; x.strokeStyle = 'rgba(20,18,16,.55)'; edges(() => true); x.stroke(); x.setLineDash([]);
   // Reichsgrenzen: Leuchten innen, dann kräftige Linie mit dunklem Rand
@@ -166,15 +161,52 @@ export function paintOwners(MAP, owner, colors) {
     x.lineWidth = 4.2; x.strokeStyle = 'rgba(10,10,10,.75)'; edges(test); x.stroke();
     x.lineWidth = 2.4; x.strokeStyle = colors[f]; edges(test); x.stroke();
   }
-  // Küsten der Reiche ebenfalls betonen
-  for (const f of Object.keys(colors)) { x.lineWidth = 2; x.strokeStyle = colors[f]; x.globalAlpha = .5; x.beginPath();
-    for (let y = 0; y < MH; y++) for (let xx = 0; xx < MW; xx++) { const a = MAP.pid[y * MW + xx]; if (a < 0 || owner(a) !== f) continue;
-      if (xx + 1 < MW && MAP.pid[y * MW + xx + 1] < 0) { x.moveTo((xx + 1) * B, y * B); x.lineTo((xx + 1) * B, (y + 1) * B); }
-      if (xx > 0 && MAP.pid[y * MW + xx - 1] < 0) { x.moveTo(xx * B, y * B); x.lineTo(xx * B, (y + 1) * B); }
-      if (y + 1 < MH && MAP.pid[(y + 1) * MW + xx] < 0) { x.moveTo(xx * B, (y + 1) * B); x.lineTo((xx + 1) * B, (y + 1) * B); }
-      if (y > 0 && MAP.pid[(y - 1) * MW + xx] < 0) { x.moveTo(xx * B, y * B); x.lineTo((xx + 1) * B, y * B); } }
-    x.stroke(); x.globalAlpha = 1; }
   return c;
+}
+
+/* ---------- Grenzen als weiche Linien ---------- */
+// Zellkanten zwischen zwei Provinzen, für die test(a, b) gilt, zu Ketten verbinden und mit Chaikin zweimal glätten.
+// Ergebnis: Listen von Punkten in Zellkoordinaten; geschlossene Ketten tragen closed = true.
+// sea: auch Kanten zum Meer und zum Kartenrand (Nachbar -1)
+export function borderChains(MAP, test, sea = false) {
+  const segs = [], at = new Map(), key = (x, y) => x * 1000 + y;
+  const add = (x1, y1, x2, y2) => { const i = segs.length; segs.push([x1, y1, x2, y2]); for (const k of [key(x1, y1), key(x2, y2)]) { let l = at.get(k); if (!l) at.set(k, l = []); l.push(i); } };
+  const pidAt = (x, y) => (x < 0 || y < 0 || x >= MW || y >= MH ? -1 : MAP.pid[y * MW + x]);
+  const ok = (a, b) => a !== b && (sea || (a >= 0 && b >= 0)) && test(a, b);
+  for (let y = -1; y < MH; y++) for (let xx = -1; xx < MW; xx++) {
+    const a = pidAt(xx, y);
+    if (y >= 0 && ok(a, pidAt(xx + 1, y))) add(xx + 1, y, xx + 1, y + 1);
+    if (xx >= 0 && ok(a, pidAt(xx, y + 1))) add(xx, y + 1, xx + 1, y + 1);
+  }
+  const used = new Uint8Array(segs.length), chains = [];
+  const next = (px, py) => { const l = at.get(key(px, py)) || []; for (const i of l) if (!used[i]) return i; return -1; };
+  for (let s0 = 0; s0 < segs.length; s0++) {
+    if (used[s0]) continue;
+    used[s0] = 1; const [x1, y1, x2, y2] = segs[s0], pts = [[x1, y1], [x2, y2]];
+    for (let dir = 0; dir < 2; dir++) { // in beide Richtungen verlängern
+      for (;;) {
+        const end = dir ? pts[0] : pts[pts.length - 1], i = next(end[0], end[1]); if (i < 0) break;
+        used[i] = 1; const g = segs[i], o = g[0] === end[0] && g[1] === end[1] ? [g[2], g[3]] : [g[0], g[1]];
+        if (dir) pts.unshift(o); else pts.push(o);
+      }
+    }
+    const closed = pts.length > 3 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1];
+    let p = closed ? pts.slice(0, -1) : pts;
+    for (let it = 0; it < 2; it++) { // Chaikin
+      const q = []; const n = p.length;
+      if (!closed) q.push(p[0]);
+      for (let i = 0; i < (closed ? n : n - 1); i++) { const A = p[i], Bp = p[(i + 1) % n]; q.push([A[0] * .75 + Bp[0] * .25, A[1] * .75 + Bp[1] * .25], [A[0] * .25 + Bp[0] * .75, A[1] * .25 + Bp[1] * .75]); }
+      if (!closed) q.push(p[n - 1]);
+      p = q;
+    }
+    p.closed = closed; chains.push(p);
+  }
+  return chains;
+}
+export function tracePath(c, pts, k, ox, oy) {
+  c.moveTo(ox + pts[0][0] * k, oy + pts[0][1] * k);
+  for (let i = 1; i < pts.length; i++) c.lineTo(ox + pts[i][0] * k, oy + pts[i][1] * k);
+  if (pts.closed) c.closePath();
 }
 
 /* ---------- Siedlungen: von der Hütte zur Festung ---------- */
