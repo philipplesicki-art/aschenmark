@@ -17,7 +17,7 @@ import { questProgress, ENDINGS } from './quests.js';
 
 const $ = id => document.getElementById(id);
 let btns = [];
-export const cb = { start: () => {}, load: () => {}, restart: () => {}, menuScene: () => {} };
+export const cb = { start: () => {}, load: () => {}, restart: () => {}, menuScene: () => {}, campaign: () => {}, campaignLoad: () => {}, hasCampaign: () => false };
 
 export function ovOpen() { return !$('ov').hidden; }
 
@@ -176,6 +176,7 @@ function mainMenu() {
   setMenuLook(true);
   const items = [
     hasSave() && mbtn('continue', 'Fortsetzen', 'Den gespeicherten Spielstand laden'),
+    mbtn('campaign', 'Kampagne', 'Orsa erobern: Weltkarte, Provinzen, Heere, viele Jahre'),
     mbtn('new', 'Neues Gefecht', 'Fraktion, Gegner und Schwierigkeit wählen'),
     mbtn('settings', 'Einstellungen', 'Ton, Grafik und Anzeige'),
     mbtn('chronicle', 'Chronik', 'Siege, Handlungsfäden und Erfolge'),
@@ -189,6 +190,7 @@ function mainMenu() {
   act => {
     if (act === 'continue') { closeOverlay(); cb.load(); }
     else if (act === 'new') setupScreen();
+    else if (act === 'campaign') campaignScreen();
     else if (act === 'settings') settingsScreen(mainMenu);
     else if (act === 'chronicle') chronicleScreen();
     else if (act === 'help') helpScreen(mainMenu);
@@ -220,6 +222,29 @@ function setupScreen() {
         const others = FAC_IDS.filter(f => f !== fac), o = opp === 'random' ? others[Math.floor(Math.random() * others.length)] : opp;
         closeOverlay(); cb.start(fac, diff, quests, o);
       }
+    }, mainMenu, focus || '.go');
+  };
+  render();
+}
+
+function campaignScreen() {
+  const st = loadSettings();
+  let fac = FACTIONS[st.fac] ? st.fac : FAC_IDS[0], diff = ['easy', 'normal', 'hard'].includes(st.cdiff) ? st.cdiff : 'normal', size = st.csize || 30;
+  const render = focus => {
+    show('<h2>Kampagne</h2><p class="sub">Rundenbasiert auf der Weltkarte von Orsa: Provinzen erobern, Siedlungen ausbauen, Heere führen, forschen. Eine Runde ist eine Jahreszeit.</p>'
+      + (cb.hasCampaign() ? '<div class="row"><button class="btn big go" data-act="cont" type="button">Kampagne fortsetzen</button></div><h3>Oder neu beginnen</h3>' : '')
+      + '<h3>Dein Reich</h3><div class="row facs">' + FAC_IDS.map(id => { const f = FACTIONS[id];
+        return '<button class="btn pick' + (id === fac ? ' sel' : '') + '" data-act="fac" data-v="' + id + '" type="button" style="--fc:' + f.color + '"><b>' + f.name + '</b><small>' + f.blurb + '</small></button>'; }).join('') + '</div>'
+      + '<h3>Schwierigkeit</h3><div class="row">' + [['easy', 'Leicht'], ['normal', 'Normal'], ['hard', 'Schwer']].map(([k, n]) => '<button class="btn pick sm' + (k === diff ? ' sel' : '') + '" data-act="diff" data-v="' + k + '" type="button"><b>' + n + '</b></button>').join('') + '</div>'
+      + '<h3>Größe der Welt</h3><div class="row">' + [[22, 'Klein'], [30, 'Mittel'], [40, 'Groß']].map(([k, n]) => '<button class="btn pick sm' + (k === size ? ' sel' : '') + '" data-act="size" data-v="' + k + '" type="button"><b>' + n + '</b><small>' + k + ' Provinzen</small></button>').join('') + '</div>'
+      + backRow('<button class="btn big' + (cb.hasCampaign() ? '' : ' go') + '" data-act="start" type="button">Neue Kampagne</button>'),
+    (act, el) => {
+      if (act === 'fac') { fac = el.dataset.v; saveSettings({ fac }); render('[data-act=fac].sel'); }
+      else if (act === 'diff') { diff = el.dataset.v; saveSettings({ cdiff: diff }); render('[data-act=diff].sel'); }
+      else if (act === 'size') { size = +el.dataset.v; saveSettings({ csize: size }); render('[data-act=size].sel'); }
+      else if (act === 'back') mainMenu();
+      else if (act === 'cont') { closeOverlay(); cb.campaignLoad(); }
+      else if (act === 'start') { closeOverlay(); cb.campaign(fac, diff, size); }
     }, mainMenu, focus || '.go');
   };
   render();

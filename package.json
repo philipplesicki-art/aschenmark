@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/sim.test.mjs && node tests/ui.test.mjs",
+    "test": "node tests/sim.test.mjs && node tests/campaign.test.mjs && node tests/ui.test.mjs",
     "desktop": "vite build && electron .",
     "dist": "vite build && electron-builder",
     "artifact": "node scripts/make-artifact.mjs",

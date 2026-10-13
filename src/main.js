@@ -15,6 +15,11 @@ import { loadGame } from './save.js';
 import { GATES, REGIONS } from './regions.js';
 import { FACTIONS, FAC_IDS, otherFac } from './factions.js';
 import { QUALITY } from './config.js';
+import * as CS from './campaign/cstate.js';
+const { newCampaign } = CS;
+import * as CU from './campaign/cui.js';
+const { openCampaign, campaignOpen } = CU;
+import { saveCampaign, loadCampaign, hasCampaign } from './campaign/csave.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('c'), mm = $('mm'), gl = $('gl');
@@ -125,6 +130,10 @@ cb.start = startMatch;
 cb.load = loadMatch;
 cb.restart = () => { stopMusic(); showStart(); };
 cb.menuScene = menuScene;
+// Kampagne: Weltkarte über dem Spiel; zurück geht es ins Hauptmenü
+cb.hasCampaign = hasCampaign;
+cb.campaign = (fac, diff, size) => { audioOn(); newCampaign({ player: fac, diff, nProv: size }); saveCampaign(); openCampaign(() => showStart()); };
+cb.campaignLoad = () => { audioOn(); if (loadCampaign()) openCampaign(() => showStart()); else { toast('Kein Kampagnenstand gefunden', 'bad'); showStart(); } };
 
 if (R.setPost) R.setPost(loadSettings().fx !== false);
 // Modelle aus Blender (public/models) nachladen; ohne Dateien bleibt alles bei den Code-Modellen.
@@ -148,7 +157,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const ms = now - last, dt = Math.min(.05, ms / 1000); last = now;
   fpsTick(now, ms);
-  if (!G) return;
+  if (!G || campaignOpen()) return; // auf der Weltkarte ruht das Gefecht
   if (G.demo) { step(dt); demoCam(dt); if (demoT > 600) menuScene(menuFac); }
   else { if (!G.paused && !G.over) step(dt); camInput(dt, ovOpen()); }
   render(dt, new Set(G.sel));
@@ -167,4 +176,4 @@ showStart();
 requestAnimationFrame(frame);
 
 // Nur zum Prüfen: ?debug im Link macht Zustand und Schritte von außen erreichbar.
-if (typeof location !== 'undefined' && /[?&]debug/.test(location.search)) window.__A = { get G() { return G; }, cam, step, centerOn, clampCam, select, view, dbg: R3.dbg, mkUnit, mkBld, toScreen, toWorld, startMatch, menuScene, UI, stats: R3.stats, setQuality: q => R.setQuality && R.setQuality(q), setPost: on => R.setPost && R.setPost(on), draw: (n = 1) => { for (let i = 0; i < n; i++) render(.016, new Set(G.sel)); } };
+if (typeof location !== 'undefined' && /[?&]debug/.test(location.search)) window.__A = { get G() { return G; }, cam, step, centerOn, clampCam, select, view, dbg: R3.dbg, mkUnit, mkBld, toScreen, toWorld, startMatch, menuScene, UI, CS, CU, stats: R3.stats, setQuality: q => R.setQuality && R.setQuality(q), setPost: on => R.setPost && R.setPost(on), draw: (n = 1) => { for (let i = 0; i < n; i++) render(.016, new Set(G.sel)); } };

@@ -19,6 +19,34 @@ Jede Fraktion spielt sich anders (nicht nur andere Zahlen), jede Entscheidung ko
 - **Markt** (Handelshaus / Plünderbasar / Hafenmarkt): Erz und Holz tauschen, Kurs verbessert sich durch Handelstechnik.
 - **KI:** fällt Holz, baut Holzlager, baut die Burg aus, forscht, tauscht. Schwierigkeit steuert Zeitpunkte und Umfang.
 
+## Etappe 2: Vorräte und Winter (gebaut)
+
+Vorräte als dritter Rohstoff (Burg und Höfe ernten, Truppen essen), Jahr aus Tauzeit, Frühfrost, Hartfrost, Tauwetter.
+Im Hartfrost kaum Ernte und doppelter Verbrauch; leeres Lager heißt Hunger. Erntetechnik, Vorratslager, Handel mit Vorräten.
+
+## Etappe 3: Mehr Truppen (gebaut)
+
+Unterstützer ab Stufe 2 (heilen, stärken, bremsen), Elite ab Stufe 3 (Fernkampfschutz, Kampfrausch, Dornenpanzer).
+
+## Kampagne „Orsa“: Weltkarte plus Schlachten (in Arbeit, vom User gewählt)
+
+Lange Partien wie Civilization: ein Reich über viele Stunden aufbauen. Rundenbasiert auf der Weltkarte, Schlachten wahlweise
+als Echtzeit-Gefecht (die bestehende Partie) oder automatisch berechnet.
+
+- **Karte:** rund 30 Provinzen in Orsa, erzeugt aus einem Startwert. Norden kalt (Grenzmark, Waldmeer, Aschenfelder), Osten
+  trocken, Süden Sumpf und Küste. Jede Provinz hat Gelände, Siedlungsstufe, Gebäude, Ertrag und Besitzer.
+- **Runde = Jahreszeit:** vier Runden je Jahr. Im Hartfrost wenig Ernte, mehr Verbrauch, langsamere Heere (wie im Gefecht).
+- **Reich:** Erz, Holz, Vorräte als Schatzkammer. Provinzen erzeugen, Heere und Gebäude kosten.
+- **Gebäude je Provinz:** Hof, Mine, Sägewerk, Kaserne (Rekrutierung), Mauer (Verteidigung), Markt; Stufen 1 bis 3.
+- **Heere:** Truppen nach Art (dieselben Rollen wie im Gefecht) mit Held als Heerführer, ziehen von Provinz zu Provinz.
+- **Schlachten:** berechnet aus Stärke, Gelände, Mauern, Technik und Held, oder im Echtzeit-Gefecht mit genau diesen Truppen.
+- **Forschung:** reichsweit über Runden; die Stufen gelten in jeder Schlacht (Waffen, Rüstung usw. wie im Gefecht).
+- **KI-Reiche:** bauen, rekrutieren, greifen die schwächste Nachbarprovinz an, verteidigen ihre Hauptstadt.
+- **Sieg:** alle Hauptstädte erobern oder 70 Prozent der Provinzen halten.
+
+Etappen: K1 Kartenspiel mit berechneten Schlachten, K2 Echtzeit-Schlachten aus der Kampagne, K3 Forschungsbaum, Helden mit
+Werdegang, Diplomatie, Ereignisse und Handlungsfäden der Kampagne.
+
 ## Fahrplan
 
 2. **Vorräte und Winter:** dritte Ressource Nahrung (Höfe erzeugen, Truppen essen), Jahreszeiten-Zyklus mit hartem Winter, Wärmefeuer,
