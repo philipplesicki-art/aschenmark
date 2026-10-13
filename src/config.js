@@ -1,18 +1,19 @@
-export const TS = 32, GW = 120, GH = 84, WW = GW * TS, WH = GH * TS, CARRY = 10;
+export const TS = 32, GW = 120, GH = 84, WW = GW * TS, WH = GH * TS, CARRY = 5;
 
 // Schwierigkeitsstufen der Gegner-KI.
 export const DIFF = {
-  easy:   { label: 'Leicht', workers: 7,  tierAt: [900, 1e9], research: 0, trade: false, maxCamps: 1, maxBars: 2, barEvery: 300, hero: false, towers: 0, siege: false, size0: 6,  grow: 3, gap: 90, first: 480, rate: .8 },
-  normal: { label: 'Normal', workers: 10, tierAt: [420, 900], research: 1, trade: true, maxCamps: 2, maxBars: 3, barEvery: 200, hero: true,  heroAt: 420, towers: 1, towerAt: 360, siege: true, siegeAt: 540, size0: 9,  grow: 4, gap: 75, first: 360, rate: 1 },
-  hard:   { label: 'Schwer', workers: 12, tierAt: [330, 720], research: 2, trade: true, maxCamps: 3, maxBars: 4, barEvery: 140, hero: true,  heroAt: 300, towers: 2, towerAt: 300, siege: true, siegeAt: 400, size0: 10, grow: 5, gap: 55, first: 270, rate: 1.3 }
+  easy:   { label: 'Leicht', workers: 7,  tierAt: [900, 1e9], research: 0, trade: false, supports: 0, elites: false, maxCamps: 1, maxBars: 2, barEvery: 300, hero: false, towers: 0, siege: false, size0: 6,  grow: 3, gap: 90, first: 480, rate: .8 },
+  normal: { label: 'Normal', workers: 10, tierAt: [300, 780], research: 1, trade: true, supports: 2, elites: true, maxCamps: 2, maxBars: 3, barEvery: 200, hero: true,  heroAt: 420, towers: 1, towerAt: 360, siege: true, siegeAt: 540, size0: 9,  grow: 4, gap: 75, first: 360, rate: 1 },
+  hard:   { label: 'Schwer', workers: 12, tierAt: [240, 600], research: 2, trade: true, supports: 3, elites: true, maxCamps: 3, maxBars: 4, barEvery: 140, hero: true,  heroAt: 300, towers: 2, towerAt: 300, siege: true, siegeAt: 400, size0: 10, grow: 5, gap: 55, first: 270, rate: 1.3 }
 };
 
 // Taktische Gegenspiel-Faktoren nach Rolle (Schere, Stein, Papier plus Belagerung).
 export const MULT = {
-  melee:  { cav: 1.7 },
-  cav:    { ranged: 1.5, worker: 1.3 },
-  ranged: { melee: 1.35 },
-  siege:  { melee: .35, ranged: .35, cav: .35, hero: .35, worker: .35 }
+  melee:  { cav: 1.7, support: 1.2 },
+  elite:  { cav: 1.5, support: 1.2 },
+  cav:    { ranged: 1.5, worker: 1.3, support: 1.4 },
+  ranged: { melee: 1.35, support: 1.2 },
+  siege:  { melee: .35, ranged: .35, cav: .35, hero: .35, worker: .35, elite: .35, support: .35 }
 };
 export const BMULT = { ranged: .6, cav: .8, worker: .5, hero: 1.2, siege: 2.6 };
 

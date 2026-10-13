@@ -374,7 +374,7 @@ console.log('Alle Tests bestanden');
   assert.equal(E.techBlock(bar, 'weapons'), null); // Stufe II geht, weil Burgstufe 2
   G.tech[0].weapons = 3; assert.equal(E.techBlock(bar, 'weapons'), 'Schon erforscht');
   G.tech[0].armor = 2; const tgt = mkUnit('melee', 0, hq.x + 60, hq.y - 120), hp1 = tgt.hp; hurt(tgt, 80, null); assert.ok(Math.abs((hp1 - tgt.hp) - 80 * .84) < .01, 'Rüstung II: −16 %: ' + (hp1 - tgt.hp));
-  G.tech[0].carry = 2; assert.equal(E.carryCap(0), 18);
+  G.tech[0].carry = 2; assert.equal(E.carryCap(0), 9);
 
   // Handel
   G.ore[0] = 300; G.wood[0] = 50; assert.ok(E.trade(0, 'ore', 'wood', 100)); assert.equal(G.ore[0], 200); assert.equal(G.wood[0], 125);
@@ -443,4 +443,32 @@ console.log('Alle Tests bestanden');
   for (let i = 0; i < 20 * 60 * 14; i++) { step(.05); if (G.hunger[1] > 0) hunger += .05; }
   assert.ok(E.farmsOf(1) >= 3, 'KI baut Höfe: ' + E.farmsOf(1)); assert.ok(hunger < 20, 'KI verhungert kaum: ' + Math.round(hunger) + ' s');
   console.log('KI-Winter ok (Hunger ' + Math.round(hunger) + ' s)');
+}
+
+// Neue Einheiten: Auren der Unterstützer, Eigenschaften der Elite, Burgstufen.
+{
+  const { dmgFor, hurt } = await import('../src/combat.js'), E = await import('../src/economy.js');
+  newWorld({ fac0: 'wacht', fac1: 'asch', diff: 'easy', seed: 51 }); beginMatch(); G.ai.next = 1e9;
+  const hq = G.ents.find(e => e.type === 'hq' && e.team === 0), bar = mkBld('barracks', 0, 14, 36, true);
+  G.ore[0] = G.wood[0] = 2000;
+  assert.equal(trainBlock(bar, 'support'), 'Burgstufe 2 nötig'); assert.equal(trainBlock(bar, 'elite'), 'Burgstufe 2 nötig'.replace('2', '3'));
+  hq.tier = 3; assert.equal(trainBlock(bar, 'support'), null); assert.equal(trainBlock(bar, 'elite'), null);
+  // Feldscher heilt Verletzte in der Nähe und greift nicht von selbst an
+  const x = hq.x + 300, y = hq.y - 200, med = mkUnit('support', 0, x, y), hurtU = mkUnit('melee', 0, x + 40, y); hurtU.hp = 30;
+  for (let i = 0; i < 20 * 5; i++) step(.05);
+  assert.ok(hurtU.hp > 45, 'Feldscher heilt: ' + Math.round(hurtU.hp)); assert.ok(!med.order, 'Unterstützer greift nicht selbst an');
+  // Schildwache: Fernkampf wirkt schwächer
+  const sw = mkUnit('elite', 0, x, y + 80), hp0 = sw.hp, archer = mkUnit('ranged', 1, x + 900, y);
+  hurt(sw, 100, archer); assert.ok(Math.abs((hp0 - sw.hp) - 70) < .01, 'Schildwache: −30 % Fernkampf');
+  // Aschenhüter: Kampfrausch unter halbem Leben; Rauchpriester: +15 % für Verbündete
+  G.fac[1] = 'asch'; const ber = mkUnit('elite', 1, x + 600, y + 300), dummy = mkUnit('melee', 0, x + 620, y + 300);
+  const d0 = dmgFor(ber, dummy); ber.hp = ber.maxhp * .4; assert.ok(Math.abs(dmgFor(ber, dummy) - d0 * 1.5) < .01, 'Kampfrausch +50 %');
+  ber.hp = ber.maxhp; const pr = mkUnit('support', 1, ber.x + 30, ber.y); for (let i = 0; i < 12; i++) step(.05);
+  assert.ok(Math.abs(dmgFor(ber, dummy) - d0 * 1.15) < .01, 'Rauchpriester +15 %');
+  // Perlenwache: Nahkämpfer verletzen sich; Muschelsänger bremst Feinde
+  G.fac[0] = 'salz'; const pw = mkUnit('elite', 0, x - 400, y + 400), att = mkUnit('melee', 1, pw.x + 20, pw.y), ahp = att.hp;
+  hurt(pw, 50, att); assert.ok(att.hp < ahp - 5, 'Dornenpanzer wirkt zurück');
+  const sing = mkUnit('support', 0, pw.x, pw.y + 40); for (let i = 0; i < 12; i++) step(.05);
+  assert.ok(att.aslow > G.t, 'Muschelsänger bremst Feinde in Reichweite');
+  console.log('Neue Einheiten ok');
 }

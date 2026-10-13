@@ -56,7 +56,7 @@ const busy = w => w.order && w.order.t === 'build';
 // Anteil der Arbeiter, die Holz fällen sollen, je nach Vorrat
 function woodShare() {
   const w = G.wood[T];
-  return w < 120 ? .5 : w < 300 ? .38 : w < 600 ? .22 : .1;
+  return w < 120 ? .4 : w < 250 ? .27 : w < 450 ? .13 : w < 700 ? .05 : 0;
 }
 // Holzfäller nahe an der besten Abgabestelle (Holzlager oder Burg) ansetzen
 function aiChop(w, drops) {
@@ -67,7 +67,7 @@ function aiChop(w, drops) {
 }
 function aiWood(ws, mine, hq, D) {
   const drops = mine.filter(e => e.kind === 'bld' && e.built && e.d.drops && e.d.drops.includes('wood'));
-  const choppers = ws.filter(isChopper), want = Math.round(ws.length * woodShare());
+  const choppers = ws.filter(isChopper), want = Math.floor(ws.length * woodShare() + .5);
   if (choppers.length < want) {
     const w = ws.find(x => !isChopper(x) && !busy(x) && !(x.carry > 0 && x.cres === 'ore'));
     if (w) aiChop(w, drops.length ? drops : [hq]);
@@ -83,10 +83,18 @@ function aiWood(ws, mine, hq, D) {
     if (far.length >= 2) aiBuild('lumber', ws, { x: far[0].x, y: far[0].y });
   }
 }
+// Rücklage, die die Ausbildung nicht antasten darf: der fällige Burgausbau.
+function reserve(hq, D) {
+  const tier = tierOf(T);
+  if (tier >= 3 || hq.up || !hq.built || G.t < (D.tierAt[tier - 1] ?? 1e9) || ws0count() < 6) return { ore: 0, wood: 0 };
+  if (enemiesNear(hq.x, hq.y, 450).length) return { ore: 0, wood: 0 }; // unter Beschuss: erst verteidigen
+  return UPGRADE[tier + 1];
+}
+const ws0count = () => G.ents.filter(e => e.team === T && e.type === 'worker' && !e.dead).length;
 function aiEconomy(hq, mine, ws, army, D) {
   const tier = tierOf(T);
   // Burg ausbauen
-  if (tier < 3 && !hq.up && ws.length >= 6 && G.t > (D.tierAt[tier - 1] ?? 1e9) && !upgradeBlock(hq) && affordable(UPGRADE[tier + 1], 90, 40)) startUpgrade(hq);
+  if (tier < 3 && !hq.up && ws.length >= 6 && G.t > (D.tierAt[tier - 1] ?? 1e9) && !upgradeBlock(hq)) startUpgrade(hq);
   // Markt: gleicht aus, wenn ein Rohstoff übrig ist und der andere fehlt
   if (D.trade && tier >= 2 && !mine.some(e => e.type === 'market') && G.ore[T] > 380 && G.wood[T] > 380) aiBuild('market', ws);
   const mk = mine.find(e => e.type === 'market' && e.built);
@@ -97,6 +105,7 @@ function aiEconomy(hq, mine, ws, army, D) {
   }
   // Forschung
   if (!D.research || G.t < 200) return;
+  if (reserve(hq, D).ore) return; // erst der Ausbau
   const order = D.research === 1 ? ['mining', 'felling', 'harvest', 'weapons', 'storage', 'carry', 'armor', 'fort'] : ['mining', 'felling', 'harvest', 'weapons', 'storage', 'armor', 'carry', 'sig', 'fort', 'hero', 'siege', 'trade'];
   for (const id of order) {
     if (!techNext(T, id)) continue;
@@ -164,7 +173,7 @@ export function aiTick(team = 1) {
   if (ws.length + queuedW < D.workers && hq.queue.length < 2 && !trainBlock(hq, 'worker')) train(hq, 'worker');
   // Höfe: für die Versorgung und damit die Ernte in der Tauzeit den Verbrauch deckt (der Winter zehrt am Lager)
   const thaw = foodRates(T, SEASONS[0]);
-  const farmNeed = popUsed(T) >= popCap(T) - 3 || (thaw.net < .3 + thaw.pop * .012 && G.t > 90 && farmsOf(T) < 12);
+  const farmNeed = popUsed(T) >= popCap(T) - 3 || (thaw.net < .3 + thaw.pop * .03 && G.t > 90 && farmsOf(T) < 14);
   if (farmNeed && !sites.some(s => s.type === 'farm') && canAfford(T, costOf(defOf(G.fac[T], 'farm')))) aiBuild('farm', ws);
   const wantBars = Math.min(D.maxBars, 1 + Math.floor(G.t / D.barEvery));
   if (bars.length + sites.filter(s => s.type === 'barracks').length < wantBars && ws.length >= 4) aiBuild('barracks', ws);
@@ -180,11 +189,17 @@ export function aiTick(team = 1) {
   const seq = ['melee', 'ranged', 'melee', 'cav', 'ranged'];
   const queued = bars.reduce((n, b) => n + b.queue.length, 0);
   const room = A.size + 4 - army.length - queued;
+  const keep = reserve(hq, D);
   if (room > 0) for (const b of bars) {
     if (!b.built || b.queue.length >= 2) continue;
     let tp = seq[A.k++ % seq.length];
+    // Unterstützer (ab Stufe 2) und Elite (ab Stufe 3) werden zwischen die Fußtruppen gemischt
+    const sup = army.filter(u => u.type === 'support').length + bars.reduce((n, x) => n + x.queue.filter(q => q.type === 'support').length, 0);
+    if (D.supports && tierOf(T) >= 2 && A.k % 6 === 0 && sup < D.supports) tp = 'support';
+    else if (D.elites && tierOf(T) >= 3 && A.k % 4 === 0) tp = 'elite';
     if (tp === 'cav' && tierOf(T) < 2) tp = 'melee'; // Reiter gibt es erst ab Burgstufe 2
     if (trainBlock(b, tp) && tp !== 'melee') tp = 'melee'; // fehlt Holz für Fernkämpfer, dann Speerträger
+    if (G.ore[T] - defOf(G.fac[T], tp).cost < keep.ore || G.wood[T] - (defOf(G.fac[T], tp).wood || 0) < keep.wood) continue; // spart für den Ausbau
     if (!trainBlock(b, tp)) train(b, tp);
   }
   for (const s of shops) {

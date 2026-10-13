@@ -100,7 +100,7 @@ function follow(u, dt) {
   const p = u.path[u.pi];
   if (!p) { u.path = null; return true; }
   const dx = p.x - u.x, dy = p.y - u.y, d = Math.hypot(dx, dy);
-  const sp = u.d.spd * (u.buff > 0 ? 1.15 : 1) * (u.slow > 0 ? .55 : 1) * evSpeed(u) * dt;
+  const sp = u.d.spd * (u.buff > 0 ? 1.15 : 1) * (u.slow > 0 ? .55 : 1) * (u.aslow > G.t ? (u.aslowm || .8) : 1) * evSpeed(u) * dt;
   if (d <= sp + .5) {
     u.x = p.x; u.y = p.y; u.pi++;
     if (u.pi >= u.path.length) { u.path = null; return true; }

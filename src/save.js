@@ -26,7 +26,7 @@ export function deserialize(text) {
   if (!g.wood) g.wood = [200, 200];
   if (!g.tech) g.tech = [{}, {}];
   if (!g.food) { g.food = [200, 200]; g.hunger = [0, 0]; g.foodT = 1; g.season = null; }
-  if (g.ai && g.ai.p && g.ai.p.tierAt === undefined) g.ai.p = { ...g.ai.p, tierAt: [420, 900], research: 1, trade: true, maxCamps: 2 };
+  if (g.ai && g.ai.p && g.ai.p.tierAt === undefined) g.ai.p = { ...g.ai.p, tierAt: [300, 780], research: 1, trade: true, maxCamps: 2 };
   g.map = new Map(); g.parts = []; g.floats = [];
   for (const e of g.ents) {
     e.d = defOf(e.kind === 'dep' ? null : e.fac, e.kind === 'dep' ? 'mine' : e.type);

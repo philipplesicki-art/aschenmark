@@ -335,8 +335,8 @@ export function buildTerrain() {
 }
 
 /* ---------- Entitäten ---------- */
-const UH = { worker: 2.1, melee: 2.5, ranged: 2.3, cav: 3.3, siege: 3.4, hero: 3.4 };
-const UF = { worker: .9, melee: 1, ranged: .92, cav: 1, siege: .85, hero: 1 };
+const UH = { worker: 2.1, melee: 2.5, ranged: 2.3, cav: 3.3, siege: 3.4, hero: 3.4, support: 2.5, elite: 2.8 };
+const UF = { worker: .9, melee: 1, ranged: .92, cav: 1, siege: .85, hero: 1, support: .95, elite: 1.12 };
 let blobTex = null, blobGeo = null, blobMat = null;
 function blob() {
   if (!blobTex) {
@@ -611,6 +611,7 @@ function drawOverlay(selSet) {
     const sel = selSet.has(e.id);
     if (e.kind === 'unit') {
       if (sel) ringO(c, e.x, e.y, e.r * 1.7, '#9be07c', 2, .95);
+      if (sel && e.d.aura) ringO(c, e.x, e.y, e.d.aura.range, 'rgba(160,230,170,.55)', 1.2, 1, 'rgba(160,230,170,.06)', [6, 6]); // Reichweite der Aura
       if (e.buff > 0) ringO(c, e.x, e.y, e.r + 8, 'rgba(235,185,90,.9)', 1.6, 1);
       if (e.shield > 0) ringO(c, e.x, e.y, e.r + 11, 'rgba(130,190,255,.9)', 2, 1, null, [10, 6]);
       if (e.slow > 0 || e.weak > 0) ringO(c, e.x, e.y, e.r + 7, 'rgba(170,100,210,.9)', 1.6, 1);

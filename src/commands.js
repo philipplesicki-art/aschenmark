@@ -203,7 +203,7 @@ export function cmdDefs() {
     if (!b.built) { defs.push({ id: 'cs', label: 'Bau abbrechen', key: 'x', en: () => true, fn: () => cancelSite(b) }); return defs; }
     for (const tp of b.d.trains || []) {
       const d = defOf(b.fac, tp);
-      defs.push({ id: 't' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !trainBlock(b, tp), fn: () => train(b, tp), title: d.tier ? 'Braucht Burgstufe ' + d.tier : '' });
+      defs.push({ id: 't' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !trainBlock(b, tp), fn: () => train(b, tp), title: (d.desc ? d.desc + ' ' : '') + (d.tier ? 'Braucht Burgstufe ' + d.tier + '.' : '') });
     }
     if (b.type === 'hq') { // Burg ausbauen
       if (b.up) defs.push({ id: 'upc', label: 'Ausbau abbrechen', en: () => true, fn: () => cancelUpgrade(b) });

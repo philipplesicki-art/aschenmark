@@ -4,7 +4,7 @@ import { G, hooks, byId, alive, simR } from './state.js';
 import { defOf, takes } from './factions.js';
 import { free, mkUnit, nearestDep, popUsed, popCap, nearestTree, treeAtCell, treeWood, choppable, treeReach, fellTree } from './world.js';
 import { goTo, setOrder, nearestFree } from './path.js';
-import { gap, entPoint, acquire, strike } from './combat.js';
+import { gap, entPoint, acquire, strike, applyAura } from './combat.js';
 import { TS } from './config.js';
 
 export function nearestOwn(u, type) {
@@ -37,11 +37,12 @@ export function autoGather(u, res) {
   const d = nearestDep(u, 700);
   if (d) setOrder(u, { t: 'gather', dep: d.id }); else u.order = null;
 }
+const REACH = 10; // Arbeitsreichweite zu Ader und Abgabestelle: so haben mehr Arbeiter gleichzeitig Platz
 // Fuhre abgeben; gibt true zurück, solange der Arbeiter noch zur Abgabestelle unterwegs ist.
 function deliver(u, dt) {
   const res = u.cres || 'ore', hq = nearestDrop(u, res);
   if (!hq) { u.order = null; return true; }
-  if (gap(u, hq) <= 6) {
+  if (gap(u, hq) <= REACH) {
     const k = u.team === 1 ? G.ai.p.rate : 1;
     if (res === 'wood') G.wood[u.team] += u.carry * k;
     else { G.ore[u.team] += u.carry * k; (G.mined ||= [0, 0])[u.team] += u.carry; }
@@ -67,9 +68,10 @@ export function updUnit(u, dt) {
   u.rpT = Math.max(0, u.rpT - dt); u.scan -= dt;
   u.abCd[0] = Math.max(0, u.abCd[0] - dt); u.abCd[1] = Math.max(0, u.abCd[1] - dt);
   u.moving = false; u.working = false;
+  if (u.d.aura && (u.auraT = (u.auraT || 0) - dt) <= 0) { u.auraT = .5; applyAura(u, u.d.aura); }
   const o = u.order;
   if (!o) {
-    if (u.type !== 'worker' && u.scan <= 0) {
+    if (u.type !== 'worker' && !u.d.passive && u.scan <= 0) {
       u.scan = .35;
       const t = acquire(u, Math.max(u.d.rng + 40, 120));
       if (t) u.order = { t: 'attack', tg: t.id, auto: 1, hx: u.x, hy: u.y };
@@ -79,7 +81,7 @@ export function updUnit(u, dt) {
   switch (o.t) {
     case 'move': if (goTo(u, o.x, o.y, dt)) u.order = null; break;
     case 'amove': {
-      if (u.type === 'worker') { if (goTo(u, o.x, o.y, dt)) u.order = null; break; }
+      if (u.type === 'worker' || u.d.passive) { if (goTo(u, o.x, o.y, dt)) u.order = null; break; } // Arbeiter und Unterstützer kämpfen nicht von selbst
       if (u.scan <= 0) { u.scan = .35; const t = acquire(u, u.d.sight * .85); o.sub = t ? t.id : 0; }
       const t = o.sub ? byId(o.sub) : null;
       if (alive(t)) engage(u, t, dt);
@@ -103,7 +105,7 @@ export function updUnit(u, dt) {
       }
       if (u.carry > 0) deliver(u, dt);
       else if (dep) {
-        if (gap(u, dep) <= 6) {
+        if (gap(u, dep) <= REACH) {
           u.path = null; u.working = true; u.face = Math.atan2(dep.y - u.y, dep.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'ore') * (G.hunger[u.team] ? .6 : 1);
           if (u.gt >= 1.6) {
             u.gt = 0; const take = Math.min(carryCap(u.team), dep.amt); dep.amt -= take; u.carry = take; u.cres = 'ore'; u.pdx = undefined; u.done = false;
@@ -161,6 +163,7 @@ export function updBld(b, dt) {
     if (q.t >= defOf(b.fac, q.type).time * trainMul(b.team, b.fac)) {
       b.queue.shift();
       const u = mkUnit(q.type, b.team, b.x + (simR() - .5) * 40, b.y + b.r + 12);
+      ((G.made ||= [{}, {}])[b.team] ||= {})[q.type] = (G.made[b.team][q.type] || 0) + 1; // Statistik: wie viel wurde ausgebildet
       if (b.team === 0) hooks.sfx('done');
       if (u.type === 'worker' && !b.rally) autoGather(u);
       else if (b.rally) setOrder(u, { t: 'move', x: b.rally.x + (simR() - .5) * 20, y: b.rally.y + (simR() - .5) * 20 });

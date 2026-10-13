@@ -97,7 +97,7 @@ for (const [f0, f1] of [['wacht', 'asch'], ['asch', 'wacht'], ['salz', 'asch'], 
   const calls = g => { let n = 0; g.traverse(o => { if (o.isMesh || o.isSprite) n++; }); return n; };
   const worst = { unit: 0, bld: 0 };
   for (const f of ['wacht', 'asch', 'salz']) {
-    for (const t of ['worker', 'melee', 'ranged', 'cav', 'siege', 'hero']) worst.unit = Math.max(worst.unit, calls(MD.buildUnit(f, t)));
+    for (const t of ['worker', 'melee', 'ranged', 'cav', 'siege', 'hero', 'support', 'elite']) worst.unit = Math.max(worst.unit, calls(MD.buildUnit(f, t)));
     for (const t of ['hq', 'barracks', 'workshop', 'farm', 'outpost', 'tower', 'lumber', 'market']) for (const seed of [1, 2, 3]) worst.bld = Math.max(worst.bld, calls(MD.buildBld(f, t, seed)));
   }
   for (const t of ['melee', 'ranged', 'brute']) worst.unit = Math.max(worst.unit, calls(MD.buildUnit('wild', t)));

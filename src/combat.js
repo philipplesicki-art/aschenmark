@@ -23,7 +23,8 @@ export function entPoint(u, t) {
 }
 
 export function dmgFor(a, t) {
-  let d = a.d.dmg * (a.dmgMul || 1) * (a.buff > 0 ? 1.4 : 1) * (a.weak > 0 ? .75 : 1) * damageDealtMul(a);
+  let d = a.d.dmg * (a.dmgMul || 1) * (a.buff > 0 ? 1.4 : 1) * (a.weak > 0 ? .75 : 1) * damageDealtMul(a)
+    * (a.aur > G.t ? 1 + (a.aurm || 0) : 1) * (a.d.rage && a.hp < a.maxhp * .5 ? 1 + a.d.rage : 1);
   if (t.kind === 'bld') d *= (BMULT[a.type] || 1);
   else { const m = MULT[a.type]; if (m && m[t.type]) d *= m[t.type]; }
   return d;
@@ -53,6 +54,10 @@ export function hurt(t, d, src) {
   if (!alive(t) || t.kind === 'dep') return;
   if (t.shield > 0) d *= .6;
   d *= damageTakenMul(t);
+  if (t.d.rres && src && src.d && src.d.rng > 60) d *= 1 - t.d.rres; // Schildwache: Fernkampf wirkt schwächer
+  if (t.d.reflect && src && src.kind === 'unit' && src.d.rng <= 60 && alive(src)) { // Dornenpanzer: Nahkämpfer verletzen sich selbst
+    src.hp -= d * t.d.reflect; src.hit = .12; if (src.hp <= 0) kill(src, t);
+  }
   t.hp -= d; t.hit = .12;
   G.combat = Math.min(12, G.combat + .5);
   hooks.burst(t.x, t.y, 2, colOf(t), t.kind === 'bld' ? t.r : 4);
@@ -129,6 +134,20 @@ export function updProjs(dt) {
     if (d <= s + 6) { hurt(t, p.d, byId(p.src)); p.dead = true; } else { p.x += p.vx * s; p.y += p.vy * s; }
   }
   G.projs = G.projs.filter(p => !p.dead);
+}
+
+/* ---------- Auren der Unterstützer (alle halbe Sekunde) ---------- */
+export function applyAura(u, au) {
+  const near = (e, r) => Math.hypot(e.x - u.x, e.y - u.y) < r;
+  if (au.kind === 'heal') {
+    const hurt = G.ents.filter(e => e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && e.hp < e.maxhp && near(e, au.range))
+      .sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp).slice(0, au.n || 3);
+    for (const e of hurt) { e.hp = Math.min(e.maxhp, e.hp + au.amount * .5); hooks.burst(e.x, e.y, 1, '#9fe8a0', 3); }
+  } else if (au.kind === 'dmg') {
+    for (const e of G.ents) if (e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && near(e, au.range)) { e.aur = G.t + .8; e.aurm = au.mul; }
+  } else if (au.kind === 'slow') {
+    for (const e of G.ents) if (e.kind === 'unit' && !e.dead && e.team !== u.team && e.team !== 2 && near(e, au.range)) { e.aslow = G.t + .8; e.aslowm = au.mul; }
+  }
 }
 
 /* ---------- Heldenfähigkeiten ---------- */

@@ -14,11 +14,15 @@ export const FACTIONS = {
       ranged: { name: 'Bogenschütze', hp: 60, spd: 64, dmg: 10, rng: 150, cd: 1.3, cost: 90, wood: 20, time: 10, r: 7, sight: 190, pop: 1 },
       cav:    { name: 'Reiter', hp: 150, spd: 112, dmg: 16, rng: 20, cd: 1, cost: 160, wood: 30, tier: 2, time: 14, r: 10, sight: 170, pop: 2 },
       siege:  { name: 'Rammbock', hp: 320, spd: 42, dmg: 48, rng: 24, cd: 1.8, cost: 220, wood: 80, tier: 2, time: 20, r: 12, sight: 120, pop: 3 },
+      support: { name: 'Feldscher', hp: 70, spd: 64, dmg: 3, rng: 16, cd: 1.5, cost: 90, wood: 25, tier: 2, time: 11, r: 7, sight: 170, pop: 1, passive: true,
+        aura: { kind: 'heal', amount: 7, range: 130, n: 3 }, desc: 'Heilt bis zu drei verletzte Verbündete in der Nähe.' },
+      elite:  { name: 'Schildwache', hp: 240, spd: 52, dmg: 17, rng: 20, cd: 1.1, cost: 150, wood: 40, tier: 3, time: 15, r: 9, sight: 140, pop: 2, rres: .3,
+        desc: 'Schwer gepanzert: Fernkampfschaden um 30 Prozent verringert.' },
       hero:   { name: 'Hauptfrau Elda', hp: 320, spd: 78, dmg: 24, rng: 22, cd: .9, cost: 300, time: 20, r: 10, sight: 200, pop: 3 }
     },
     blds: {
       hq:       { name: 'Grenzburg', hp: 1600, size: 3, cost: 0, sight: 230, supply: 12, trains: ['worker', 'hero'], drops: ['ore', 'wood'] },
-      barracks: { name: 'Kaserne', hp: 800, size: 2, cost: 80, wood: 100, time: 14, sight: 170, trains: ['melee', 'ranged', 'cav'] },
+      barracks: { name: 'Kaserne', hp: 800, size: 2, cost: 80, wood: 100, time: 14, sight: 170, trains: ['melee', 'ranged', 'cav', 'support', 'elite'] },
       workshop: { name: 'Werkstatt', hp: 700, size: 2, cost: 120, wood: 120, time: 16, sight: 150, trains: ['siege'], needs: 'barracks', tier: 2 },
       farm:     { name: 'Hof', hp: 420, size: 2, cost: 20, wood: 50, time: 9, sight: 140, supply: 8 },
       outpost:  { name: 'Vorposten', hp: 650, size: 2, cost: 120, wood: 140, time: 18, sight: 210, supply: 4, dropoff: true, drops: ['ore', 'wood'] },
@@ -44,11 +48,15 @@ export const FACTIONS = {
       ranged: { name: 'Pfeilspeier', hp: 50, spd: 68, dmg: 9, rng: 135, cd: 1.2, cost: 70, wood: 15, time: 8, r: 7, sight: 180, pop: 1 },
       cav:    { name: 'Wolfsreiter', hp: 120, spd: 128, dmg: 15, rng: 20, cd: .9, cost: 135, wood: 25, tier: 2, time: 12, r: 10, sight: 180, pop: 2 },
       siege:  { name: 'Aschetroll', hp: 460, spd: 50, dmg: 32, rng: 26, cd: 1.6, cost: 240, wood: 60, tier: 2, time: 20, r: 13, sight: 130, pop: 3, splash: 46 },
+      support: { name: 'Rauchpriester', hp: 60, spd: 66, dmg: 4, rng: 16, cd: 1.4, cost: 80, wood: 20, tier: 2, time: 10, r: 7, sight: 170, pop: 1, passive: true,
+        aura: { kind: 'dmg', mul: .15, range: 150 }, desc: 'Verbündete in der Nähe schlagen 15 Prozent härter.' },
+      elite:  { name: 'Aschenhüter', hp: 170, spd: 64, dmg: 24, rng: 20, cd: .9, cost: 120, wood: 30, tier: 3, time: 12, r: 9, sight: 140, pop: 2, rage: .5,
+        desc: 'Kampfrausch: unter halbem Leben 50 Prozent mehr Schaden.' },
       hero:   { name: 'Brandherr Kharg', hp: 380, spd: 72, dmg: 28, rng: 22, cd: 1, cost: 300, time: 20, r: 11, sight: 190, pop: 3 }
     },
     blds: {
       hq:       { name: 'Aschenfeste', hp: 1400, size: 3, cost: 0, sight: 230, supply: 12, trains: ['worker', 'hero'], drops: ['ore', 'wood'] },
-      barracks: { name: 'Kriegshalle', hp: 700, size: 2, cost: 70, wood: 90, time: 12, sight: 170, trains: ['melee', 'ranged', 'cav'] },
+      barracks: { name: 'Kriegshalle', hp: 700, size: 2, cost: 70, wood: 90, time: 12, sight: 170, trains: ['melee', 'ranged', 'cav', 'support', 'elite'] },
       workshop: { name: 'Schmiedegrube', hp: 640, size: 2, cost: 110, wood: 110, time: 15, sight: 150, trains: ['siege'], needs: 'barracks', tier: 2 },
       farm:     { name: 'Pferch', hp: 360, size: 2, cost: 15, wood: 40, time: 8, sight: 140, supply: 8 },
       outpost:  { name: 'Glutlager', hp: 560, size: 2, cost: 100, wood: 120, time: 16, sight: 210, supply: 4, dropoff: true, drops: ['ore', 'wood'] },
@@ -74,11 +82,15 @@ export const FACTIONS = {
       ranged: { name: 'Harpunier', hp: 62, spd: 62, dmg: 13, rng: 165, cd: 1.5, cost: 105, wood: 25, time: 11, r: 7, sight: 200, pop: 1 },
       cav:    { name: 'Hirschreiter', hp: 140, spd: 118, dmg: 17, rng: 20, cd: 1, cost: 170, wood: 35, tier: 2, time: 14, r: 10, sight: 190, pop: 2 },
       siege:  { name: 'Gezeitenschleuder', hp: 260, spd: 40, dmg: 40, rng: 230, cd: 3, cost: 240, wood: 80, tier: 2, time: 20, r: 12, sight: 150, pop: 3 },
+      support: { name: 'Muschelsänger', hp: 66, spd: 62, dmg: 4, rng: 16, cd: 1.4, cost: 100, wood: 25, tier: 2, time: 11, r: 7, sight: 190, pop: 1, passive: true,
+        aura: { kind: 'slow', mul: .8, range: 170 }, desc: 'Feinde in der Nähe laufen 20 Prozent langsamer.' },
+      elite:  { name: 'Perlenwache', hp: 210, spd: 56, dmg: 16, rng: 20, cd: 1, cost: 160, wood: 45, tier: 3, time: 15, r: 9, sight: 150, pop: 2, reflect: .2,
+        desc: 'Dornenpanzer: Nahkämpfer erleiden 20 Prozent ihres Schadens selbst.' },
       hero:   { name: 'Seherin Maren', hp: 290, spd: 80, dmg: 20, rng: 120, cd: 1.1, cost: 300, time: 20, r: 10, sight: 230, pop: 3 }
     },
     blds: {
       hq:       { name: 'Leuchtfeste', hp: 1500, size: 3, cost: 0, sight: 260, supply: 12, trains: ['worker', 'hero'], drops: ['ore', 'wood'] },
-      barracks: { name: 'Bootshalle', hp: 760, size: 2, cost: 85, wood: 105, time: 14, sight: 170, trains: ['melee', 'ranged', 'cav'] },
+      barracks: { name: 'Bootshalle', hp: 760, size: 2, cost: 85, wood: 105, time: 14, sight: 170, trains: ['melee', 'ranged', 'cav', 'support', 'elite'] },
       workshop: { name: 'Werft', hp: 680, size: 2, cost: 120, wood: 130, time: 16, sight: 150, trains: ['siege'], needs: 'barracks', tier: 2 },
       farm:     { name: 'Räucherei', hp: 400, size: 2, cost: 20, wood: 55, time: 9, sight: 140, supply: 8 },
       outpost:  { name: 'Salzlager', hp: 620, size: 2, cost: 110, wood: 130, time: 17, sight: 230, supply: 4, dropoff: true, drops: ['ore', 'wood'] },
@@ -123,7 +135,7 @@ export function defOf(fac, type) {
 }
 
 // Hotkeys nach Rolle. Sie gelten nur im jeweiligen Kontext (Auswahl), Überschneidungen sind unkritisch.
-export const HK = { worker: 'w', hero: 'g', melee: 'z', ranged: 'x', cav: 'c', siege: 'v', farm: 'f', barracks: 'k', workshop: 'j', tower: 't', outpost: 'o', lumber: 'l', market: 'm' };
+export const HK = { worker: 'w', hero: 'g', melee: 'z', ranged: 'x', cav: 'c', siege: 'v', farm: 'f', barracks: 'k', workshop: 'j', tower: 't', outpost: 'o', lumber: 'l', market: 'm', support: 'h', elite: 'y' };
 
 // Held: Erfahrung für Stufe 2 bis 5.
 export const XP_STEPS = [80, 200, 380, 620];

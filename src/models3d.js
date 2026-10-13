@@ -380,6 +380,24 @@ function wacht(type) {
     const sp = spear(3.2); sp.rotation.z = -1.5; j.weapon.add(sp); j.rider = r;
     g.userData.j = j; g.scale.setScalar(.95); return g;
   }
+  if (type === 'support') { // Feldscher: helle Kutte, Kräuterbeutel mit rotem Kreuz, Stab mit Laterne
+    const cream = mat(0xcfc8b4, { roughness: 1 });
+    const g = human({ coat: cream, hood: cream, collar: L.fur, skirt: cream, skirtLen: 1.25, cape: B_W.tabardD, capeLen: .9, capeW: 1.3, gloves: L.leather, belt: L.leather, brow: B_W.hairD, beard: B_W.beard }); const j = g.userData.j;
+    part(j.body, box(.14, .32, .36), L.leather, -.2, .42, .24, true); // Kräuterbeutel
+    const red = mat(0xa83030, { roughness: 1 }); part(j.body, box(.16, .2, .06), red, -.2, .45, .43); part(j.body, box(.16, .06, .2), red, -.2, .45, .43);
+    for (let i = 0; i < 3; i++) part(j.body, sph(.07, 6, 5), mat([0x6f8a35, 0xc9a44a, 0x9a6a9a][i]), .2, .3, -.2 + i * .2); // Kräuterbüschel am Gürtel
+    j.weapon = pivot(j.armR, .05, -.55, .02); part(j.weapon, cyl(.035, .035, 2.0, 6), L.woodD, .1, .55, 0);
+    part(j.weapon, sph(.1, 8, 6), L.warm, .1, 1.6, 0); part(j.weapon, tor(.12, .02), L.iron, .1, 1.5, 0).rotation.x = Math.PI / 2; // Laterne
+    return g;
+  }
+  if (type === 'elite') { // Schildwache: Topfhelm, Vollrüstung, Turmschild, Hellebarde
+    const g = human({ coat: L.coatW, helm: L.steel, helmType: 'great', trim: L.gold, mail: L.ironL, plate: L.steel, tabard: B_W.tabard, sigil: L.fur, pauldron: L.steel, greaves: L.steel, gloves: L.steel, bracers: L.steel,
+      cape: B_W.cape, capeLen: 1.1, capeW: 1.7, boots: L.iron }); const j = g.userData.j;
+    j.weapon = pivot(j.armR, .1, -.6, .05); const hb = spear(3.4); hb.rotation.z = -1.05; j.weapon.add(hb);
+    part(hb, box(.5, .22, .05), L.steel, .0, 2.7, .0); part(hb, cone(.07, .3, 4), L.steel, .0, 2.95, 0); // Beil und Spitze
+    const sh = kiteShield(mat(0x3d6584), L.gold); sh.position.set(.16, .35, -.4); sh.rotation.y = Math.PI / 2; sh.scale.setScalar(1.2); j.body.add(sh);
+    g.scale.setScalar(1.12); return g;
+  }
   // siege: überdachter Rammbock
   const g = new THREE.Group(), j = {};
   part(g, box(3.2, .3, 1.7), L.wood, 0, .85, 0, true);
@@ -444,6 +462,22 @@ function asch(type) {
     r.userData.j.legL.rotation.z = r.userData.j.legR.rotation.z = -1.2; hornsFor(r.userData.j.head);
     j.weapon = pivot(r.userData.j.armR, 0, -.5, 0); part(j.weapon, box(1.1, .1, .05), L.steel, .7, 0, 0);
     g.userData.j = j; g.scale.setScalar(.95); return g;
+  }
+  if (type === 'support') { // Rauchpriester: Knochenmaske, Räuchergefäß an Kette, Schädelstab
+    const g = human({ coat: L.clothA2, hood: L.hideA, collar: L.hideA, skin: ashSkin, skirt: L.hideA, skirtLen: 1.2, cape: L.hideA, capeLen: .85, capeW: 1.3, eyes: L.emberDim, bracers: L.iron }); const j = g.userData.j;
+    part(j.head, box(.1, .24, .3), L.bone, .22, .1, 0); for (const z of [-.08, .08]) part(j.head, box(.03, .04, .05), L.ember, .28, .16, z); // Maske mit glimmenden Augen
+    for (const z of [-1, 1]) part(j.head, cone(.05, .3, 5), L.bone, .0, .42, z * .18).rotation.x = -z * .4;
+    j.weapon = pivot(j.armR, .05, -.55, .02); part(j.weapon, cyl(.035, .04, 1.9, 6), L.woodD, .1, .5, 0); part(j.weapon, sph(.15, 7, 5), L.bone, .1, 1.5, 0);
+    const chain = part(j.weapon, cyl(.01, .01, .6, 3), L.iron, .1, 1.1, .1); const cs = part(j.weapon, sph(.13, 8, 6), L.emberDim, .1, .75, .1); part(j.weapon, sph(.06, 6, 4), L.ember, .1, .75, .1); // Räuchergefäß
+    g.userData.smoke = [[.1, .8, .1]]; return g;
+  }
+  if (type === 'elite') { // Aschenhüter: nackter Oberkörper mit Kriegsbemalung, zwei Äxte, Hörnerhelm
+    const g = human({ coat: ashSkin, skirt: L.hideA, skirtLen: .8, belt: L.clothA, helm: L.iron, helmType: 'horned', trim: L.ember, pauldron: L.iron, greaves: L.hideA, gloves: L.iron, bracers: L.ironL, skin: ashSkin, paint: L.ember, beard: soot, eyes: L.ember, cape: null }); const j = g.userData.j;
+    for (const z of [-1, 1]) { const h = part(j.head, cone(.08, .5, 6), L.bone, .02, .38, z * .2); h.rotation.x = -z * .5; }
+    const axe = (arm) => { const w = pivot(arm, .1, -.6, .05); part(w, cyl(.04, .04, 1.4, 6), L.woodD, .55, 0, 0).rotation.z = Math.PI / 2 - .3; part(w, box(.3, .26, .05), L.steel, 1.0, .2, 0); part(w, cone(.05, .2, 4), L.ironL, 1.25, .45, 0); return w; };
+    j.weapon = axe(j.armR); axe(j.armL);
+    for (const z of [-.3, .3]) part(j.body, box(.04, .7, .06), L.leather, .26, .45, z).rotation.z = z > 0 ? -.4 : .4; // Gurte über der Brust
+    g.scale.setScalar(1.12); return g;
   }
   // siege: Aschetroll
   const g = new THREE.Group(), j = {};
@@ -533,6 +567,23 @@ function salz(type) {
     r.userData.j.legL.rotation.z = r.userData.j.legR.rotation.z = -1.2; j.weapon = pivot(r.userData.j.armR, 0, -.5, 0);
     const lance = harpoon(3.4); lance.rotation.z = -1.5; j.weapon.add(lance); j.rider = r;
     g.userData.j = j; g.scale.setScalar(.92); return g;
+  }
+  if (type === 'support') { // Muschelsänger: Seidenmantel, Perlenreif, Stab mit leuchtender Muschel
+    const g = human({ ...face, coat: SZ.sash, hood: SZ.sashL, skirt: SZ.sash, skirtLen: 1.25, cape: SZ.oilD, capeLen: .9, capeW: 1.3, circlet: SZ.silver, collar: SZ.silver, belt: SZ.silver, bracers: SZ.silver }); const j = g.userData.j;
+    j.weapon = pivot(j.armR, .05, -.55, .02); part(j.weapon, cyl(.035, .04, 2.0, 6), L.woodD, .1, .55, 0);
+    const shell = part(j.weapon, cone(.2, .45, 8), SZ.salt, .1, 1.7, 0); shell.rotation.z = -.6; part(j.weapon, sph(.12, 8, 6), SZ.sea, .1, 1.62, 0); // Muschel mit Seelicht
+    for (let i = 0; i < 3; i++) part(j.weapon, tor(.1 + i * .05, .012), SZ.sea, .1, 1.72, 0).rotation.y = i * 1.0; // Schallringe
+    return g;
+  }
+  if (type === 'elite') { // Perlenwache: Schuppenpanzer mit Dornen, Dreizack, Wellenschild
+    const g = human({ ...face, coat: SZ.oil, helm: SZ.silver, helmType: 'great', trim: SZ.sash, mail: SZ.scale, plate: SZ.scale, tabard: SZ.sash, sigil: SZ.salt, pauldron: SZ.scale, greaves: SZ.silver, gloves: L.leather, bracers: SZ.silver,
+      cape: SZ.oilD, capeLen: 1.1, capeW: 1.7, clasp: SZ.sea, slit: SZ.sea }); const j = g.userData.j;
+    for (const z of [-.31, .31]) for (let i = 0; i < 3; i++) part(j.body, cone(.05, .24, 5), SZ.silver, -.05 + i * .06, .92 + i * .02, z * 1.25).rotation.z = -.4; // Dornen auf den Schultern
+    j.weapon = pivot(j.armR, .1, -.6, .05); const tri = harpoon(3.2); tri.rotation.z = -1.05; j.weapon.add(tri);
+    for (const z of [-1, 1]) part(tri, cone(.04, .3, 4), SZ.silver, .0, 2.65, z * .13); // Zinken
+    const sh = shield(mat(0x4a3a78), .55); sh.position.set(.13, .35, -.37); sh.rotation.y = Math.PI / 2; sh.scale.setScalar(.9); j.body.add(sh);
+    for (let i = 0; i < 3; i++) part(sh, tor(.18 + i * .1, .02, Math.PI), SZ.salt, .05, -.05, 0).rotation.y = Math.PI / 2;
+    g.scale.setScalar(1.12); return g;
   }
   // siege: Gezeitenschleuder, ein Wurfarm auf Rädern mit Kugeln aus gefrorenem Meerwasser
   const g = new THREE.Group(), j = {};

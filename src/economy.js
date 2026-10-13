@@ -105,7 +105,7 @@ const NAMES = {
     harvest: ['Fangnetze', 'Austernbänke'], storage: ['Salzfässer', 'Eishäuser'] }
 };
 const DESC = {
-  carry: 'Arbeiter tragen vier Einheiten mehr je Fuhre.', mining: 'Erzabbau 20 Prozent schneller.', felling: 'Holzfällen 25 Prozent schneller.',
+  carry: 'Arbeiter tragen zwei Einheiten mehr je Fuhre.', mining: 'Erzabbau 20 Prozent schneller.', felling: 'Holzfällen 25 Prozent schneller.',
   hero: 'Helden sammeln 30 Prozent mehr Erfahrung.', fort: 'Gebäude nehmen 12 Prozent weniger Schaden.', weapons: 'Truppen richten 10 Prozent mehr Schaden an.',
   armor: 'Truppen nehmen 8 Prozent weniger Schaden.', siege: 'Belagerungswaffen richten 20 Prozent mehr Schaden an.', trade: 'Besserer Kurs beim Tauschen von Erz, Holz und Vorräten.',
   harvest: 'Höfe und Burg liefern 25 Prozent mehr Vorräte.', storage: 'Das Lager fasst 300 Vorräte mehr.',
@@ -145,7 +145,7 @@ export function updEconomy(b, dt) {
 }
 
 /* ---------- Wirkung der Forschung (wird von Kampf, Arbeit und Ausbildung gelesen) ---------- */
-export const carryCap = t => CARRY + 4 * tl(t, 'carry');
+export const carryCap = t => CARRY + 2 * tl(t, 'carry');
 export const gatherMul = (t, res) => 1 + (res === 'wood' ? .25 * tl(t, 'felling') : .2 * tl(t, 'mining'));
 export const xpMul = t => 1 + .3 * tl(t, 'hero');
 export const trainMul = (t, fac) => (fac === 'asch' && tl(t, 'sig') ? .75 : 1);
