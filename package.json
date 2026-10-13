@@ -1,0 +1,64 @@
+{
+  "name": "aschenmark",
+  "version": "0.3.0",
+  "description": "Aschenmark, ein Echtzeit-Strategiespiel mit drei Fraktionen, Helden und Mächten",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node tests/sim.test.mjs && node tests/ui.test.mjs",
+    "desktop": "vite build && electron .",
+    "dist": "vite build && electron-builder",
+    "artifact": "node scripts/make-artifact.mjs"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "vite": "^5.4.0"
+  },
+  "optionalDependencies": {
+    "steamworks.js": "^0.4.0"
+  },
+  "build": {
+    "appId": "at.aschenmark.game",
+    "productName": "Aschenmark",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/steamworks.js/**/*"
+    ],
+    "win": {
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": [
+        "dir",
+        "AppImage"
+      ],
+      "category": "Game"
+    }
+  },
+  "dependencies": {
+    "three": "^0.160.1"
+  }
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Aschenmark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Spectral+SC:wght@600;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="stat ore" title="Erz"><span>Erz</span><b id="ore">0</b></div>
+    <div class="stat" title="Truppen"><span>Truppen</span><b id="pop">0/0</b></div>
+    <div class="stat" title="Machtpunkte"><span>Macht</span><b id="pp">0</b></div>
+    <div class="stat"><b id="clock">0:00</b></div>
+    <div class="stat" title="Gebiet unter der Kamera"><span>Gebiet</span><b id="reg">Grenzmark</b></div>
+    <div class="stat ev" id="evChip" hidden><span id="evN"></span><b id="evP"></b></div>
+    <div class="sp"></div>
+    <button class="btn" id="bPower" type="button">Macht</button>
+    <button class="btn" id="bIdle" type="button">Arbeiter <b id="idleN">0</b> <span class="k">.</span></button>
+    <button class="btn" id="bArmy" type="button">Heer <span class="k">E</span></button>
+    <button class="btn" id="bMenu" type="button">Menü</button>
+  </div>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="c"></canvas>
+    <div id="quest" hidden></div>
+    <div id="toast"></div>
+  </div>
+  <div id="panel">
+    <canvas id="mm" width="160" height="112"></canvas>
+    <div id="side"><div id="info"></div><div id="cmds"></div></div>
+  </div>
+  <div id="ov"><div class="card" id="card"></div></div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
