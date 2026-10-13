@@ -1,0 +1,132 @@
+/* Erscheinungsbild: kaltes, dunkles Mittelalter. Eisen und Schiefer als Flächen, Messing als Beschlag, Glut als Akzent.
+   Schriften lokal (OFL): Cinzel für Titel (römische Versalien), Alegreya Sans für die Oberfläche, Alegreya für Erzähltexte. */
+@import '@fontsource/cinzel/latin-500.css';
+@import '@fontsource/cinzel/latin-700.css';
+@import '@fontsource/alegreya-sans/latin-400.css';
+@import '@fontsource/alegreya-sans/latin-500.css';
+@import '@fontsource/alegreya-sans/latin-700.css';
+@import '@fontsource/alegreya-sans-sc/latin-500.css';
+@import '@fontsource/alegreya-sans-sc/latin-700.css';
+@import '@fontsource/alegreya/latin-400.css';
+@import '@fontsource/alegreya/latin-400-italic.css';
+
+:root{
+  --bg:#07080a; --panel:#121417; --panel2:#1a1c1f; --line:#36322c; --line2:#5c4a30;
+  --ink:#eae2d2; --muted:#9b9285; --brass:#d2a05a; --brass2:#f2cf8e; --ember:#e2733c; --ice:#a9cde3;
+  --good:#9fcb7c; --bad:#ea6c4f;
+  --ui:'Alegreya Sans','Segoe UI',system-ui,sans-serif;
+  --sc:'Alegreya Sans SC','Alegreya Sans',system-ui,sans-serif;
+  --display:'Cinzel','Trajan Pro',Georgia,serif;
+  --prose:'Alegreya',Georgia,'Times New Roman',serif;
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .95 0 0 0 0 .85 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --plate:var(--grain),linear-gradient(180deg,#1b1d21 0%,#131518 55%,#0f1113 100%);
+  --edge:inset 0 0 0 1px rgba(210,160,90,.10),inset 0 1px 0 rgba(255,236,200,.05);
+  /* Messingwinkel an den vier Ecken eines Rahmens */
+  --corners:
+    linear-gradient(var(--brass),var(--brass)) top left/16px 1px,linear-gradient(var(--brass),var(--brass)) top left/1px 16px,
+    linear-gradient(var(--brass),var(--brass)) top right/16px 1px,linear-gradient(var(--brass),var(--brass)) top right/1px 16px,
+    linear-gradient(var(--brass),var(--brass)) bottom left/16px 1px,linear-gradient(var(--brass),var(--brass)) bottom left/1px 16px,
+    linear-gradient(var(--brass),var(--brass)) bottom right/16px 1px,linear-gradient(var(--brass),var(--brass)) bottom right/1px 16px;
+}
+body{font:500 16px/1.3 var(--ui);letter-spacing:.005em;font-feature-settings:'lnum' 1,'tnum' 1;background:var(--bg)}
+
+/* ---------- Flächen ---------- */
+#top,#cTop{background:var(--plate);border-bottom:1px solid #2a2622;box-shadow:inset 0 -1px 0 rgba(210,160,90,.22),0 4px 18px rgba(0,0,0,.55);position:relative;z-index:2}
+#panel,#cSide{background:var(--plate);border-top:1px solid #2a2622;box-shadow:inset 0 1px 0 rgba(210,160,90,.22)}
+#cSide{border-top:none;border-left:1px solid #2a2622;box-shadow:inset 1px 0 0 rgba(210,160,90,.18)}
+.card,#cCard{position:relative;background:var(--plate);border:1px solid #2c2823;border-radius:2px;
+  box-shadow:var(--edge),0 18px 60px rgba(0,0,0,.7),0 0 0 1px rgba(0,0,0,.6)}
+.card::before,#cCard::before{content:'';position:absolute;inset:5px;pointer-events:none;background:var(--corners);background-repeat:no-repeat;opacity:.75}
+.card.menu{box-shadow:none}.card.menu::before{display:none}
+#ov{background:radial-gradient(ellipse at center,rgba(6,7,9,.72) 0%,rgba(4,5,6,.92) 75%)}
+#cDlg{background:radial-gradient(ellipse at center,rgba(6,7,9,.66) 0%,rgba(4,5,6,.9) 75%)}
+
+/* ---------- Schrift und Überschriften ---------- */
+.card h1,.card h2,#cSide h3,#info .nm,#quest .qt,.mbtn span{font-family:var(--display);font-weight:700}
+.card h1{letter-spacing:.09em;background:linear-gradient(180deg,#ffe2a8 0%,#d7a35a 55%,#9c6a2c 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 2px 14px rgba(226,115,60,.28))}
+.card h2{font-size:27px;letter-spacing:.07em;color:var(--brass2);margin-bottom:12px}
+.card h2::after{content:'';display:block;width:min(240px,60%);height:7px;margin-top:8px;
+  background:linear-gradient(90deg,var(--brass),rgba(210,160,90,0)) left center/100% 1px no-repeat,
+    linear-gradient(45deg,transparent 40%,var(--brass) 40% 60%,transparent 60%) left center/7px 7px no-repeat}
+.card h3{font-family:var(--sc);font-weight:700;font-size:15px;letter-spacing:.12em;color:var(--brass);opacity:.85}
+.card p{font-family:var(--prose);font-size:18px;line-height:1.45;color:#e2d9c8}
+.card .sub,#cSide .sub,#info .sub{font-family:var(--ui)}
+.card .tag{font-family:var(--sc);letter-spacing:.22em;color:#b9ab95}
+.card.menu h1{font-size:clamp(36px,4.6vw,74px);letter-spacing:.12em}
+#info .nm{font-size:19px;letter-spacing:.06em;color:var(--brass2)}
+#cSide h3{font-size:23px;letter-spacing:.06em}
+#cSide h4,.tcol h4{font-family:var(--sc);font-weight:700;letter-spacing:.12em;color:var(--brass);opacity:.85}
+
+/* ---------- Knöpfe: Platten mit Messingkante ---------- */
+.btn{font-family:var(--sc);font-weight:500;letter-spacing:.03em;color:#e6dccb;border-radius:2px;
+  background:linear-gradient(180deg,#26231f 0%,#1a1917 100%);border:1px solid #4a4032;
+  box-shadow:inset 0 1px 0 rgba(255,230,180,.08),0 1px 0 rgba(0,0,0,.7);transition:border-color .12s,color .12s,box-shadow .12s,background .12s}
+.btn:hover:not([disabled]){border-color:var(--brass);color:var(--brass2);box-shadow:inset 0 1px 0 rgba(255,230,180,.12),0 0 14px rgba(210,160,90,.18)}
+.btn:active:not([disabled]){background:linear-gradient(180deg,#171614,#211f1b)}
+.btn.go,.btn.on,.btn.pick.sel{background:linear-gradient(180deg,#5b3f1d 0%,#3a2812 100%);border-color:#c8913f;color:#ffe9c2}
+.btn .k{font-family:var(--ui);border-color:#4a4032;color:#a8977b;border-radius:2px}
+.btn .c{color:var(--brass2)}
+.btn.pick small{font-family:var(--ui);font-weight:400}
+.mbtn small{font-family:var(--ui);font-weight:400;color:#a59a8a}
+.mbtn span{letter-spacing:.06em}
+.mbtn{border-left:none;position:relative}
+.mbtn::before{content:'';position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-4px;border:1px solid var(--brass);transform:rotate(45deg) scale(.4);opacity:0;transition:.15s}
+.mbtn:hover,.mbtn:focus-visible{background:linear-gradient(90deg,rgba(210,160,90,.13),rgba(210,160,90,0))}
+.mbtn:hover::before,.mbtn:focus-visible::before{opacity:1;transform:rotate(45deg) scale(1);background:var(--brass)}
+.mbtn:hover span,.mbtn:focus-visible span{color:var(--brass2)}
+
+/* ---------- Kopfleiste: Vorräte mit Zeichen ---------- */
+.stat{background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.18));border:1px solid #2f2b26;border-radius:2px;box-shadow:inset 0 1px 2px rgba(0,0,0,.6);align-items:center}
+.stat span{font-family:var(--sc);font-weight:500;letter-spacing:.08em;text-transform:none;font-size:14px}
+.stat b{font-family:var(--ui);font-weight:700}
+.stat.ore b{color:#e9b25f} .stat.wood b{color:#b4d38c} .stat.food b{color:#ecd08a}
+.stat.ore::before,.stat.wood::before,.stat.food::before{content:'';width:16px;height:16px;flex:none;align-self:center;background:currentColor;
+  -webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.stat.ore::before{color:#e9b25f;--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 13 5 11.5 13 4.5 13 3 5Z M8 1 8 13 M3 5 13 5' fill='black' stroke='black'/%3E%3C/svg%3E")}
+.stat.wood::before{color:#b4d38c;--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 10.5 11 4.5a2.3 2.3 0 0 1 2.6 3.8L4.6 14.3A2.3 2.3 0 0 1 2 10.5Z'/%3E%3C/svg%3E")}
+.stat.food::before{color:#ecd08a;--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 15V5M8 6C6 5 5.5 3 6 1.5 7.6 2 8.4 3.6 8 6Zm0 0c2-1 2.5-3 2-4.5C8.4 2 7.6 3.6 8 6ZM8 10C5.8 9.4 4.6 7.6 4.8 6 6.8 6.3 8.2 8 8 10Zm0 0c2.2-.6 3.4-2.4 3.2-4-2 .3-3.4 2-3.2 4Z' fill='black' stroke='black' stroke-width='.8'/%3E%3C/svg%3E")}
+@media (max-width:560px){.stat.ore::before,.stat.wood::before,.stat.food::before{width:14px;height:14px}}
+.stat.season{background:linear-gradient(180deg,rgba(40,60,80,.35),rgba(10,16,22,.4))}
+.stat.season.frost{background:linear-gradient(180deg,rgba(120,170,210,.28),rgba(20,32,44,.5));box-shadow:inset 0 0 12px rgba(169,205,227,.18)}
+
+/* ---------- Meldungen, Auftrag, Auswahl ---------- */
+#toast .t{font-family:var(--ui);font-weight:500;background:var(--plate);border:1px solid #3a342c;border-radius:2px;box-shadow:var(--edge),0 6px 22px rgba(0,0,0,.6);padding:7px 16px}
+#toast .t.bad{border-color:#8a3a26;box-shadow:inset 0 0 18px rgba(234,108,79,.12),0 6px 22px rgba(0,0,0,.6)}
+#toast .t.good{border-color:#5d7a3f}
+#quest{background:var(--plate);border:1px solid #2c2823;border-left:2px solid var(--brass);border-radius:2px;box-shadow:var(--edge),0 6px 20px rgba(0,0,0,.5)}
+#quest .qt{letter-spacing:.06em;color:var(--brass2)}
+#quest .qx{font-family:var(--prose);font-style:italic;color:#b5aa98;font-size:14px}
+#mm{border:1px solid #4a4032;border-radius:1px;box-shadow:0 0 0 3px #0c0d0f,0 0 0 4px #3a3328}
+.bar{background:#08090a;border-color:#3a342c;border-radius:1px}
+.bar i{background:linear-gradient(180deg,#b5dc8f,#6d9a4a)} .bar.q i{background:linear-gradient(180deg,#f2cf8e,#b9802f)} .bar.x i{background:linear-gradient(180deg,#bcd9f3,#5d89b8)}
+#fps{background:rgba(10,11,13,.85);border-color:#3a342c;border-radius:1px}
+
+/* ---------- Hauptmenü ---------- */
+#ov.menu{background:linear-gradient(90deg,rgba(5,6,8,.96) 0%,rgba(5,6,8,.86) 28%,rgba(5,6,8,.38) 55%,rgba(5,6,8,0) 76%)}
+.card.menu .title{position:relative;padding-bottom:18px}
+.card.menu .title::after{content:'';position:absolute;left:0;bottom:0;width:min(380px,80%);height:9px;
+  background:linear-gradient(90deg,var(--brass),rgba(210,160,90,0)) left center/100% 1px no-repeat,
+    linear-gradient(45deg,transparent 38%,var(--ember) 38% 62%,transparent 62%) 0 center/9px 9px no-repeat}
+.card .foot{font-family:var(--sc);letter-spacing:.08em}
+
+/* ---------- Kampagne ---------- */
+#camp{background:#060708}
+#cLog div{font-family:var(--ui);background:rgba(10,11,13,.86);border-left:2px solid #3a342c;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#cSide .queue{background:rgba(210,160,90,.07);border-left:2px solid var(--brass);border-radius:1px}
+#cSide ul.units li{border-bottom:1px solid rgba(210,160,90,.12)}
+.tcard,.tech,.dip{background:linear-gradient(180deg,rgba(255,240,215,.035),rgba(0,0,0,.12));border:1px solid #2e2a25;border-left:2px solid #4a4032;border-radius:1px}
+.tcard b{font-family:var(--sc);font-weight:700;letter-spacing:.03em}
+.tcard.open{border-left-color:var(--brass)} .tcard.done{border-left-color:#6d9a4a} .tcard.cur{border-left-color:var(--ice)}
+.clog{font-family:var(--ui)}
+#cCard .note{font-family:var(--prose);font-style:italic;background:rgba(210,160,90,.07);border-left:2px solid var(--brass)}
+
+/* ---------- Kompakte Leisten (auch bei 1024 Pixeln Breite einzeilig) ---------- */
+#top,#cTop{gap:6px;padding:5px 12px}
+#top .stat,#cTop .stat{padding:3px 9px;font-size:16px;gap:5px;min-height:30px}
+#top .stat span,#cTop .stat span{font-size:13px}
+#top .stat i,#cTop .stat i{font-size:12px}
+#top .btn,#cTop .btn{min-height:32px;padding:3px 10px;font-size:15px}
+@media (max-width:1180px){#cTop .stat span{display:none}#cTop .stat.season span{display:inline}}
+@media (max-width:1280px){#cTop .btn .k{display:none}}
+#cTop .btn.idle{border-color:var(--ember);box-shadow:0 0 10px rgba(226,115,60,.25)}

@@ -635,7 +635,7 @@ function drawOverlay(selSet) {
     const fr = Math.max(0, e.hp / e.maxhp); c.fillStyle = fr > .5 ? '#8cc674' : fr > .25 ? '#e0b94a' : '#e8694d'; c.fillRect(x, y, w * fr, 4);
     if (e.type === 'hero') for (let i = 0; i < MAX_HERO_LVL; i++) { c.fillStyle = i < e.lvl ? '#e0a64a' : 'rgba(0,0,0,.6)'; c.fillRect(x + i * 6, y - 6, 4, 3); }
   }
-  c.font = '700 14px "Barlow Condensed",sans-serif'; c.textAlign = 'center';
+  c.font = '700 14px "Alegreya Sans SC",sans-serif'; c.textAlign = 'center';
   for (const f of G.floats) {
     if (f.y0 === undefined) f.y0 = f.y; const p = gp(f.x, f.y0, 2.6 + f.t * 1.8);
     c.globalAlpha = Math.max(0, 1 - f.t / f.life); c.fillStyle = '#000'; c.fillText(f.text, p[0] + 1, p[1] + 1); c.fillStyle = f.col; c.fillText(f.text, p[0], p[1]);

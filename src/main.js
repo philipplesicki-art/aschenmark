@@ -1,4 +1,5 @@
 import './style.css';
+import './theme.css';
 import { G, UI, hooks, cam, view } from './state.js';
 import { newWorld, mkUnit, mkBld, canPlaceAt } from './world.js';
 import { beginMatch, step } from './sim.js';

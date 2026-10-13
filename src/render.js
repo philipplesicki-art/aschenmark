@@ -397,7 +397,7 @@ export function render(dt, selSet) {
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true; ctx.drawImage(fogC, 0, 0, WW, WH);
 
-  ctx.font = '700 13px "Barlow Condensed",sans-serif'; ctx.textAlign = 'center';
+  ctx.font = '700 13px "Alegreya Sans SC",sans-serif'; ctx.textAlign = 'center';
   for (const f of G.floats) { ctx.globalAlpha = Math.max(0, 1 - f.t / f.life); ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x + 1, f.y + 1); ctx.fillStyle = f.col; ctx.fillText(f.text, f.x, f.y); }
   ctx.globalAlpha = 1; ctx.textAlign = 'start';
 

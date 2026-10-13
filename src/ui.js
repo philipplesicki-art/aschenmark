@@ -307,7 +307,7 @@ function creditsScreen() {
     + '<p class="sub">Alle Modelle, Texturen, Effekte und die Musik entstehen zur Laufzeit im Code. Namen, Orte und Figuren der Welt Orsa sind eigene Erfindungen.</p>'
     + '<h3>Verwendete Software</h3><ul class="help">'
     + '<li>Three.js (MIT-Lizenz) für die 3D-Darstellung</li><li>Vite (MIT-Lizenz) zum Bauen</li><li>Electron (MIT-Lizenz) für die Desktop-Fassung</li>'
-    + '<li>Schriften Barlow Condensed und Spectral SC (SIL Open Font License)</li></ul>'
+    + '<li>Schriften Cinzel, Alegreya und Alegreya Sans (SIL Open Font License)</li></ul>'
     + backRow(), act => { if (act === 'back') mainMenu(); }, mainMenu);
 }
 

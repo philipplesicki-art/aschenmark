@@ -170,7 +170,7 @@ export function render() {
       ctx.beginPath(); ctx.arc(x, y + 14 * view.dpr, r, 0, 7); ctx.fill(); ctx.stroke();
       if (cap) { ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.moveTo(x - r, y + 14 * view.dpr - r); for (let k = 0; k <= 4; k++) ctx.lineTo(x - r + k * r / 2, y + 14 * view.dpr - r - (k % 2 ? 0 : 6 * view.dpr)); ctx.fill(); }
     } else if (!p.owner && unitCount(p.garrison) > 0) { ctx.fillStyle = 'rgba(155,176,106,.9)'; ctx.font = (11 * view.dpr) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('⚔', x, y + 18 * view.dpr); }
-    ctx.font = '600 ' + fs + 'px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 ' + Math.round(fs * .82) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillText(pi.name, x + 1, y - 2); ctx.fillStyle = p.owner ? '#f2efe6' : '#cfd2c4'; ctx.fillText(pi.name, x, y - 3);
   }
   // Heere als Banner
@@ -182,7 +182,7 @@ export function render() {
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x - w / 2 + 3, y - h + 3, w, h);
     ctx.fillStyle = facColor(a.owner); ctx.beginPath(); ctx.moveTo(x - w / 2, y - h); ctx.lineTo(x + w / 2, y - h); ctx.lineTo(x + w / 2, y - 8 * view.dpr); ctx.lineTo(x, y); ctx.lineTo(x - w / 2, y - 8 * view.dpr); ctx.closePath(); ctx.fill();
     ctx.lineWidth = (selA ? 3 : 1.5) * view.dpr; ctx.strokeStyle = selA ? '#ffe9a8' : '#111'; ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.font = '700 ' + (12 * view.dpr) + 'px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(unitCount(a.units), x, y - h / 2);
+    ctx.fillStyle = '#fff'; ctx.font = '700 ' + (12 * view.dpr) + 'px "Alegreya Sans", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(unitCount(a.units), x, y - h / 2);
     if (a.hero) { ctx.fillStyle = '#ffd36a'; ctx.fillText('★', x, y - h + 11 * view.dpr); }
     if (a.owner === C.player && movesLeft(a) > 0) { ctx.fillStyle = '#9be07c'; ctx.beginPath(); ctx.arc(x + w / 2, y - h, 4 * view.dpr, 0, 7); ctx.fill(); }
     banners.push({ a, x, y, w, h });
@@ -201,7 +201,7 @@ function renderTop() {
     + '<div class="stat"><span>Provinzen</span><b>' + C.provs.filter(p => p.owner === C.player).length + ' / ' + C.provs.length + '</b></div>'
     + (inc.admin < 1 ? '<div class="stat" title="Verwaltung: ab ' + ADMIN_FREE + ' Provinzen kostet jede weitere Ertrag im ganzen Reich"><span>Verwaltung</span><b class="neg">−' + Math.round(100 - inc.admin * 100) + ' %</b></div>' : '')
     + '<div class="sp"></div>'
-    + '<button class="btn" data-c="research" type="button">Forschung' + (e.research ? ': ' + ctechName(C.player, e.research.id) + ' (' + Math.max(1, Math.ceil((e.research.need - e.research.prog) / researchRate(C.player))) + ')' : '') + '</button>'
+    + '<button class="btn' + (e.research ? '' : ' idle') + '" data-c="research" type="button" title="' + (e.research ? ctechName(C.player, e.research.id) : 'Keine Forschung in Arbeit') + '">Forschung' + (e.research ? ' <span class="c">' + Math.max(1, Math.ceil((e.research.need - e.research.prog) / researchRate(C.player))) + ' R</span>' : ' <span class="c">!</span>') + '</button>'
     + '<button class="btn" data-c="dip" type="button">Diplomatie</button><button class="btn" data-c="trade" type="button">Handel</button><button class="btn" data-c="log" type="button">Chronik</button><button class="btn" data-c="menu" type="button">Menü</button>'
     + '<button class="btn go" data-c="end" type="button">Runde beenden <span class="k">Enter</span></button>';
   $('cTop').onclick = ev => { const b = ev.target.closest('[data-c]'); if (!b) return; ({ research: openResearch, dip: () => openDiplomacy(), trade: openTrade, log: openLog, menu, end: nextTurn })[b.dataset.c](); };
