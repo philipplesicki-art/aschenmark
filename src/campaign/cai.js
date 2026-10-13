@@ -33,7 +33,8 @@ export function aiTurn(f) {
   /* Handel: Überschuss in den knappsten Rohstoff tauschen */
   for (let k = 0; k < 4; k++) {
     const r = ['ore', 'wood', 'food'].sort((x, y) => e[x] - e[y]), low = r[0], high = r[2];
-    if (e[high] > 2 * e[low] + 250 && cTrade(f, high, low, Math.max(100, Math.floor((e[high] - 2 * e[low]) / 4)))) continue; break;
+    const k = f === 'salz' ? 1.3 : 2, base = f === 'salz' ? 120 : 250; // Händler tauschen früher
+    if (e[high] > k * e[low] + base && cTrade(f, high, low, Math.max(100, Math.floor((e[high] - k * e[low]) / 4)))) continue; break;
   }
 
   /* Forschung */

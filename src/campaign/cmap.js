@@ -58,14 +58,14 @@ export function genMap(seed, nProv = 30) {
   // Nachbarschaft beidseitig machen
   for (const p of provs) for (const q of p.nb) if (!provs[q].nb.includes(p.id)) provs[q].nb.push(p.id);
 
-  // Gelände nach Lage: Norden kalt, Osten trocken, Süden Sumpf und Küste; einige Berge im Norden und Osten
+  // Gelände nach Lage: Norden kalt, Osten trocken, Süden Sumpf, Trockenland und Küste; Berge verstreut im Binnenland
   for (const p of provs) {
     const u = p.x / MW, v = p.y / MH, h = hill(u, v);
     let b;
     if (v < .45) b = u < .32 ? 'grenz' : u < .58 ? 'wald' : 'asch';
     else if (v < .64) b = u > .68 ? 'trocken' : u < .34 ? (h > 0 ? 'wald' : 'grenz') : (h > .1 ? 'grenz' : 'wald');
-    else b = p.coast ? 'kueste' : u > .74 ? 'trocken' : 'sumpf';
-    if (b !== 'kueste' && v < .6 && h > .38) b = 'berg';
+    else b = p.coast ? 'kueste' : u > .74 || h > .15 ? 'trocken' : 'sumpf';
+    if (b !== 'kueste' && h > .38) b = 'berg'; // Berge überall im Binnenland: jedes Reich findet Erz
     p.biome = b;
   }
   const capitals = {};

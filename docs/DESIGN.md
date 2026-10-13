@@ -42,7 +42,15 @@ als Echtzeit-Gefecht (die bestehende Partie) oder automatisch berechnet.
 - **Schlachten:** berechnet aus Stärke, Gelände, Mauern, Technik und Held, oder im Echtzeit-Gefecht mit genau diesen Truppen.
 - **Forschung:** reichsweit über Runden; die Stufen gelten in jeder Schlacht (Waffen, Rüstung usw. wie im Gefecht).
 - **KI-Reiche:** bauen, rekrutieren, greifen die schwächste Nachbarprovinz an, verteidigen ihre Hauptstadt.
-- **Sieg:** alle Hauptstädte erobern oder 70 Prozent der Provinzen halten.
+- **Sieg:** alle Hauptstädte erobern oder 75 Prozent der Provinzen halten.
+- **Bremsen gegen Schneeballreiche (Kampagnen sollen Stunden dauern):** Unruhe nach jeder Eroberung (3 Runden plus Siedlungsstufe,
+  Ertrag auf ein Viertel, Bürgerwehr halb; ein eigenes Heer von mindestens 3 Trupps beruhigt doppelt so schnell, ohne Heer droht
+  mit 15 Prozent je Runde ein Aufstand: die Provinz wird wieder neutral). Verwaltung: ab 6 Provinzen kostet jede weitere 3,5 Prozent
+  Ertrag des ganzen Reiches. Hauptstädte haben eine Burg (Verteidigung mal 1,25) und doppelte Bürgerwehr.
+- **Fraktionszüge auf der Karte:** Der Salzbund handelt zu besseren Kursen (plus 15 Punkte) und wirbt mit weniger Erz und mehr Vorräten an.
+- **Schwierigkeit:** Leicht, Normal, Schwer (Vorgabe), Unerbittlich (KI-Ertrag mal 1,5, greift schon bei Gleichstand an).
+  Weltgröße 30, 48 (Vorgabe) oder 72 Provinzen. Gemessen ohne Spieler (KI gegen KI, Normal): Median 114, 164 bzw. 171 Runden,
+  Siege über 30 Partien ausgeglichen (etwa 11/8/11).
 
 Etappen: K1 Kartenspiel mit berechneten Schlachten (fertig), K2 Echtzeit-Schlachten aus der Kampagne (fertig), K3 Forschungsbaum, Helden mit
 Werdegang, Diplomatie, Ereignisse und Handlungsfäden der Kampagne.

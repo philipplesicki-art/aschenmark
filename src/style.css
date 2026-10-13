@@ -167,3 +167,5 @@ canvas#c{cursor:crosshair}
 @media (max-width:820px){ #camp{grid-template-columns:1fr;grid-template-rows:auto 1fr 40%} #cSide{border-left:none;border-top:1px solid var(--line)} }
 /* Schlacht aus der Kampagne: keine Wirtschaft in der Kopfleiste */
 body.battle #top .stat.ore, body.battle #top .stat.wood, body.battle #top .stat.food, body.battle #bIdle, body.battle #seasonT { display: none }
+#cSide .queue.unrest{border-left-color:var(--bad);color:#ffd2c7}
+#cTop .stat b.neg{color:var(--bad)}

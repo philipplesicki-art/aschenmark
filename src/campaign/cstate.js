@@ -28,10 +28,12 @@ export const unitCount = u => ROLES.reduce((n, r) => n + (u[r] || 0), 0);
 export const popOf = (u, fac) => ROLES.reduce((n, r) => n + (u[r] || 0) * ((FACTIONS[fac] && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].pop : 1) || 1), 0);
 
 /* ---------- Neue Kampagne ---------- */
+const REVOLT = .15; // Aufstandsgefahr je Runde in unruhigen Provinzen ohne Heer
 export const CDIFF = {
   easy:   { label: 'Leicht', aiIncome: .8, aiAggro: 1.6, neutral: .8 },
   normal: { label: 'Normal', aiIncome: 1,  aiAggro: 1.3, neutral: 1 },
-  hard:   { label: 'Schwer', aiIncome: 1.25, aiAggro: 1.1, neutral: 1.15 }
+  hard:   { label: 'Schwer', aiIncome: 1.25, aiAggro: 1.1, neutral: 1.15 },
+  brutal: { label: 'Unerbittlich', aiIncome: 1.5, aiAggro: 1, neutral: 1.3 }
 };
 export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.random() * 1e9) | 0, nProv = 30 } = {}) {
   const map = genMap(seed, nProv);
@@ -77,7 +79,10 @@ export function provYield(p) {
 }
 export function empireIncome(f, s = season()) {
   const inc = { ore: 0, wood: 0, food: 0 };
-  for (const p of C.provs) if (p.owner === f) { const y = provYield(p); inc.ore += y.ore; inc.wood += y.wood; inc.food += y.food; }
+  let n = 0;
+  for (const p of C.provs) if (p.owner === f) { n++; const y = provYield(p), u = p.unrest > 0 ? UNREST_YIELD : 1; inc.ore += y.ore * u; inc.wood += y.wood * u; inc.food += y.food * u; }
+  inc.admin = adminMul(n); // große Reiche verlieren Ertrag an die Verwaltung
+  for (const r of ['ore', 'wood', 'food']) inc[r] *= inc.admin;
   inc.food *= s.food;
   const k = isAI(f) ? CDIFF[C.diff].aiIncome : 1;
   for (const r in inc) inc[r] *= k;
@@ -85,6 +90,12 @@ export function empireIncome(f, s = season()) {
   inc.foodNet = inc.food - inc.upkeep;
   return inc;
 }
+
+// Verwaltung: ab ADMIN_FREE Provinzen kostet jede weitere Ertrag (Civilization-artige Bremse gegen Schneeballreiche)
+export const ADMIN_FREE = 6, ADMIN_STEP = .035, UNREST_YIELD = .25;
+export const adminMul = n => 1 / (1 + Math.max(0, n - ADMIN_FREE) * ADMIN_STEP);
+// Unruhe nach einer Eroberung: Runden bis zur Ruhe; ohne eigenes Heer droht Aufstand
+export const unrestTurns = p => 3 + p.lvl;
 
 /* ---------- Bauen und Ausbau ---------- */
 export const slotsUsed = p => CBLD_IDS.reduce((n, b) => n + (p.blds[b] ? 1 : 0), 0);
@@ -120,7 +131,8 @@ export const settleName = p => SETTLE_NAMES[p.lvl] || '';
 /* ---------- Rekrutierung ---------- */
 // Kosten in der Kampagne folgen der Kampfstärke (berechnete Schlachten kennen kein Gegenspiel der Truppenarten),
 // aufgeteilt auf Erz (Waffen), Holz (Gerät) und Vorräte (Proviant), damit jedes Gelände etwas wert ist.
-export const recruitCost = (f, role) => { const s = unitStrength(f, role), d = FACTIONS[f].units[role]; return { ore: Math.round(s * 3.2), wood: Math.round(s * 2 + (d.wood || 0) * .5), food: Math.round(s * 2.4) }; };
+// Kosten nach Stärke. Der Salzbund wirbt mit Salz und Vorräten an: weniger Erz, mehr Vorräte
+export const recruitCost = (f, role) => { const s = unitStrength(f, role), d = FACTIONS[f].units[role], z = f === 'salz'; return { ore: Math.round(s * (z ? 2.2 : 3.2)), wood: Math.round(s * 2 + (d.wood || 0) * .5), food: Math.round(s * (z ? 4 : 2.4)) }; };
 export function recruitBlock(p, role, n = 1, f = C.player) {
   if (p.owner !== f) return 'Nicht deine Provinz';
   const bar = p.blds.barracks || 0; if (!bar) return 'Kaserne nötig';
@@ -155,7 +167,8 @@ export function startResearch(f, id) {
 
 /* ---------- Handel: über Händler der Hauptstadt immer möglich, Märkte verbessern den Kurs ---------- */
 export const marketLevels = f => C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.market || 0 : 0), 0);
-export const cTradeRate = f => Math.min(.9, .6 + .06 * marketLevels(f));
+// Der Salzbund ist ein Handelsbund: bessere Kurse von Beginn an
+export const cTradeRate = f => Math.min(f === 'salz' ? .95 : .9, .6 + .06 * marketLevels(f) + (f === 'salz' ? .15 : 0));
 export function cTrade(f, from, to, amt = 100) {
   const e = C.emp[f];
   if (from === to || e[from] < amt) return false;
@@ -268,8 +281,8 @@ export function defense(id, against) {
   let pow = 0;
   for (const a of armies) pow += armyPower(a.units, a.owner, a.hero);
   if (p.owner === null) pow += armyPower(p.garrison, 'wild');
-  else if (hostile(p.owner, against)) pow += p.lvl * 15; // Bürgerwehr
-  const mul = BIOMES[pinfo(id).biome].def * (1 + .25 * (p.blds.walls || 0)) * 1.1;
+  else if (hostile(p.owner, against)) pow += (6 + p.lvl * 15) * (C.emp[p.owner].capital === id ? 2 : 1) * (p.unrest > 0 ? .5 : 1); // Bürgerwehr: Hauptstadt doppelt, in Unruhe halb
+  const mul = BIOMES[pinfo(id).biome].def * (1 + .25 * (p.blds.walls || 0)) * 1.1 * (p.owner && C.emp[p.owner].capital === id ? 1.25 : 1); // Hauptstadt: Burg
   return { pow: pow * mul, armies, mul };
 }
 // Verluste anteilig auf die Truppenarten verteilen
@@ -316,7 +329,7 @@ function heroXp(f, xp) { const e = C.emp[f]; if (!e) return; e.heroXp += xp; whi
 function heroFalls(f) { const e = C.emp[f]; e.heroDown = 3; if (f === C.player) addLog(FACTIONS[f].units.hero.name + ' ist verwundet und kehrt in drei Runden zurück', 'bad'); }
 function capture(id, f) {
   const p = prov(id), old = p.owner;
-  p.owner = f; p.queue = null; p.garrison = emptyUnits(); p.lvl = Math.max(1, p.lvl);
+  p.owner = f; p.queue = null; p.garrison = emptyUnits(); p.lvl = Math.max(1, p.lvl); p.unrest = unrestTurns(p);
   if (p.blds.walls) p.blds.walls--;
   C.recruits = C.recruits.filter(r => r.prov !== id);
   if (old && C.emp[old].capital === id) {
@@ -346,6 +359,17 @@ export function endTurn(aiTurn) {
     if (e.heroDown > 0 && --e.heroDown === 0 && e.capital >= 0) {
       const at = armiesAt(e.capital).find(a => a.owner === f); if (at) at.hero = true; else mkArmy(f, e.capital, {}, true);
       if (f === C.player) addLog(FACTIONS[f].units.hero.name + ' ist zurück in ' + pinfo(e.capital).name, 'good');
+    }
+  }
+  // Unruhe: ein eigenes Heer in der Provinz beruhigt doppelt so schnell; ohne Heer droht ein Aufstand
+  for (const p of C.provs) if (p.owner && p.unrest > 0) {
+    const held = armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3);
+    p.unrest = Math.max(0, p.unrest - (held ? 2 : 1));
+    if (!held && p.unrest > 0 && cR() < REVOLT) {
+      const old = p.owner; p.owner = null; p.unrest = 0; p.queue = null; p.garrison = wildGarrison(MAP.provs[p.id]);
+      C.recruits = C.recruits.filter(r => r.prov !== p.id);
+      addLog('Aufstand in ' + pinfo(p.id).name + '! Die Provinz sagt sich von ' + FACTIONS[old].name + ' los.', old === C.player ? 'bad' : '');
+      if (C.emp[old].capital === p.id) { const rest = C.provs.filter(q => q.owner === old).sort((a, b) => b.lvl - a.lvl); C.emp[old].capital = rest.length ? rest[0].id : -1; }
     }
   }
   // Bauaufträge
@@ -385,6 +409,6 @@ export function checkEnd() {
   if (!C.emp[C.player].alive) { C.over = { win: false }; addLog('Dein Reich ist untergegangen.', 'bad'); return; }
   const own = C.provs.filter(p => p.owner === C.player).length;
   const capsHeld = FAC_IDS.filter(f => f !== C.player).every(f => !C.emp[f].alive || C.provs[MAP.capitals[f]].owner === C.player);
-  if (capsHeld || own >= Math.ceil(C.provs.length * .7)) { C.over = { win: true }; addLog('Orsa gehört dir. Der Sieg ist errungen.', 'good'); }
+  if (capsHeld || own >= Math.ceil(C.provs.length * .75)) { C.over = { win: true }; addLog('Orsa gehört dir. Der Sieg ist errungen.', 'good'); }
 }
 export const empireName = f => (f ? FACTIONS[f].name : 'Wilde');

@@ -4,12 +4,12 @@ import { FACTIONS } from '../factions.js';
 // Gelände: Grundertrag je Runde bei Siedlungsstufe 1 (Erz, Holz, Vorräte), Verteidigungsbonus, Farbe auf der Karte.
 export const BIOMES = {
   grenz: { name: 'Grenzland', ore: 40, wood: 50, food: 40,  def: 1.05, col: '#8e9aa6', cold: true },
-  wald: { name: 'Waldmeer', ore: 15, wood: 110, food: 35,  def: 1.15, col: '#4f6a5c', cold: true },
-  asch: { name: 'Aschenfelder', ore: 90, wood: 20, food: 15,  def: 1.0,  col: '#5d5552', cold: true },
+  wald: { name: 'Waldmeer', ore: 15, wood: 85, food: 35,   def: 1.15, col: '#4f6a5c', cold: true },
+  asch: { name: 'Aschenfelder', ore: 90, wood: 20, food: 25,  def: 1.0,  col: '#5d5552', cold: true },
   berg: { name: 'Bergland', ore: 110, wood: 25, food: 10,  def: 1.3,  col: '#7b7670', cold: true },
-  trocken: { name: 'Trockenland', ore: 60, wood: 15, food: 30,  def: 1.0,  col: '#a58a5e', cold: false },
-  sumpf: { name: 'Sumpfland', ore: 20, wood: 60, food: 70, def: 1.2,  col: '#556552', cold: false },
-  kueste: { name: 'Küste', ore: 20, wood: 30, food: 90, def: 1.0,  col: '#9d9478', cold: false }
+  trocken: { name: 'Trockenland', ore: 75, wood: 15, food: 30,  def: 1.0,  col: '#a58a5e', cold: false },
+  sumpf: { name: 'Sumpfland', ore: 40, wood: 60, food: 60, def: 1.2,  col: '#556552', cold: false },
+  kueste: { name: 'Küste', ore: 35, wood: 30, food: 80, def: 1.0,  col: '#9d9478', cold: false }
 };
 
 // Hauptstädte ernten unabhängig vom Gelände gleich viel, damit kein Reich durch seinen Startort im Vorteil ist.
@@ -72,5 +72,5 @@ export const NAME_PARTS = {
 };
 
 // Startprovinzen (Lage als Anteil der Kartengröße) und Farbe je Fraktion.
-export const CAPITALS = { wacht: [.12, .26], asch: [.88, .26], salz: [.5, .9] }; // etwa gleichseitiges Dreieck: keine Fraktion in der Mitte
+export const CAPITALS = { wacht: [.21, .17], asch: [.79, .17], salz: [.5, .89] }; // gleichseitiges Dreieck auf der 240×168-Karte (je ~140 Zellen)
 export const facColor = fac => (FACTIONS[fac] ? FACTIONS[fac].color : '#9bb06a');

@@ -3,7 +3,7 @@
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
   recruitBlock, recruit, recruitCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, armiesAt, movesLeft, orderMove,
   unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
-  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome } from './cstate.js';
+  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
@@ -197,6 +197,7 @@ function renderTop() {
     + '<div class="stat season ' + s.id + '"><span>Jahr ' + year() + '</span><b>' + s.name + '</b></div>'
     + '<div class="stat"><span>Runde</span><b>' + C.turn + '</b></div>'
     + '<div class="stat"><span>Provinzen</span><b>' + C.provs.filter(p => p.owner === C.player).length + ' / ' + C.provs.length + '</b></div>'
+    + (inc.admin < 1 ? '<div class="stat" title="Verwaltung: ab ' + ADMIN_FREE + ' Provinzen kostet jede weitere Ertrag im ganzen Reich"><span>Verwaltung</span><b class="neg">−' + Math.round(100 - inc.admin * 100) + ' %</b></div>' : '')
     + '<div class="sp"></div>'
     + '<button class="btn" data-c="research" type="button">Forschung' + (e.research ? ': ' + techName(C.player, e.research.id, e.research.lvl) + ' (' + e.research.t + ')' : '') + '</button>'
     + '<button class="btn" data-c="trade" type="button">Handel</button><button class="btn" data-c="log" type="button">Chronik</button><button class="btn" data-c="menu" type="button">Menü</button>'
@@ -232,6 +233,8 @@ function renderSide() {
     h += '<h3 style="color:' + (p.owner ? facColor(p.owner) : '#cfd2c4') + '">' + pi.name + '</h3>';
     h += '<div class="sub">' + BIOMES[pi.biome].name + ' · ' + (p.owner ? empireName(p.owner) : 'herrenlos') + (p.lvl ? ' · ' + settleName(p) + ' (Stufe ' + p.lvl + ')' : '') + '</div>';
     if (p.owner) h += '<div class="yields"><span class="ore">' + Math.round(y.ore) + ' Erz</span><span class="wood">' + Math.round(y.wood) + ' Holz</span><span class="food">' + Math.round(y.food) + ' Vorr.</span></div>';
+    if (p.owner && p.unrest > 0) h += '<div class="queue unrest">Unruhe, noch ' + p.unrest + ' Runde(n): Ertrag ein Viertel, Bürgerwehr halb.'
+      + (armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3) ? ' Das Heer hier beruhigt doppelt so schnell.' : ' Ohne Heer (ab 3 Trupps) droht ein Aufstand!') + '</div>';
     if (!p.owner) h += '<div class="sub">Wilde Besatzung, Stärke ' + Math.round(defense(p.id, C.player).pow) + '</div>';
     else if (!mine) h += '<div class="sub">Verteidigung ' + Math.round(defense(p.id, C.player).pow) + (p.blds.walls ? ' · Mauern Stufe ' + p.blds.walls : '') + '</div>';
     const here = armiesAt(p.id); if (here.length) h += '<div class="sub">Heere: ' + here.map(a => empireName(a.owner) + ' (' + unitCount(a.units) + (a.hero ? ' ★' : '') + ')').join(', ') + '</div>';

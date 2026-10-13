@@ -202,7 +202,7 @@ function mainMenu() {
 
 function setupScreen() {
   const st = loadSettings();
-  let fac = FACTIONS[st.fac] ? st.fac : FAC_IDS[0], opp = st.opp || 'random', diff = DIFF[st.diff] ? st.diff : 'normal', quests = st.quests !== false;
+  let fac = FACTIONS[st.fac] ? st.fac : FAC_IDS[0], opp = st.opp || 'random', diff = DIFF[st.diff] ? st.diff : 'hard', quests = st.quests !== false;
   const render = focus => {
     if (opp === fac) opp = 'random';
     const opps = [['random', 'Zufall', '#8d99a5']].concat(FAC_IDS.filter(f => f !== fac).map(f => [f, FACTIONS[f].name, FACTIONS[f].color]));
@@ -230,14 +230,14 @@ function setupScreen() {
 
 function campaignScreen() {
   const st = loadSettings();
-  let fac = FACTIONS[st.fac] ? st.fac : FAC_IDS[0], diff = ['easy', 'normal', 'hard'].includes(st.cdiff) ? st.cdiff : 'normal', size = st.csize || 30;
+  let fac = FACTIONS[st.fac] ? st.fac : FAC_IDS[0], diff = ['easy', 'normal', 'hard', 'brutal'].includes(st.cdiff) ? st.cdiff : 'hard', size = [30, 48, 72].includes(st.csize) ? st.csize : 48;
   const render = focus => {
     show('<h2>Kampagne</h2><p class="sub">Rundenbasiert auf der Weltkarte von Orsa: Provinzen erobern, Siedlungen ausbauen, Heere führen, forschen. Eine Runde ist eine Jahreszeit.</p>'
       + (cb.hasCampaign() ? '<div class="row"><button class="btn big go" data-act="cont" type="button">Kampagne fortsetzen</button></div><h3>Oder neu beginnen</h3>' : '')
       + '<h3>Dein Reich</h3><div class="row facs">' + FAC_IDS.map(id => { const f = FACTIONS[id];
         return '<button class="btn pick' + (id === fac ? ' sel' : '') + '" data-act="fac" data-v="' + id + '" type="button" style="--fc:' + f.color + '"><b>' + f.name + '</b><small>' + f.blurb + '</small></button>'; }).join('') + '</div>'
-      + '<h3>Schwierigkeit</h3><div class="row">' + [['easy', 'Leicht'], ['normal', 'Normal'], ['hard', 'Schwer']].map(([k, n]) => '<button class="btn pick sm' + (k === diff ? ' sel' : '') + '" data-act="diff" data-v="' + k + '" type="button"><b>' + n + '</b></button>').join('') + '</div>'
-      + '<h3>Größe der Welt</h3><div class="row">' + [[22, 'Klein'], [30, 'Mittel'], [40, 'Groß']].map(([k, n]) => '<button class="btn pick sm' + (k === size ? ' sel' : '') + '" data-act="size" data-v="' + k + '" type="button"><b>' + n + '</b><small>' + k + ' Provinzen</small></button>').join('') + '</div>'
+      + '<h3>Schwierigkeit</h3><div class="row">' + [['easy', 'Leicht'], ['normal', 'Normal'], ['hard', 'Schwer'], ['brutal', 'Unerbittlich']].map(([k, n]) => '<button class="btn pick sm' + (k === diff ? ' sel' : '') + '" data-act="diff" data-v="' + k + '" type="button"><b>' + n + '</b></button>').join('') + '</div>'
+      + '<h3>Größe der Welt</h3><div class="row">' + [[30, 'Klein'], [48, 'Mittel'], [72, 'Groß']].map(([k, n]) => '<button class="btn pick sm' + (k === size ? ' sel' : '') + '" data-act="size" data-v="' + k + '" type="button"><b>' + n + '</b><small>' + k + ' Provinzen</small></button>').join('') + '</div>'
       + backRow('<button class="btn big' + (cb.hasCampaign() ? '' : ' go') + '" data-act="start" type="button">Neue Kampagne</button>'),
     (act, el) => {
       if (act === 'fac') { fac = el.dataset.v; saveSettings({ fac }); render('[data-act=fac].sel'); }
