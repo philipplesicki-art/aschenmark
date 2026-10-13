@@ -214,7 +214,7 @@ export function updZones(dt) {
         for (const e of G.ents) {
           if (e.dead || e.team === z.team || e.team === 2 || e.kind === 'dep') continue;
           if (Math.hypot(e.x - z.x, e.y - z.y) > z.r + (e.kind === 'bld' ? e.r : 0)) continue;
-          hurt(e, e.kind === 'bld' ? 10 : 16, null);
+          hurt(e, e.kind === 'bld' ? 4 : 6, null); // zusammen etwa 70 je Einheit, wie der Feuerregen im Mittel
           if (e.kind === 'unit') e.slow = Math.max(e.slow, 1.2);
         }
       }

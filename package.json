@@ -12,7 +12,8 @@
     "test": "node tests/sim.test.mjs && node tests/ui.test.mjs",
     "desktop": "vite build && electron .",
     "dist": "vite build && electron-builder",
-    "artifact": "node scripts/make-artifact.mjs"
+    "artifact": "node scripts/make-artifact.mjs",
+    "balance": "node tests/balance.mjs"
   },
   "devDependencies": {
     "electron": "^33.0.0",

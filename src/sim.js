@@ -57,6 +57,6 @@ export function step(dt) {
   G.ents = G.ents.filter(e => !e.dead);
   G.sel = G.sel.filter(id => G.map.has(id));
   G.qT = (G.qT || 0) - dt; if (G.qT <= 0) { G.qT = .5; updQuests(); }
-  G.aiT -= dt; if (G.aiT <= 0) { G.aiT = 1; aiTick(); }
+  G.aiT -= dt; if (G.aiT <= 0) { G.aiT = 1; aiTick(1); if (G.ai0) aiTick(0); }
   G.fogT -= dt; if (G.fogT <= 0) { G.fogT = .15; updFog(); }
 }

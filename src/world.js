@@ -146,7 +146,7 @@ export function newWorld({ fac0 = 'wacht', fac1 = 'asch', diff = 'normal', seed,
 
 // Platzprüfung für Neubauten. Der Spieler braucht erkundetes Gelände, die KI einen freien Rand.
 export function canPlaceAt(tp, gx, gy, team) {
-  const s = defOf(G.fac[team], tp).size, m = team === 1 ? 1 : 0;
+  const ai = team === 1 || !!G.ai0, s = defOf(G.fac[team], tp).size, m = ai ? 1 : 0; // KI-Seiten: freier Rand, kein Nebel nötig
   if (tp === 'outpost') { // nahe einer Erzader, aber nicht neben einem anderen Abgabepunkt
     const cx = (gx + s / 2) * TS, cy = (gy + s / 2) * TS;
     if (!G.ents.some(e => e.kind === 'dep' && !e.dead && e.amt > 0 && Math.hypot(e.x - cx, e.y - cy) < 230)) return false;
@@ -154,7 +154,7 @@ export function canPlaceAt(tp, gx, gy, team) {
   }
   for (let j = -m; j < s + m; j++) for (let i = -m; i < s + m; i++) {
     if (!free(gx + i, gy + j)) return false;
-    if (team === 0 && i >= 0 && j >= 0 && i < s && j < s && G.fog[(gy + j) * GW + gx + i] === 0) return false;
+    if (!ai && i >= 0 && j >= 0 && i < s && j < s && G.fog[(gy + j) * GW + gx + i] === 0) return false;
   }
   return true;
 }
