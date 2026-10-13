@@ -23,6 +23,7 @@ export const CBLD = {
   lumber:   { name: 'Sägewerk',      desc: 'Mehr Holz: je Stufe plus 60 Prozent des Grundertrags und 15 fest.', cost: [[30, 40], [80, 90], [150, 160]], turns: [1, 1, 2], yieldMul: { wood: .6 }, yieldAdd: { wood: 15 } },
   barracks: { name: 'Kaserne',       desc: 'Rekrutierung in dieser Provinz. Stufe 2 erlaubt Reiter und Unterstützer, Stufe 3 Elite und Belagerung.', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
   walls:    { name: 'Mauern',        desc: 'Verteidiger sind je Stufe 25 Prozent stärker.', cost: [[60, 120], [140, 220], [260, 340]], turns: [2, 2, 3] },
+  school:   { name: 'Gelehrtenhaus', desc: 'Forschung: je Stufe ein Viertel Forschungspunkt mehr je Runde (im ganzen Reich zusammen höchstens 1,5).', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
   market:   { name: 'Markt',         desc: 'Je Stufe 30 Erz und 10 Prozent mehr Ertrag dieser Provinz.', cost: [[100, 100], [180, 180], [280, 280]], turns: [1, 2, 2], yieldAdd: { ore: 30 }, yieldPct: .1 }
 };
 export const CBLD_IDS = Object.keys(CBLD);
@@ -74,3 +75,15 @@ export const NAME_PARTS = {
 // Startprovinzen (Lage als Anteil der Kartengröße) und Farbe je Fraktion.
 export const CAPITALS = { wacht: [.21, .17], asch: [.79, .17], salz: [.5, .89] }; // gleichseitiges Dreieck auf der 240×168-Karte (je ~140 Zellen)
 export const facColor = fac => (FACTIONS[fac] ? FACTIONS[fac].color : '#9bb06a');
+
+// Werdegang des Helden: bei jedem Stufenaufstieg wählt das Reich einen von drei angebotenen Zügen.
+export const HERO_TRAITS = {
+  feldherr:    { name: 'Feldherr', desc: 'Das Heer des Helden ist 10 Prozent stärker.' },
+  belagerer:   { name: 'Belagerer', desc: 'Angriffe des Heldenheeres übergehen eine Mauerstufe.' },
+  marschall:   { name: 'Marschall', desc: 'Das Heer des Helden hat einen Zug mehr je Runde.' },
+  waechter:    { name: 'Wächter', desc: 'Verteidigt der Held, ist sein Heer 20 Prozent stärker.' },
+  landvogt:    { name: 'Landvogt', desc: 'Wo der Held steht, legt sich Unruhe drei Runden schneller.' },
+  kaempe:      { name: 'Kämpe', desc: 'In Echtzeit-Schlachten hat der Held 30 Prozent mehr Leben.' },
+  zahlmeister: { name: 'Zahlmeister', desc: 'Das Heer des Helden kostet nur halben Unterhalt.' }
+};
+export const HERO_TRAIT_IDS = Object.keys(HERO_TRAITS);

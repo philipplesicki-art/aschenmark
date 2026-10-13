@@ -1,16 +1,19 @@
 // KI der Kampagne: ein Zug je Reich und Runde. Einfach und gierig, aber mit Blick auf Vorräte, Front und Hauptstadt.
 import { C, MAP, prov, pinfo, cR, empireIncome, buildBlock, startBuild, settleBlock, startSettle, slotsUsed, recruitBlock, recruit,
-  RESEARCH_IDS, researchBlock, startResearch, researchCost, armiesAt, orderMove, armyPower, defense, unitCount, mergeAt, CDIFF, season, foodCapE, cTrade } from './cstate.js';
+  researchBlock, startResearch, researchCost, breachOf, hostile, armiesAt, orderMove, armyPower, defense, unitCount, mergeAt, CDIFF, season, foodCapE, cTrade } from './cstate.js';
 import { findRoute } from './cmap.js';
 import { BIOMES, CBLD, SETTLE } from './cdata.js';
 import { CSEASONS } from './cdata.js';
+import { AI_ORDER } from './ctech.js';
+import { aiDiplomacy } from './cdip.js';
 
 const RESERVE = 140; // Erz, das für Rekruten bleibt
 
 export function aiTurn(f) {
   const e = C.emp[f], own = C.provs.filter(p => p.owner === f);
   if (!own.length && !C.armies.some(a => a.owner === f)) return;
-  const hostileProv = p => p.owner !== f && (p.owner || p.garrison && Object.values(p.garrison).some(n => n > 0));
+  aiDiplomacy(f);
+  const hostileProv = p => (p.owner ? hostile(p.owner, f) : p.garrison && Object.values(p.garrison).some(n => n > 0));
   const frontier = own.filter(p => MAP.provs[p.id].nb.some(n => hostileProv(prov(n))));
 
   /* Bauen: eine Sache je Provinz, nach Bedarf und Gelände */
@@ -24,6 +27,8 @@ export function aiTurn(f) {
     if (p.id === e.capital || frontier.includes(p) || e.ore > 1000) want('barracks', (p.blds.barracks || 0) < 2 ? 3.5 : e.ore > 1000 ? 2.5 : 1.5);
     if (frontier.includes(p)) want('walls', p.id === e.capital ? 4 : 2);
     if (p.lvl >= 2 && !C.provs.some(q => q.owner === f && q.blds.market)) want('market', 2.2); else if (p.lvl >= 3) want('market', 1.2);
+    const schools = C.provs.reduce((n, q) => n + (q.owner === f ? q.blds.school || 0 : 0), 0);
+    if (p.lvl >= 2 && schools < 6 && (p.id === e.capital || p.lvl >= 3)) want('school', schools < 2 ? 2.4 : 1.6);
     cand.sort((a, b) => b[0] - a[0]);
     if (cand.length && cand[0][0] > 1.5) startBuild(p, cand[0][1], f);
     else if (!p.queue && slotsUsed(p) >= SETTLE[Math.max(1, p.lvl)].slots - 1 && !settleBlock(p, f) && e.ore > 400) startSettle(p, f);
@@ -38,7 +43,7 @@ export function aiTurn(f) {
   }
 
   /* Forschung */
-  if (!e.research) for (const id of RESEARCH_IDS) if (!researchBlock(f, id) && e.ore > researchCost(f, id).ore + 80) { startResearch(f, id); break; }
+  if (!e.research) for (const id of AI_ORDER) if (!researchBlock(f, id) && e.ore > researchCost(f, id).ore + 80) { startResearch(f, id); break; }
 
   /* Rekrutieren: solange Erz da ist und die Vorräte den Winter tragen */
   const inc = empireIncome(f), frostNet = empireIncome(f, CSEASONS[2]).foodNet;
@@ -56,7 +61,7 @@ export function aiTurn(f) {
   /* Heere: zusammenlegen, angreifen, wo es sich lohnt, sonst an die Front oder zur bedrohten Hauptstadt */
   for (const p of own) { const here = armiesAt(p.id).filter(a => a.owner === f); for (const a of here.slice(1)) { a.path = []; mergeAt(a); } }
   const aggro = CDIFF[C.diff].aiAggro, cap = e.capital >= 0 ? prov(e.capital) : null;
-  const capThreat = cap ? MAP.provs[cap.id].nb.reduce((s, n) => s + armiesAt(n).filter(a => a.owner !== f).reduce((t, a) => t + armyPower(a.units, a.owner, a.hero), 0), 0) : 0;
+  const capThreat = cap ? MAP.provs[cap.id].nb.reduce((s, n) => s + armiesAt(n).filter(a => hostile(a.owner, f)).reduce((t, a) => t + armyPower(a.units, a.owner, a.hero), 0), 0) : 0;
   for (const a of C.armies.filter(x => x.owner === f)) {
     if (C.over || !C.armies.includes(a)) continue;
     const pow = armyPower(a.units, f, a.hero);
@@ -69,9 +74,9 @@ export function aiTurn(f) {
     if (cap && a.at === cap.id && capThreat > pow * .7) continue; // bleibt zur Verteidigung
     let best = null, bestScore = 0;
     for (const n of MAP.provs[a.at].nb) {
-      const q = prov(n); if (!hostileProv(q) && !armiesAt(n).some(o => o.owner !== f)) continue;
-      const d = defense(n, f).pow, ratio = pow / Math.max(1, d);
-      const value = 1 + q.lvl * .3 + (q.owner && C.emp[q.owner].capital === n ? 1.5 : 0) + (q.owner ? .3 : 0);
+      const q = prov(n); if (!hostileProv(q) && !armiesAt(n).some(o => hostile(o.owner, f))) continue;
+      const d = defense(n, f, breachOf(a)).pow, ratio = pow / Math.max(1, d);
+      const value = 1 + q.lvl * .3 + (q.owner && C.emp[q.owner].capital === n ? 1.5 : 0) + (q.owner ? .3 : 0) + (a.siege === n ? 1 : 0); // Belagerung zu Ende bringen
       if (ratio >= aggro && ratio * value > bestScore) { bestScore = ratio * value; best = n; }
     }
     if (best !== null) { orderMove(a, best); continue; }

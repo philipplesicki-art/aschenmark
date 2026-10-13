@@ -53,7 +53,25 @@ als Echtzeit-Gefecht (die bestehende Partie) oder automatisch berechnet.
   Siege über 30 Partien ausgeglichen (etwa 11/8/11).
 
 Etappen: K1 Kartenspiel mit berechneten Schlachten (fertig), K2 Echtzeit-Schlachten aus der Kampagne (fertig), K3 Forschungsbaum, Helden mit
-Werdegang, Diplomatie, Ereignisse und Handlungsfäden der Kampagne.
+Werdegang, Diplomatie, Ereignisse (fertig), K4 Handlungsfäden der Kampagne (offen).
+
+**K3 Tiefe:**
+- **Forschungsbaum** (`ctech.js`): 26 Forschungen in vier Zeitaltern mit Voraussetzungen. Kosten je Zeitalter, Dauer aus
+  Forschungspunkten (5/8/12/18) geteilt durch die Forschungsrate (1 plus 0,25 je Gelehrtenhaus-Stufe, höchstens plus 1,5; Akademien
+  plus 0,25). Wirkungen: Gebäudeerträge, Verwaltung, Heerstraßen (halbe Züge im eigenen Land), Mauern, Durchbruch, Garnisonen,
+  Tross, Exerzierplätze, Heerbann, Heldenepos. Waffen, Rüstung usw. gelten als Gefechtsstufen auch in Echtzeit-Schlachten.
+- **Belagerung:** Hauptstädte und Provinzen mit wirksamen Mauern müssen eine Runde eingeschlossen werden, bevor gestürmt wird.
+  Belagerungsgerät, Sturmböcke, der Zug Belagerer und mindestens zwei eigene Belagerungstrupps übergehen je eine Mauerstufe.
+- **Werdegang des Helden:** bei jedem Aufstieg einer von drei Zügen (Feldherr, Belagerer, Marschall, Wächter, Landvogt, Kämpe,
+  Zahlmeister). Heldenlieder beschleunigen, Heldenepos hebt die Höchststufe von 5 auf 8.
+- **Diplomatie** (`cdip.js`): Frieden, Krieg, Waffenstillstand (6 Runden), Beistandsbündnis. Zu Beginn Frieden mit 8 Runden
+  Waffenstillstand. Im Frieden ist das Land des anderen gesperrt. Die KI erklärt Krieg bei Überlegenheit (Schwelle je Schwierigkeit),
+  meidet Gegner, die schon im Krieg stehen, und fürchtet die Führungsmacht. Kriegsmüdigkeit, Tribut und Zweifrontenkrieg machen
+  Frieden möglich. Haltungen: Erinnerungen (Wortbruch, Geschenke, Kriegserklärungen) plus Lage; auf Schwer und Unerbittlich
+  ist die KI dem Spieler gegenüber misstrauischer.
+- **Ereignisse** (`cevents.js`): je Runde und Reich 14 Prozent; Ernte, Mehltau, Erzader, Seuche, Räuber, Gelehrter, Söldner,
+  Mittwinterfest, Flüchtlinge, Zweikampf, Händlerzug, meist mit einer Entscheidung.
+- Gemessen ohne Spieler (Normal, 48 Provinzen): Median etwa 94 Runden, je Partie etwa 4 Kriege und 2 Friedensschlüsse.
 
 **K2 Echtzeit-Schlachten:** Jeder Angriff mit Beteiligung des Spielers (auch Überfälle der KI) fragt: Schlacht schlagen oder
 automatisch berechnen. Die Schlacht nutzt genau die Truppen des Heeres samt Held (Stufe aus der Kampagne) und die Forschung

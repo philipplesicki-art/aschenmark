@@ -21,6 +21,7 @@ Alle Grafik, Musik und Effekte entstehen im Code – keine zugekauften oder frem
 - Teams: 0 Spieler, 1 KI, 2 neutrale Erzadern, 3 wilde Lager (`fac 'wild'`, über `facOf`/`defOf`)
 - Karte 120×84 Felder, TS=32 px; Kern 80×56; Regionen grenz/wald/asch offen, trocken/sumpf/kueste hinter Pässen
 - Kampagne (Weltkarte, rundenbasiert) in `src/campaign/`: `cdata.js` (Gelände, Bauten, Rollen), `cmap.js` (Voronoi-Karte aus Saat), `cstate.js` (Zustand `C` und Regeln), `cai.js` (KI-Reiche), `csave.js`, `cui.js` (Canvas-Karte, Dialoge). Tests: `tests/campaign.test.mjs`
+- Kampagnen-Tiefe: `ctech.js` (Forschungsbaum, Wirkungen über `cfx(f, key)`), `cdip.js` (Diplomatie, Zustand `C.dip` mit `dipOf`/`hostile`/`passable` in cstate), `cevents.js` (Ereignisse, `C.events`), Heldenzüge `HERO_TRAITS` (cdata) mit `hasTrait`. Entscheidungen des Spielers warten in `C.heroPick`, `C.events`, `C.offers`, `C.pending` und werden in cui.js nacheinander abgefragt (`afterBattle`)
 - Echtzeit-Schlachten aus der Kampagne: `battle.js` (`newBattle(spec)` baut ein Gefecht ohne Basis: Heere in Reihen, Türme je Mauerstufe, Bürgerwehr, Jahreszeit; `battleTick` führt den Gegner, `finishBattle` liefert Überlebende). Mit offener Weltkarte (`cHooks.ask`) warten Schlachten mit Spielerbeteiligung in `C.pending`; `battleSpec`/`battleOutcome`/`resolvePending` in `cstate.js`. In der Schlacht gilt `G.battle` (keine Burgen, keine Vorräte, Pause bietet Rückzug)
 
 ## Regeln

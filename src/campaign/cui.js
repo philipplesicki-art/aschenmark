@@ -1,15 +1,17 @@
 // Oberfläche der Kampagne: Weltkarte (Canvas), Kopfleiste, Seitenfeld für Provinz oder Heer, Forschung, Chronik.
 // Die Regeln stehen in cstate.js; hier wird nur gezeichnet und weitergereicht.
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
-  recruitBlock, recruit, recruitCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, armiesAt, movesLeft, orderMove,
+  recruitBlock, recruit, recruitCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
   unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
-  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE } from './cstate.js';
+  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE, dipOf } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor } from './cdata.js';
-import { FACTIONS, WILD } from '../factions.js';
-import { techName, techDesc, TECH } from '../economy.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS } from './cdata.js';
+import { FACTIONS, WILD, FAC_IDS } from '../factions.js';
+import { CTECH, ERAS, ctechName } from './ctech.js';
+import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
+import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
@@ -199,10 +201,10 @@ function renderTop() {
     + '<div class="stat"><span>Provinzen</span><b>' + C.provs.filter(p => p.owner === C.player).length + ' / ' + C.provs.length + '</b></div>'
     + (inc.admin < 1 ? '<div class="stat" title="Verwaltung: ab ' + ADMIN_FREE + ' Provinzen kostet jede weitere Ertrag im ganzen Reich"><span>Verwaltung</span><b class="neg">−' + Math.round(100 - inc.admin * 100) + ' %</b></div>' : '')
     + '<div class="sp"></div>'
-    + '<button class="btn" data-c="research" type="button">Forschung' + (e.research ? ': ' + techName(C.player, e.research.id, e.research.lvl) + ' (' + e.research.t + ')' : '') + '</button>'
-    + '<button class="btn" data-c="trade" type="button">Handel</button><button class="btn" data-c="log" type="button">Chronik</button><button class="btn" data-c="menu" type="button">Menü</button>'
+    + '<button class="btn" data-c="research" type="button">Forschung' + (e.research ? ': ' + ctechName(C.player, e.research.id) + ' (' + Math.max(1, Math.ceil((e.research.need - e.research.prog) / researchRate(C.player))) + ')' : '') + '</button>'
+    + '<button class="btn" data-c="dip" type="button">Diplomatie</button><button class="btn" data-c="trade" type="button">Handel</button><button class="btn" data-c="log" type="button">Chronik</button><button class="btn" data-c="menu" type="button">Menü</button>'
     + '<button class="btn go" data-c="end" type="button">Runde beenden <span class="k">Enter</span></button>';
-  $('cTop').onclick = ev => { const b = ev.target.closest('[data-c]'); if (!b) return; ({ research: openResearch, trade: openTrade, log: openLog, menu, end: nextTurn })[b.dataset.c](); };
+  $('cTop').onclick = ev => { const b = ev.target.closest('[data-c]'); if (!b) return; ({ research: openResearch, dip: () => openDiplomacy(), trade: openTrade, log: openLog, menu, end: nextTurn })[b.dataset.c](); };
 }
 function renderLog() {
   const box = $('cLog'); if (!box || !C) return;
@@ -220,7 +222,7 @@ function renderSide() {
     const mine = a.owner === C.player;
     h += '<h3 style="color:' + facColor(a.owner) + '">' + (a.hero ? FACTIONS[a.owner].units.hero.name + 's Heer' : 'Heer') + '</h3>';
     h += '<div class="sub">' + empireName(a.owner) + ' · in ' + pinfo(a.at).name + (mine ? ' · Züge ' + movesLeft(a) : '') + ' · Stärke ' + Math.round(armyPower(a.units, a.owner, a.hero)) + '</div>';
-    if (a.hero) h += '<div class="sub">Held Stufe ' + C.emp[a.owner].heroLvl + ': +' + Math.round(12 * (C.emp[a.owner].heroLvl + 1)) + ' Prozent Stärke</div>';
+    if (a.hero) h += '<div class="sub">Held Stufe ' + C.emp[a.owner].heroLvl + ' von ' + heroCap(a.owner) + ': +' + Math.round(12 * (C.emp[a.owner].heroLvl + 1)) + ' Prozent Stärke' + ((C.emp[a.owner].traits || []).length ? '<br>' + C.emp[a.owner].traits.map(t => '<span title="' + HERO_TRAITS[t].desc + '">' + HERO_TRAITS[t].name + '</span>').join(', ') : '') + '</div>';
     h += '<ul class="units">' + ROLES.filter(r => a.units[r]).map(r => '<li><span>' + FACTIONS[a.owner].units[r].name + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
     if (mine) {
       h += '<p class="sub">Linksklick auf eine Provinz: dorthin ziehen. Gegner und Wilde werden beim Betreten angegriffen.</p>';
@@ -274,14 +276,23 @@ function moveTo(id) {
 
 /* ---------- Dialoge: Forschung, Handel, Chronik, Schlacht, Menü, Ende ---------- */
 function dlg(html, onClick) { $('cCard').innerHTML = html; $('cDlg').hidden = false; $('cCard').onclick = ev => { const b = ev.target.closest('[data-d]'); if (b && !b.disabled) onClick(b.dataset.d); }; }
-function closeDlg() { $('cDlg').hidden = true; render(); }
+function closeDlg() { $('cDlg').hidden = true; $('cCard').classList.remove('wide'); render(); }
+// Forschungsbaum: vier Spalten (Zeitalter), jede Forschung als Karte: erforscht, in Arbeit, verfügbar oder gesperrt
 function openResearch() {
-  const e = C.emp[C.player];
-  const rows = RESEARCH_IDS.map(id => { const lv = e.tech[id] || 0, c = researchCost(C.player, id), max = TECH[id].levels.length;
-    return '<div class="tech"><div><b>' + (lv ? techName(C.player, id, lv) : techName(C.player, id, 1)) + '</b> <small>Stufe ' + lv + ' / ' + max + '</small><div class="sub">' + techDesc(C.player, id) + '</div></div>'
-      + (c ? '<button class="btn" data-d="' + id + '" type="button"' + (researchBlock(C.player, id) ? ' disabled title="' + researchBlock(C.player, id) + '"' : '') + '>' + techName(C.player, id, lv + 1) + '<small>' + costTxt(c) + ' · ' + c.turns + ' R</small></button>' : '<span class="sub">fertig</span>') + '</div>'; }).join('');
-  dlg('<h2>Forschung</h2>' + (e.research ? '<p>In Arbeit: ' + techName(C.player, e.research.id, e.research.lvl) + ', noch ' + e.research.t + ' Runde(n).</p>' : '<p class="sub">Eine Forschung zur Zeit. Die Stufen gelten in jeder Schlacht des Reiches.</p>') + '<div class="techs">' + rows + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
-    d => { if (d === 'x') return closeDlg(); startResearch(C.player, d); openResearch(); render(); });
+  const e = C.emp[C.player], f = C.player, rate = researchRate(f);
+  const card = id => {
+    const t = CTECH[id], done = e.ctech[id], cur = e.research && e.research.id === id, block = researchBlock(f, id), locked = !done && t.req.some(r => !e.ctech[r]);
+    const c = researchCost(f, id), cls = done ? 'done' : cur ? 'cur' : locked ? 'locked' : block ? 'wait' : 'open';
+    return '<button class="tcard ' + cls + '" data-d="' + id + '" type="button"' + (done || cur || block ? ' disabled' : '') + ' title="' + (block && !done ? block : '') + '">'
+      + '<b>' + ctechName(f, id) + '</b><span>' + t.desc + '</span>'
+      + (t.req.length ? '<small>braucht ' + t.req.map(r => ctechName(f, r)).join(', ') + '</small>' : '')
+      + (done ? '<i>erforscht</i>' : cur ? '<i>in Arbeit: ' + e.research.prog.toFixed(1) + ' / ' + e.research.need + '</i>' : c ? '<i>' + costTxt(c) + ' · ' + c.turns + ' R</i>' : '') + '</button>';
+  };
+  const cols = [1, 2, 3, 4].map(era => '<div class="tcol"><h4>' + ERAS[era].name + '</h4>' + RESEARCH_IDS.filter(id => CTECH[id].era === era).map(card).join('') + '</div>').join('');
+  dlg('<h2>Forschung</h2><p class="sub">Eine Forschung zur Zeit. Forschungsrate ' + rate.toFixed(2) + ' Punkte je Runde (Gelehrtenhäuser und Akademien erhöhen sie). Waffen, Rüstung und Gerät gelten auch in Echtzeit-Schlachten.</p>'
+    + '<div class="ttree">' + cols + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
+    d => { if (d === 'x') return closeDlg(); startResearch(f, d); openResearch(); render(); });
+  $('cCard').classList.add('wide');
 }
 function openTrade() {
   const e = C.emp[C.player], rate = cTradeRate(C.player), names = { ore: 'Erz', wood: 'Holz', food: 'Vorräte' };
@@ -303,6 +314,9 @@ function showBattle(r) {
 // Nächste offene Schlacht anbieten, sonst zurück zur Karte (oder zum Ende)
 function afterBattle() {
   if (C.over) return showOver();
+  if (C.heroPick && C.heroPick.length) return chooseTrait();
+  if (C.events && C.events.length) return showEvent(C.events[0]);
+  if (C.offers && C.offers.length) return showOffer(C.offers[0]);
   const pb = nextPending();
   if (pb) choose(pb); else if (!$('cDlg').hidden) closeDlg();
 }
@@ -325,6 +339,64 @@ function choose(pb) {
     else if (d === 'fight') fight(pb, spec);
   });
 }
+const waiting = () => !!(nextPending() || (C.heroPick && C.heroPick.length) || (C.events && C.events.length) || (C.offers && C.offers.length));
+// Ereignis mit Entscheidung
+function showEvent(ev) {
+  const E = CEVENTS[ev.id];
+  dlg('<h2>' + E.title + '</h2><p>' + eventText(ev) + '</p><div class="mlist compact">'
+    + E.opts.map((o, i) => '<button class="mbtn" data-d="' + i + '" type="button"' + (optOk(ev, i) ? '' : ' disabled') + '><span>' + o.label + '</span><small>' + o.desc + '</small></button>').join('') + '</div>',
+  d => { resolveEvent(ev, +d); owners = null; render(); afterBattle(); });
+}
+// Angebot eines anderen Reiches
+function showOffer(o) {
+  const peace = o.kind === 'peace', n = empireName(o.from);
+  dlg('<h2>' + (peace ? n + ' bittet um Frieden' : n + ' bietet ein Bündnis an') + '</h2>'
+    + '<p>' + (peace ? 'Der Krieg dauert an. Mit dem Frieden gilt ' + 6 + ' Runden Waffenstillstand, das Land der anderen Seite ist dann gesperrt.' : 'Ein Beistandsbündnis: Wer einen von euch angreift, hat beide zum Feind. Eure Heere dürfen durch das Land des anderen ziehen.') + '</p>'
+    + '<div class="row end"><button class="btn" data-d="no" type="button">Ablehnen</button><button class="btn go" data-d="yes" type="button">Annehmen</button></div>',
+  d => {
+    C.offers = C.offers.filter(x => x !== o);
+    const st = dipOf(C.player, o.from);
+    if (d === 'yes' && C.emp[o.from].alive) { if (peace && st && st.st === 'war') makePeace(C.player, o.from); else if (!peace && st && st.st === 'peace') makeAlliance(C.player, o.from); }
+    owners = null; render(); afterBattle();
+  });
+}
+// Diplomatie: Lage und Handlungen gegenüber jedem Reich
+function openDiplomacy(note = '') {
+  const f = C.player, e = C.emp[f], my = might(f);
+  const b = (d, label, dis, title) => '<button class="btn" data-d="' + d + '" type="button"' + (dis ? ' disabled' : '') + (title ? ' title="' + title + '"' : '') + '>' + label + '</button>';
+  const rows = FAC_IDS.filter(g => g !== f && C.emp[g].alive).map(g => {
+    const d = dipOf(f, g), op = opinion(g, f), r = might(g) / Math.max(1, my);
+    const st = d.st === 'war' ? 'Krieg seit ' + (C.turn - d.since) + ' Runden' : d.st === 'ally' ? 'Bündnis' : 'Frieden' + (d.truce ? ', Waffenstillstand noch ' + d.truce + ' Runden' : '');
+    let h = '';
+    if (d.st === 'war') h += [0, 200, 500].map(t => b('peace:' + g + ':' + t, t ? 'Frieden gegen ' + t + ' Erz' : 'Frieden anbieten', e.ore < t)).join('');
+    else {
+      const wb = warBlock(f, g); h += b('war:' + g, 'Krieg erklären', !!wb, wb || (d.st === 'ally' ? 'Bündnisbruch verärgert alle Reiche' : ''));
+      if (d.st === 'peace') h += b('ally:' + g, 'Bündnis anbieten', false, 'Nur gegen einen gemeinsamen Feind und bei guter Haltung');
+      else h += b('unally:' + g, 'Bündnis kündigen');
+    }
+    h += b('gift:' + g, 'Geschenk: 150 Erz', e.ore < 150);
+    return '<div class="dip"><div><b style="color:' + facColor(g) + '">' + empireName(g) + '</b><div class="sub">' + st + ' · Haltung zu dir: ' + opinionWord(op) + ' (' + op + ')' + (r > 9.99 ? ' · Stärke weit über der deinen' : ' · Stärke ' + Math.round(r * 100) + ' Prozent der deinen') + '</div></div><div class="row">' + h + '</div></div>';
+  }).join('');
+  dlg('<h2>Diplomatie</h2><p class="sub">Im Frieden ist das Land des anderen gesperrt, nach einem Friedensschluss gilt ein Waffenstillstand. Die Reiche fürchten die Führungsmacht und mögen, wer denselben Feind hat.</p>'
+    + (note ? '<p class="note">' + note + '</p>' : '') + rows + '<div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
+  d => {
+    if (d === 'x') return closeDlg();
+    const [k, g, t] = d.split(':'); let msg = '';
+    if (k === 'war') { declareWar(f, g); msg = 'Krieg mit ' + empireName(g) + '.'; }
+    else if (k === 'peace') { if (acceptsPeace(g, f, +t)) { e.ore -= +t; C.emp[g].ore += +t; makePeace(f, g); msg = empireName(g) + ' nimmt den Frieden an.'; } else msg = empireName(g) + ' lehnt ab. Mehr Tribut, eine bessere Kriegslage oder Zeit könnten helfen.'; }
+    else if (k === 'ally') { if (acceptsAlliance(g, f)) { makeAlliance(f, g); msg = 'Bündnis mit ' + empireName(g) + '.'; } else msg = empireName(g) + ' lehnt ab: dafür braucht es einen gemeinsamen Feind, gute Haltung und einige Runden Frieden.'; }
+    else if (k === 'unally') { breakAlliance(f, g); msg = 'Bündnis gekündigt.'; }
+    else if (k === 'gift') { gift(f, g, 150); msg = empireName(g) + ' nimmt das Geschenk an.'; }
+    owners = null; render(); openDiplomacy(msg);
+  });
+}
+// Der Held ist aufgestiegen: einen von drei Zügen wählen
+function chooseTrait() {
+  const offer = C.heroPick[0], e = C.emp[C.player], h = FACTIONS[C.player].units.hero.name;
+  dlg('<h2>' + h + ' erreicht Stufe ' + e.heroLvl + '</h2><p class="sub">Wähle den nächsten Schritt im Werdegang. Bisher: ' + (e.traits.length ? e.traits.map(t => HERO_TRAITS[t].name).join(', ') : 'noch keiner') + '.</p><div class="mlist compact">'
+    + offer.map(t => '<button class="mbtn" data-d="' + t + '" type="button"><span>' + HERO_TRAITS[t].name + '</span><small>' + HERO_TRAITS[t].desc + '</small></button>').join('') + '</div>',
+  d => { pickTrait(d); render(); afterBattle(); });
+}
 function fight(pb, spec) {
   saveCampaign(); $('cDlg').hidden = true; closeCampaign();
   cfg.fight(spec, res => {
@@ -340,13 +412,13 @@ function menu() {
 }
 export function nextTurn() {
   if (C.over) return showOver();
-  if (nextPending()) return afterBattle(); // erst die offenen Schlachten
+  if (waiting()) return afterBattle(); // erst offene Schlachten und Entscheidungen
   const before = C.log.length;
   endTurn(aiTurn); saveCampaign();
   owners = null; render();
   // Angriffe auf das eigene Reich in dieser Runde zusammenfassen
-  const hits = C.log.slice(before).filter(l => l.kind === 'bad');
-  if (C.over) showOver(); else if (nextPending()) afterBattle(); else if (hits.length) dlg('<h2>' + season().name + ', Jahr ' + year() + '</h2>' + hits.map(l => '<p>' + l.text + '</p>').join('') + '<div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => closeDlg());
+  const hits = C.log.slice(before).filter(l => l.kind === 'bad' && !l.text.startsWith('Jahr '));
+  if (C.over) showOver(); else if (waiting()) afterBattle(); else if (hits.length) dlg('<h2>' + season().name + ', Jahr ' + year() + '</h2>' + hits.map(l => '<p>' + l.text + '</p>').join('') + '<div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => closeDlg());
 }
 function showOver() {
   const w = C.over.win;

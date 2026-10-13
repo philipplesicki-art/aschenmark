@@ -66,7 +66,7 @@ function deploy(team, side, c, fwd, scale, militia, wild) {
       const u = wild ? mkCreep(role === 'militia' ? 'melee' : role, x, y) : mkUnit(role === 'militia' ? 'melee' : role, team, x, y);
       u.face = Math.atan2(fwd[1], fwd[0]);
       if (role === 'militia') u.militia = 1;
-      if (role === 'hero') heroAt(u, side.hero);
+      if (role === 'hero') heroAt(u, side.hero, side.heroHp || 1);
     });
   });
 }
@@ -77,9 +77,9 @@ function freeSpot(x, y) {
   return [x, y];
 }
 // Held mit der Stufe aus der Kampagne
-function heroAt(h, lvl) {
+function heroAt(h, lvl, hpMul) {
   for (let l = 1; l < Math.min(lvl, MAX_HERO_LVL); l++) { h.maxhp = Math.round(h.maxhp * 1.12); h.lvl++; }
-  h.hp = h.maxhp; h.dmgMul = 1 + .1 * (h.lvl - 1); h.xp = XP_STEPS[h.lvl - 2] || 0;
+  h.maxhp = Math.round(h.maxhp * hpMul); h.hp = h.maxhp; h.dmgMul = 1 + .1 * (h.lvl - 1); h.xp = XP_STEPS[h.lvl - 2] || 0;
 }
 // Türme vor dem Verteidiger
 function towers(team, c, fwd, n) {

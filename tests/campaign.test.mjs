@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { genMap, findRoute, MW, MH } from '../src/campaign/cmap.js';
 import * as CS from '../src/campaign/cstate.js';
 import { aiTurn } from '../src/campaign/cai.js';
+import * as D from '../src/campaign/cdip.js';
+import * as E from '../src/campaign/cevents.js';
 import { serializeCampaign, deserializeCampaign } from '../src/campaign/csave.js';
 import { FAC_IDS } from '../src/factions.js';
 import { unitStrength, ROLES, CBLD } from '../src/campaign/cdata.js';
@@ -52,8 +54,9 @@ import { setOrder } from '../src/path.js';
   CS.endTurn(); assert.equal(CS.armiesAt(cap).find(a => a.owner === 'wacht').units.melee, before + 3);
   // Forschung: dauert Runden, wirkt auf die Stärke
   const army = CS.armiesAt(cap).find(a => a.owner === 'wacht'), pow0 = CS.armyPower(army.units, 'wacht', army.hero);
-  assert.ok(CS.startResearch('wacht', 'weapons')); assert.equal(CS.researchBlock('wacht', 'armor'), 'Forschung läuft');
-  CS.endTurn(); CS.endTurn(); assert.equal(C.emp.wacht.tech.weapons, 1);
+  assert.ok(CS.researchBlock('wacht', 'arms2').startsWith('Erst'), 'Voraussetzungen gelten');
+  assert.ok(CS.startResearch('wacht', 'arms1')); assert.equal(CS.researchBlock('wacht', 'mail1'), 'Forschung läuft');
+  for (let i = 0; i < 4; i++) CS.endTurn(); assert.equal(C.emp.wacht.tech.weapons || 0, 0, 'Zeitalter I braucht fünf Punkte'); CS.endTurn(); assert.equal(C.emp.wacht.tech.weapons, 1); assert.ok(C.emp.wacht.ctech.arms1);
   assert.ok(CS.armyPower(army.units, 'wacht', army.hero) > pow0 * 1.09, 'Waffen I wirkt');
   // Jahreszeiten: Hartfrost halbiert die Bewegung und senkt die Ernte
   while (CS.season().id !== 'frost') CS.endTurn();
@@ -122,11 +125,49 @@ import { setOrder } from '../src/path.js';
   // Angriff der KI auf den Spieler wartet ebenso; berechnet löst er sich auf
   const foeArmy = CS.mkArmy('asch', MAP.provs[tgt].nb.find(n => n !== cap && !C.provs[n].owner) ?? cap, { melee: 30 });
   foeArmy.at = MAP.provs[tgt].nb.find(n => C.provs[n].owner !== 'wacht');
+  assert.equal(CS.orderMove(foeArmy, tgt), true, 'im Frieden kein Angriff'); assert.equal(C.provs[tgt].owner, 'wacht');
+  CS.setDip('asch', 'wacht', 'war'); foeArmy.moved = 0;
   const r2 = CS.orderMove(foeArmy, tgt);
   assert.ok(r2 && r2.pending); const s2 = CS.battleSpec(r2.pending); assert.ok(!s2.playerAttacks); assert.equal(s2.player.fac, 'wacht'); assert.ok(s2.militia > 0);
   const rep2 = CS.resolvePending(r2.pending); assert.ok(rep2 && !rep2.fought);
   // Rückzug: Niederlage, ein Teil der Truppen bleibt
   CS.cHooks.ask = false;
   console.log('Echtzeit-Schlacht ok: ' + Math.round(res.time) + ' s, ' + res.p.melee + '/14 Speerträger übrig');
+}
+
+// Diplomatie: Frieden sperrt Durchzug und Angriff, Waffenstillstand sperrt Kriegserklärung, Bündnisse ziehen mit in den Krieg
+{
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 4242 });
+  const C = CS.C;
+  assert.equal(CS.dipOf('wacht', 'asch').st, 'peace'); assert.ok(!CS.hostile('wacht', 'asch')); assert.ok(CS.hostile('wacht', 'x'), 'Unbekannte gelten als feindlich');
+  assert.ok(D.warBlock('wacht', 'asch').startsWith('Waffenstillstand'));
+  C.dip[CS.dkey('wacht', 'asch')].truce = 0;
+  CS.setDip('salz', 'asch', 'ally');
+  assert.ok(D.declareWar('wacht', 'asch')); assert.ok(CS.hostile('wacht', 'asch')); assert.ok(CS.hostile('salz', 'wacht'), 'Verbündeter steht bei');
+  assert.ok(D.opinion('asch', 'wacht') < 0);
+  D.makePeace('wacht', 'asch'); assert.equal(CS.dipOf('wacht', 'asch').truce, CS.TRUCE);
+  // Land eines Friedenspartners ist gesperrt
+  const ap = C.provs.find(p => p.owner === 'asch'); assert.ok(!CS.passable('wacht', ap.id)); assert.ok(CS.passable('wacht', C.provs.find(p => !p.owner).id));
+  // Im KI-Spiel kommt es zu Kriegen und Friedensschlüssen
+  CS.newCampaign({ player: 'salz', diff: 'normal', seed: 99 });
+  let wars = 0, peaces = 0; CS.cHooks.log = t => { if (/den Krieg/.test(t)) wars++; if (/Frieden/.test(t)) peaces++; };
+  while (!CS.C.over && CS.C.turn < 120) { aiTurn(CS.C.player); CS.endTurn(aiTurn); }
+  CS.cHooks.log = () => {};
+  assert.ok(wars >= 2, 'Kriege: ' + wars);
+  console.log('Diplomatie ok: ' + wars + ' Kriegserklärungen, ' + peaces + ' Friedensschlüsse in ' + CS.C.turn + ' Runden');
+}
+
+// Ereignisse: KI entscheidet sofort, der Spieler mit Oberfläche über den Dialog; Wahl mit Kosten
+{
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 777 });
+  const C = CS.C, e = C.emp.wacht;
+  CS.cHooks.ask = true; e.ore = 500;
+  let ev = null; for (let i = 0; i < 400 && !ev; i++) { const x = E.rollEvent('wacht'); if (x && E.CEVENTS[x.id].opts.length > 1) ev = x; }
+  assert.ok(ev && C.events.includes(ev), 'Ereignis wartet auf die Wahl');
+  const ore0 = e.ore; E.resolveEvent(ev, 0); assert.ok(!C.events.includes(ev));
+  assert.ok(e.ore <= ore0);
+  e.ore = 0; const m = { id: 'mercs', f: 'wacht', turn: 1 }; assert.ok(!E.optOk(m, 1), 'zu teuer'); E.resolveEvent(m, 1); assert.equal(e.ore, 0, 'unbezahlbare Wahl fällt auf die erste zurück');
+  CS.cHooks.ask = false;
+  console.log('Ereignisse ok');
 }
 console.log('Kampagnentests bestanden');

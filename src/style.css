@@ -169,3 +169,16 @@ canvas#c{cursor:crosshair}
 body.battle #top .stat.ore, body.battle #top .stat.wood, body.battle #top .stat.food, body.battle #bIdle, body.battle #seasonT { display: none }
 #cSide .queue.unrest{border-left-color:var(--bad);color:#ffd2c7}
 #cTop .stat b.neg{color:var(--bad)}
+/* Forschungsbaum der Kampagne */
+#cCard.wide{max-width:min(1180px,96vw)}
+.ttree{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;max-height:66vh;overflow:auto}
+.tcol h4{margin:0 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tcard{display:flex;flex-direction:column;gap:2px;width:100%;margin:0 0 6px;padding:7px 9px;text-align:left;font:inherit;color:var(--ink,#e8e4da);background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid var(--line);cursor:pointer}
+.tcard b{font-size:15px} .tcard span{font-size:13px;color:var(--muted)} .tcard small{font-size:12px;color:#c9a46a} .tcard i{font-style:normal;font-size:12px;margin-top:2px}
+.tcard.open{border-left-color:var(--brass)} .tcard.open:hover{background:rgba(255,255,255,.09)}
+.tcard.done{border-left-color:var(--good);opacity:.75} .tcard.cur{border-left-color:#7fb3e0;background:rgba(127,179,224,.12)}
+.tcard.locked{opacity:.45} .tcard.wait{opacity:.8} .tcard:disabled{cursor:default}
+@media (max-width:820px){.ttree{grid-template-columns:1fr 1fr}}
+.dip{display:flex;flex-direction:column;gap:6px;padding:8px 10px;margin:6px 0;background:rgba(255,255,255,.03);border-left:3px solid var(--line)}
+.dip .row{flex-wrap:wrap;gap:6px} .dip .btn{font-size:14px}
+#cCard .note{padding:6px 10px;background:#22303a;border-left:3px solid var(--brass)}
