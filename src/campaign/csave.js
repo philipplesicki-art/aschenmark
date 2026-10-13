@@ -9,7 +9,7 @@ export function deserializeCampaign(text) {
   c.pending ||= []; // Stände vor den Echtzeit-Schlachten
   c.offers ||= []; c.events ||= []; c.story ||= { ch: 0, act: 1, rift: null, riftHeld: 0, sealedBy: null, awkKills: {}, caps: {}, msgs: [] }; if (!c.dip) { c.dip = {}; const F = Object.keys(c.emp); for (const a of F) for (const b of F) if (a < b) c.dip[a + '|' + b] = { st: 'war', since: 1, truce: 0 }; } // vor der Diplomatie: alle im Krieg
   for (const e of Object.values(c.emp || {})) { // Stände vor dem Forschungsbaum
-    e.ctech ||= {}; e.traits ||= [];
+    e.ctech ||= {}; e.traits ||= []; e.items ||= {};
     if (e.research && e.research.need === undefined) e.research = null;
   }
   setCampaign(c); return c;

@@ -225,4 +225,21 @@ import { GW } from '../src/config.js';
   assert.ok(T.mudAt(wx + 32, wy) || T.mudAt(wx - 32, wy), 'Schlamm am Ufer');
   console.log('Gelände im Kampf ok');
 }
+
+// Gegenstände des Helden: Fund, besserer ersetzt schwächeren, Wirkung auf Stärke, Züge und Schlacht
+{
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 808 });
+  const C = CS.C, e = C.emp.wacht, a = C.armies.find(x => x.owner === 'wacht' && x.hero);
+  const p0 = CS.armyPower(a.units, 'wacht', true), m0 = CS.movesOf(a);
+  e.items = { waffe: 'frostklinge' }; e.ore = 0;
+  assert.ok(CS.armyPower(a.units, 'wacht', true) > p0 * 1.03, 'Waffe stärkt das Heer');
+  e.items.talisman = 'ahnenhorn'; assert.equal(CS.movesOf(a), m0 + 1, 'Horn: ein Zug mehr');
+  for (let i = 0; i < 30; i++) CS.grantItem('wacht');
+  assert.equal(e.items.waffe, 'sturmspeer', 'beste Waffe behalten'); assert.ok(e.ore > 0, 'schwächere Funde verkauft');
+  const spec = { player: { fac: 'wacht', units: { melee: 2 }, hero: 2, heroHp: CS.heroItemMul('wacht', 'hp'), heroDmg: CS.heroItemMul('wacht', 'dmg'), tech: {} }, enemy: { fac: 'asch', units: { melee: 2 }, hero: 0, tech: {} }, playerAttacks: true, towers: 0, walls: 0, militia: 0, season: 'thaw', biome: 'grenz', name: 'T', seed: 1, diff: 'normal' };
+  newBattle(spec); const h = G.ents.find(x => x.team === 0 && x.type === 'hero');
+  newBattle({ ...spec, player: { ...spec.player, heroHp: 1, heroDmg: 1 } }); const h0 = G.ents.find(x => x.team === 0 && x.type === 'hero');
+  assert.ok(h.maxhp > h0.maxhp * 1.5 && h.dmgMul > h0.dmgMul * 1.4, 'Held mit Ausrüstung stärker in der Schlacht');
+  console.log('Gegenstände ok: ' + Object.values(e.items).join(', '));
+}
 console.log('Kampagnentests bestanden');

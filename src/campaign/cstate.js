@@ -6,13 +6,29 @@ import { CTECH, CTECH_IDS, ERAS, ctechName } from './ctech.js';
 import { rollEvents } from './cevents.js';
 import { newStory, storyTurn, storyBattle } from './cstory.js';
 import { genMap, findRoute } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, unitStrength, UPKEEP_FOOD, CSEASONS, CAPITAL_BASE, HERO_TRAITS, HERO_TRAIT_IDS, SITES, SITE_IDS } from './cdata.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, unitStrength, UPKEEP_FOOD, CSEASONS, CAPITAL_BASE, HERO_TRAITS, HERO_TRAIT_IDS, SITES, SITE_IDS, ITEMS, ITEM_IDS, SLOT_NAME } from './cdata.js';
 
 export let C = null, MAP = null;
 // Summe einer Forschungswirkung (fx in ctech.js) und Züge des Helden
 export function cfx(f, k) { const e = C.emp[f]; if (!e || !e.ctech) return 0; let v = 0; for (const id in e.ctech) { const x = CTECH[id] && CTECH[id].fx; if (x && x[k]) v += x[k]; } return v; }
 // Stätten im Besitz eines Reiches
 export const hasSite = (f, s) => !!C && C.provs.some(p => p.site === s && p.owner === f);
+// Ausrüstung des Helden: e.items = { waffe, ruestung, talisman } (Kennungen)
+export const heroItems = f => { const e = C && C.emp[f]; return e && e.items ? Object.values(e.items).filter(Boolean).map(id => ITEMS[id]) : []; };
+export const itemSum = (f, k) => heroItems(f).reduce((n, it) => n + (it[k] || 0), 0);
+export const heroItemMul = (f, k) => 1 + heroItems(f).reduce((n, it) => n + ((it.hero && it.hero[k]) || 0), 0);
+// Fund: ein zufälliger Gegenstand; ersetzt den Platz nur, wenn er besser ist, sonst wird er verkauft (Erz)
+export function grantItem(f, why) {
+  const e = C.emp[f]; e.items ||= {};
+  const own = new Set(Object.values(e.items));
+  const pool = ITEM_IDS.filter(id => !own.has(id)); if (!pool.length) return null;
+  const w = pool.map(id => 4 - ITEMS[id].rank), tot = w.reduce((a, b) => a + b, 0); // seltene Stücke seltener
+  let r = cR() * tot, id = pool[0]; for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r < 0) { id = pool[i]; break; } }
+  const it = ITEMS[id], cur = e.items[it.slot], better = !cur || ITEMS[cur].rank < it.rank;
+  if (better) e.items[it.slot] = id; else e.ore += 60 * it.rank;
+  if (f === C.player) addLog(FACTIONS[f].units.hero.name + (why ? ' ' + why : '') + ': ' + it.name + (better ? ' (' + SLOT_NAME[it.slot] + ', ' + it.desc + ')' : ', schwächer als das eigene Stück, für ' + 60 * it.rank + ' Erz verkauft'), 'good');
+  return { id, better };
+}
 export const hasTrait = (f, t) => !!(C.emp[f] && C.emp[f].traits && C.emp[f].traits.includes(t));
 export function setCampaign(c) { C = c; MAP = c ? genMap(c.seed, c.nProv) : null; }
 // Oberfläche hängt sich hier ein. ask: Schlachten mit dem Spieler warten auf seine Wahl (Schlacht schlagen oder berechnen)
@@ -49,7 +65,7 @@ export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.ra
     emp: {}, provs: [], armies: [], recruits: [], battles: 0, pending: [], dip: {}, offers: [], events: [], story: newStory()
   };
   C = c; MAP = map;
-  for (const f of FAC_IDS) c.emp[f] = { ore: 300, wood: 300, food: 250, tech: {}, ctech: {}, traits: [], research: null, capital: map.capitals[f], alive: true, heroXp: 0, heroLvl: 1, heroDown: 0 };
+  for (const f of FAC_IDS) c.emp[f] = { ore: 300, wood: 300, food: 250, tech: {}, ctech: {}, traits: [], items: {}, research: null, capital: map.capitals[f], alive: true, heroXp: 0, heroLvl: 1, heroDown: 0 };
   for (const p of map.provs) {
     const cap = FAC_IDS.find(f => map.capitals[f] === p.id);
     c.provs.push({ id: p.id, owner: cap || null, lvl: cap ? 2 : 0, blds: Object.fromEntries(CBLD_IDS.map(b => [b, 0])), queue: null,
@@ -177,7 +193,7 @@ export function recruit(p, role, n = 1, f = C.player) {
 /* ---------- Forschung (reichsweit; die Stufen gelten in jeder Schlacht) ---------- */
 // Forschungsbaum (ctech.js). Kosten nach Zeitalter; Dauer aus Forschungspunkten und der Forschungsrate (Gelehrtenhäuser, Akademien).
 export const RESEARCH_IDS = CTECH_IDS;
-export const researchRate = f => 1 + Math.min(1.5, .25 * C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.school || 0 : 0), 0)) + cfx(f, 'research') + (hasSite(f, 'observatory') ? .5 : 0);
+export const researchRate = f => 1 + Math.min(1.5, .25 * C.provs.reduce((n, p) => n + (p.owner === f ? p.blds.school || 0 : 0), 0)) + cfx(f, 'research') + (hasSite(f, 'observatory') ? .5 : 0) + itemSum(f, 'research');
 export function researchCost(f, id) {
   const t = CTECH[id]; if (!t || C.emp[f].ctech[id]) return null;
   const E = ERAS[t.era]; return { ...E.cost, pts: E.pts, turns: Math.ceil(E.pts / researchRate(f)) };
@@ -213,7 +229,7 @@ export function cTrade(f, from, to, amt = 100) {
 
 /* ---------- Heere: Bewegung, Zusammenlegen, Teilen ---------- */
 export const armiesAt = id => C.armies.filter(a => a.at === id && unitCount(a.units) + (a.hero ? 1 : 0) > 0);
-export const movesOf = a => season().moves + (unitCount(a.units) > 0 && unitCount(a.units) === (a.units.cav || 0) ? 1 : 0) + (a.hero && hasTrait(a.owner, 'marschall') ? 1 : 0);
+export const movesOf = a => season().moves + (unitCount(a.units) > 0 && unitCount(a.units) === (a.units.cav || 0) ? 1 : 0) + (a.hero && hasTrait(a.owner, 'marschall') ? 1 : 0) + (a.hero ? itemSum(a.owner, 'moves') : 0);
 export const movesLeft = a => movesOf(a) - a.moved;
 /* ---------- Diplomatie: Zustand je Reichspaar (Regeln und KI in cdip.js) ---------- */
 export const TRUCE = 6; // Runden Waffenstillstand nach einem Frieden
@@ -302,7 +318,7 @@ export function battleSpec(pb) {
   for (const d of def.armies) for (const r of ROLES) units[r] = (units[r] || 0) + (d.units[r] || 0);
   if (p.owner === null) for (const r of Object.keys(p.garrison)) units[r] = (units[r] || 0) + p.garrison[r];
   const dFac = p.owner && hostile(p.owner, a.owner) ? p.owner : def.armies.length ? def.armies[0].owner : 'wild';
-  const side = (fac, u, hero) => ({ fac, units: u, hero: hero && fac !== 'wild' ? C.emp[fac].heroLvl : 0, heroHp: fac !== 'wild' && hasTrait(fac, 'kaempe') ? 1.3 : 1, tech: fac !== 'wild' ? { ...C.emp[fac].tech } : {} });
+  const side = (fac, u, hero) => ({ fac, units: u, hero: hero && fac !== 'wild' ? C.emp[fac].heroLvl : 0, heroHp: fac !== 'wild' ? (hasTrait(fac, 'kaempe') ? 1.3 : 1) * heroItemMul(fac, 'hp') : 1, heroDmg: fac !== 'wild' ? heroItemMul(fac, 'dmg') : 1, tech: fac !== 'wild' ? { ...C.emp[fac].tech } : {} });
   const att = side(a.owner, { ...a.units }, a.hero), dfd = side(dFac, units, def.armies.some(d => d.hero));
   const playerAttacks = a.owner === C.player;
   return { player: playerAttacks ? att : dfd, enemy: playerAttacks ? dfd : att, playerAttacks,
@@ -334,6 +350,7 @@ export function armyPower(units, fac, hero, f = fac) {
   if (fac !== 'wild') { const t = C.emp[f].tech; s *= (1 + .1 * (t.weapons || 0)) / (1 - .08 * (t.armor || 0)); }
   if (hero) s *= (1 + .12 * (C.emp[f].heroLvl + 1)) * (hasTrait(f, 'feldherr') ? 1.1 : 1);
   if (C.emp[f] && C.emp[f].sealed) s *= 1.15; // Ruhm: Schlund versiegelt
+  if (hero && C.emp[f]) s *= 1 + itemSum(f, 'army'); // Gegenstände des Helden
   return s;
 }
 // Verteidiger einer Provinz: Heere darin plus Besatzung (neutral) bzw. Bürgerwehr (Siedlungsstufe), Mauern, Gelände.
@@ -376,6 +393,8 @@ export function attack(a, id, out) {
   report.defLost = beforeD - def.armies.reduce((n, d) => n + unitCount(d.units), 0) - (p.owner === null ? unitCount(p.garrison) : 0);
   C.battles++;
   heroXp(a.owner, 30 + (won ? 40 : 0)); for (const d of def.armies) heroXp(d.owner, 20 + (won ? 0 : 40));
+  if (won && a.hero && C.emp[a.owner] && cR() < .22) grantItem(a.owner, 'erbeutet nach der Schlacht um ' + pinfo(id).name);
+  else if (!won) { const dh = def.armies.find(d => d.hero && C.emp[d.owner]); if (dh && cR() < .22) grantItem(dh.owner, 'erbeutet bei der Verteidigung von ' + pinfo(id).name); }
   if (won) {
     for (const d of def.armies) { // Verlierer ziehen sich zurück oder lösen sich auf
       const back = MAP.provs[id].nb.find(n => prov(n).owner === d.owner);
@@ -407,7 +426,7 @@ export function pickTrait(t) {
   const o = (C.heroPick || []).shift(), e = C.emp[C.player];
   if (o && o.includes(t) && !e.traits.includes(t)) { e.traits.push(t); addLog(FACTIONS[C.player].units.hero.name + ' wird ' + HERO_TRAITS[t].name + ': ' + HERO_TRAITS[t].desc, 'good'); }
 }
-function heroFalls(f) { const e = C.emp[f]; e.heroDown = 3; if (f === C.player) addLog(FACTIONS[f].units.hero.name + ' ist verwundet und kehrt in drei Runden zurück', 'bad'); }
+function heroFalls(f) { const e = C.emp[f]; e.heroDown = itemSum(f, 'heal') ? 2 : 3; if (f === C.player) addLog(FACTIONS[f].units.hero.name + ' ist verwundet und kehrt in ' + (e.heroDown === 2 ? 'zwei' : 'drei') + ' Runden zurück', 'bad'); }
 function capture(id, f, att) {
   const p = prov(id), old = p.owner;
   if (f === 'wild') { // Die Erwachten erobern nicht, sie verwüsten: die Provinz fällt an die Wildnis, das Heer bleibt als Besatzung
@@ -419,6 +438,7 @@ function capture(id, f, att) {
     if (old && C.emp[old].capital === id) { const rest = C.provs.filter(q => q.owner === old).sort((x, y) => y.lvl - x.lvl); C.emp[old].capital = rest.length ? rest[0].id : -1; }
     checkEnd(); return;
   }
+  if (p.site === 'barrow' && !p.looted && C.emp[f]) { p.looted = true; grantItem(f, 'findet im Hünengrab'); }
   if (p.site && (f === C.player || old === C.player)) addLog((f === C.player ? 'Gewonnen: ' : 'Verloren: ') + SITES[p.site].name + ' in ' + pinfo(id).name + '. ' + SITES[p.site].desc, f === C.player ? 'good' : 'bad');
   p.owner = f; p.queue = null; p.garrison = emptyUnits(); p.lvl = Math.max(1, p.lvl); p.unrest = unrestTurns(p);
   if (p.blds.walls) p.blds.walls--;

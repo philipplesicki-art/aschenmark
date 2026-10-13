@@ -7,7 +7,7 @@ import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, bui
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES } from './cdata.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES, ITEMS, SLOT_NAME } from './cdata.js';
 import { FACTIONS, WILD, FAC_IDS } from '../factions.js';
 import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
@@ -234,6 +234,7 @@ function renderSide() {
     h += '<h3 style="color:' + facColor(a.owner) + '">' + (a.owner === 'wild' ? 'Heer der Erwachten' : a.hero ? FACTIONS[a.owner].units.hero.name + 's Heer' : 'Heer') + '</h3>';
     h += '<div class="sub">' + empireName(a.owner) + ' · in ' + pinfo(a.at).name + (mine ? ' · Züge ' + movesLeft(a) : '') + ' · Stärke ' + Math.round(armyPower(a.units, a.owner, a.hero)) + '</div>';
     if (a.hero) h += '<div class="sub">Held Stufe ' + C.emp[a.owner].heroLvl + ' von ' + heroCap(a.owner) + ': +' + Math.round(12 * (C.emp[a.owner].heroLvl + 1)) + ' Prozent Stärke' + ((C.emp[a.owner].traits || []).length ? '<br>' + C.emp[a.owner].traits.map(t => '<span title="' + HERO_TRAITS[t].desc + '">' + HERO_TRAITS[t].name + '</span>').join(', ') : '') + '</div>';
+    if (a.hero && C.emp[a.owner] && C.emp[a.owner].items) { const its = Object.entries(C.emp[a.owner].items).filter(([, id]) => id); if (its.length) h += '<ul class="items">' + its.map(([sl, id]) => '<li title="' + ITEMS[id].desc + '"><small>' + SLOT_NAME[sl] + '</small> ' + ITEMS[id].name + '<span class="rk">' + '✦'.repeat(ITEMS[id].rank) + '</span></li>').join('') + '</ul>'; }
     h += '<ul class="units">' + Object.keys(a.units).filter(r => a.units[r]).map(r => '<li><span>' + uName(a.owner, r) + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
     if (mine) {
       h += '<p class="sub">Linksklick auf eine Provinz: dorthin ziehen. Gegner und Wilde werden beim Betreten angegriffen.</p>';

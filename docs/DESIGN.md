@@ -72,6 +72,17 @@ Mauerstufe); Belagerungsgerät aus der Forschung senkt die wirksame Mauerstufe.
 Geländezeichen (Bäume, Berge, Tümpel, Glutrisse, Dünen), Siedlungen als Bauten nach Stufe, leuchtende Reichsgrenzen, Rahmen,
 Windrose, Titelkartusche. Gemalt einmal je Kampagne (rund 1 s, mit Hinweis).
 
+**Gegenstände des Helden** (`ITEMS` in cdata.js): je ein Platz für Waffe, Rüstung, Talisman, Rang 1 bis 3. Funde nach gewonnenen
+Schlachten mit Held (22 Prozent, auch als Verteidiger), im Zweikampf-Ereignis und einmalig im Hünengrab. Bessere ersetzen schwächere,
+schwächere werden verkauft. Wirkung: Stärke des Heldenheeres, Züge (Horn der Ahnen), kürzere Verwundung (Heilstein), Forschung
+(Siegelring) und in der Echtzeit-Schlacht Schaden und Leben des Helden.
+
+**Schlacht-KI:** Verteidiger halten die Linie, bis der Angreifer auf 300 Pixel heran ist (höchstens 75 Sekunden). Schützen gezielt in
+Deckung zu schicken wurde gemessen und verworfen: es zerreißt die Linie (16 Waldschlachten: Verteidiger gewann 16 statt 9 ohne).
+
+**Flüsse und Seen** auf der Weltkarte (nur Bild): Quellen im Bergland und tief im Landesinneren, Lauf bergab mit Schwung, Mündung ins
+Meer oder in einen anderen Fluss, sonst ein See.
+
 **Stätten:** sieben besondere Provinzen fern der Hauptstädte, 60 Prozent stärker bewacht: Alte Schmiede (Rekruten billiger),
 Sternwarte (Forschung), Salzsee (Vorräte, Handel), Heiligtum (Unruhe), Hünengrab (Heldenerfahrung), Eisengrube (Erz), Söldnerlager.
 

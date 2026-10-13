@@ -99,3 +99,20 @@ export const SITES = {
   camp:        { name: 'Söldnerlager', glyph: '⚑', desc: 'Jede zweite Runde schließen sich hier zwei Söldner dem Reich an.' }
 };
 export const SITE_IDS = Object.keys(SITES);
+
+// Gegenstände des Helden: je ein Platz für Waffe, Rüstung und Talisman. Rang 1 bis 3; ein besserer Fund ersetzt den alten.
+// hero: Faktoren in der Echtzeit-Schlacht (dmg, hp), army: Stärke des Heldenheeres, moves/heal/research: Wirkung auf der Karte.
+export const ITEMS = {
+  frostklinge:  { slot: 'waffe', rank: 1, name: 'Frostklinge', desc: 'Held +20 % Schaden, Heer +4 % Stärke', hero: { dmg: .2 }, army: .04 },
+  glutaxt:      { slot: 'waffe', rank: 2, name: 'Glutaxt', desc: 'Held +35 % Schaden, Heer +6 % Stärke', hero: { dmg: .35 }, army: .06 },
+  sturmspeer:   { slot: 'waffe', rank: 3, name: 'Sturmspeer der Alten', desc: 'Held +50 % Schaden, Heer +9 % Stärke', hero: { dmg: .5 }, army: .09 },
+  lederwams:    { slot: 'ruestung', rank: 1, name: 'Gehärtetes Lederwams', desc: 'Held +20 % Leben', hero: { hp: .2 } },
+  salzmantel:   { slot: 'ruestung', rank: 2, name: 'Salzmantel', desc: 'Held +35 % Leben, Heer +3 % Stärke', hero: { hp: .35 }, army: .03 },
+  drachenschuppe: { slot: 'ruestung', rank: 3, name: 'Harnisch aus Eisschuppen', desc: 'Held +60 % Leben, Heer +5 % Stärke', hero: { hp: .6 }, army: .05 },
+  heilstein:    { slot: 'talisman', rank: 1, name: 'Heilstein', desc: 'Der Held ist nach einer Niederlage nur zwei Runden verwundet', heal: 1 },
+  ahnenhorn:    { slot: 'talisman', rank: 2, name: 'Horn der Ahnen', desc: 'Das Heldenheer hat einen Zug mehr', moves: 1 },
+  markbanner:   { slot: 'talisman', rank: 2, name: 'Banner der ersten Wacht', desc: 'Heldenheer +10 % Stärke', army: .1 },
+  siegelring:   { slot: 'talisman', rank: 3, name: 'Siegelring der Gelehrten', desc: 'Forschung ein halber Punkt mehr je Runde, Heer +4 % Stärke', research: .5, army: .04 }
+};
+export const ITEM_IDS = Object.keys(ITEMS);
+export const SLOT_NAME = { waffe: 'Waffe', ruestung: 'Rüstung', talisman: 'Talisman' };

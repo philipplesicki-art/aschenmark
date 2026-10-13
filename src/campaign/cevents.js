@@ -1,6 +1,6 @@
 // Ereignisse der Kampagne: je Runde und Reich mit einer gewissen Wahrscheinlichkeit, oft mit einer Entscheidung.
 // Der Spieler entscheidet im Dialog (C.events), die KI (und Kampagnen ohne Oberfläche) sofort nach ai().
-import { C, MAP, cR, cHooks, addLog, prov, pinfo, armiesAt, unitCount, season, mkArmy, empireName, heroCap } from './cstate.js';
+import { C, MAP, cR, cHooks, addLog, prov, pinfo, armiesAt, unitCount, season, mkArmy, empireName, heroCap, grantItem } from './cstate.js';
 import { FACTIONS, FAC_IDS } from '../factions.js';
 
 const own = f => C.provs.filter(p => p.owner === f);
@@ -60,7 +60,7 @@ export const CEVENTS = {
     opts: [{ label: 'Ablehnen', desc: 'Nichts geschieht', apply: () => {} },
       { label: 'Annehmen', desc: 'Meist viel Erfahrung, manchmal drei Runden verwundet', apply: f => {
         const e = C.emp[f];
-        if (cR() < .7) { e.heroXp += 110; if (f === C.player) addLog(hero(f) + ' siegt im Zweikampf.', 'good'); }
+        if (cR() < .7) { e.heroXp += 110; if (f === C.player) addLog(hero(f) + ' siegt im Zweikampf.', 'good'); if (cR() < .5) grantItem(f, 'nimmt dem Besiegten ab'); }
         else { const a = C.armies.find(x => x.owner === f && x.hero); if (a) a.hero = false; e.heroDown = 3; if (f === C.player) addLog(hero(f) + ' unterliegt und ist verwundet.', 'bad'); }
       } }],
     ai: f => (cR() < .6 ? 1 : 0) },
