@@ -827,6 +827,23 @@ const bannerW = () => mat(0x2f5f86, { side: THREE.DoubleSide, roughness: 1 });
 const bannerA = () => mat(0x7a1e12, { side: THREE.DoubleSide, roughness: 1 });
 
 /* ---------- Grenzwacht: nordische Steinburg, Fachwerkhallen, Schieferdächer ---------- */
+// Holzstapel: Stämme liegen längs X, Reihen werden nach oben weniger (Pyramide)
+function logPile(g, x, z, len, rows, m, rad = .21) {
+  for (let row = 0; row < rows; row++) for (let i = 0; i < rows - row; i++) {
+    const l = part(g, cyl(rad, rad, len, 8), m, x, rad + row * rad * 1.75, z + (i - (rows - row - 1) / 2) * rad * 2.05, true); l.rotation.z = Math.PI / 2;
+    part(g, cyl(rad * .8, rad * .8, .02, 8), L.stone, x + len / 2 + .01, rad + row * rad * 1.75, z + (i - (rows - row - 1) / 2) * rad * 2.05).rotation.z = Math.PI / 2; // Schnittfläche
+  }
+}
+// Marktstand: Tisch, Waren, Sonnensegel aus zwei Farben
+function stall(g, x, z, w, c1, c2, rot = 0) {
+  const st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.y = rot; g.add(st);
+  part(st, box(w, .62, .6), L.wood, 0, .31, 0, true);
+  for (const dx of [-w / 2 + .05, w / 2 - .05]) part(st, cyl(.04, .04, 1.5, 5), L.woodD, dx, .75, -.28);
+  const n = Math.max(2, Math.round(w / .35));
+  for (let i = 0; i < n; i++) { const a = part(st, box(w / n, .05, .85), i % 2 ? c1 : c2, -w / 2 + (i + .5) * w / n, 1.42, -.12); a.rotation.x = .28; }
+  for (let i = 0; i < 3; i++) part(st, sph(.1 + (i % 2) * .03, 7, 5), mat([0xc9a44a, 0x9a3a2a, 0x6f8a35][i]), -w * .3 + i * w * .3, .72, .05);
+  return st;
+}
 function bWacht(type) {
   const g = new THREE.Group(); g.userData.smoke = [];
   if (type === 'hq') {
@@ -905,6 +922,23 @@ function bWacht(type) {
     brazier(g, 1.2, 1.3, .9, .6); crates(g, .7, -1.2, 2); barrel(g, -1.3, 1.2);
     banner(g, -1.75, 2.0, 1.75, bannerW(), .8); g.userData.smoke.push([-.9, 2.4, -.6]); part(g, box(.3, .8, .3), L.stoneD, -.9, 2.0, -.6);
     drift(g, -1.6, -1.6, 1.0, .8);
+  } else if (type === 'lumber') { // Holzlager: Schleppdach über Stapeln, Hackklotz mit Axt
+    part(g, box(3.7, .25, 3.7), L.dirt, 0, -.05, 0);
+    logPile(g, -.2, -.5, 2.4, 4, L.wood); logPile(g, -.2, -1.45, 2.4, 3, L.woodD);
+    for (const [x, z] of [[-1.5, -1.9], [1.1, -1.9], [-1.5, .55], [1.1, .55]]) part(g, box(.12, 2.1, .12), L.woodD, x, 1.05, z, true);
+    const lean = part(g, box(3.0, .1, 2.8), rs(B.roofWood), -.2, 2.0, -.7, true); lean.rotation.x = .16; snowRoof(g, 1.8, .22, 2.8, 2.05, -.2, -.7);
+    const st = part(g, cyl(.34, .4, .5, 10), L.wood, 1.2, .25, 1.1, true); part(st, box(.06, .62, .06), L.woodD, .1, .5, 0).rotation.z = -.5; part(st, box(.22, .12, .04), L.steel, .26, .78, 0).rotation.z = -.5; // Axt im Klotz
+    part(g, box(1.1, .5, .12), L.wood, -1.0, .42, 1.3, true); part(g, box(1.1, .5, .12), L.wood, -1.0, .42, 1.0, true); part(g, cyl(.16, .16, 1.0, 8), L.wood, -1.0, .8, 1.15).rotation.z = Math.PI / 2; // Sägebock
+    for (let i = 0; i < 6; i++) part(g, sph(.18, 6, 4), mat(0xb89a64), .4 + (i % 3) * .3, .05, 1.5 + Math.floor(i / 3) * .25).scale.set(1, .25, 1); // Späne
+    banner(g, 1.7, 1.2, 1.6, bannerW(), .7); drift(g, -1.8, 1.7, 1.0, .8); lantern(g, -1.7, .3, 1.2);
+  } else if (type === 'market') { // Handelshaus: Fachwerkkontor, Stände davor, Waage
+    part(g, box(3.7, .3, 3.7), L.stoneD, 0, -.05, 0);
+    part(g, box(2.4, 1.0, 1.6), L.stone, 0, .5, -.9, true); timber(g, 0, 1.0, -.9, 2.4, 1.0, 1.6); hallRoof(g, 0, 2.0, -.9, 2.1, 1.2, 2.6, B.slate);
+    archDoor(g, -.5, .3, -.08, .6, .8); part(g, box(.4, .3, .05), L.warm, .6, 1.5, -.08);
+    stall(g, -1.0, 1.2, 1.3, mat(0x2f5f86), mat(0xd8d0b0)); stall(g, 1.05, 1.2, 1.3, mat(0x7a1e12), mat(0xd8d0b0));
+    const pole = part(g, cyl(.05, .05, 1.8, 6), L.woodD, 1.7, .9, -.2); part(pole, box(.9, .05, .05), L.gold, 0, .85, 0); for (const z of [-.4, .4]) part(pole, cyl(.2, .2, .03, 10), L.gold, z * 0 + (z > 0 ? .4 : -.4), .6, 0); // Waage
+    crates(g, -1.6, -.2, 2); barrel(g, 1.5, .5); barrel(g, 1.7, .9); torch(g, -.9, 1.0, .0); banner(g, 1.7, 2.0, -1.6, bannerW(), 1.0); drift(g, -1.8, 1.7, 1.0, .8);
+    g.userData.smoke.push([.9, 3.4, -1.2]); part(g, box(.4, 1.2, .4), L.stoneD, .9, 2.8, -1.2, true);
   } else { // Wachturm aus Stein mit Holzhaube
     part(g, box(1.9, .4, 1.9), L.stoneD, 0, -.05, 0);
     part(g, cyl(.72, .9, 4.4, 14), L.stone, 0, 2.2, 0, true);
@@ -964,6 +998,25 @@ function bAsch(type) {
     hallRoof(g, -.3, .9, -.2, 2.4, 1.4, 2.8, L.hideA); for (let i = 0; i < 5; i++) part(g, cone(.1, .5, 4), L.bone, -1.3 + i * .5, 2.4, -.2);
     part(g, box(.8, .7, .1), L.ember, .1, .4, .82); brazier(g, 1.4, 1.3, 1.0, .8);
     spikes(-.3, 1.7, 2.8, 7, .8); part(g, cyl(.45, .5, .6, 8), L.hay, -1.5, .3, 1.4); skull(-1.2, 1.4, .82);
+  } else if (type === 'lumber') { // Köhlerei: rauchender Kohlenmeiler, Stapel, Säcke
+    part(g, box(3.6, .25, 3.6), L.dirt, 0, -.05, 0);
+    const m = part(g, sph(1.25, 14, 9), mat(0x1c1a19, { roughness: 1 }), -.4, 0, -.3, true); m.scale.set(1, .72, 1);
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.28; part(g, cyl(.06, .06, .5, 5), L.woodD, -.4 + Math.cos(a) * .95, .35, -.3 + Math.sin(a) * .95).rotation.set(Math.sin(a) * .9, 0, -Math.cos(a) * .9); }
+    part(g, cyl(.22, .26, .35, 8), L.emberDim, -.4, .98, -.3); fire(g, -.4, 1.3, -.3, .6); pool(g, -.4, -.3, 2.2, .1);
+    g.userData.smoke.push([-.4, 1.5, -.3], [-.3, 1.4, -.2]);
+    logPile(g, 1.0, 1.1, 1.8, 3, L.woodD, .19);
+    for (let i = 0; i < 4; i++) part(g, sph(.26, 8, 6), mat(0x14110f, { roughness: 1 }), -1.5 + i * .38, .22, 1.3 + (i % 2) * .2).scale.set(1, .9, .8); // Kohlensäcke
+    skull(1.5, .5, -.9); part(g, cyl(.05, .05, 1.8, 5), L.woodD, 1.5, .9, -.9); banner(g, 1.6, .9, -1.4, bannerA(), .8); spikes(0, 1.75, 3.0, 6, .6);
+  } else if (type === 'market') { // Plünderbasar: Hautzelte um ein Feuer, Beute, Knochen
+    part(g, box(3.7, .3, 3.7), L.dirt, 0, -.05, 0); part(g, cyl(1.7, 1.8, .18, 10), B.blackD, 0, .05, 0, true);
+    for (const [x, z, r, h] of [[-.95, -.75, .85, 1.7], [.95, -.55, .75, 1.5], [-.1, .95, .8, 1.6]]) {
+      part(g, cone(r, h, 7), L.hideA, x, h / 2 + .08, z, true); part(g, cone(r * .35, .4, 6), L.bone, x, h + .2, z); part(g, box(.4, .55, .06), mat(0x14110f), x, .35, z + r * .85); // Eingang
+      for (let i = 0; i < 3; i++) part(g, cyl(.03, .03, h * .55, 4), L.woodD, x + Math.cos(i * 2.1) * r * .5, h * .7, z + Math.sin(i * 2.1) * r * .5).rotation.z = .3;
+    }
+    brazier(g, 0, 0, .8, .8);
+    crates(g, 1.3, 1.1, 2); barrel(g, -1.6, 1.0); part(g, cyl(.05, .05, 1.8, 5), L.woodD, 1.6, .9, -1.4); skull(1.6, 1.9, -1.4); skull(-1.6, 1.1, -1.5);
+    for (let i = 0; i < 4; i++) part(g, cone(.08, .5, 4), L.bone, -1.2 + i * .35, 1.3, 1.5).rotation.x = Math.PI; // Zähne an der Leine
+    part(g, box(1.0, .08, .06), L.woodD, -.7, 1.1, 1.5); banner(g, 1.5, 1.2, 1.5, bannerA(), .9);
   } else { // Glutturm
     part(g, box(1.9, .4, 1.9), B.blackD, 0, -.05, 0); pyr(.45, .95, 4.4, B.black, 0, 2.2, 0);
     pyr(1.0, .6, .8, B.blackD, 0, 4.7, 0); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; part(g, cone(.13, .8, 4), L.iron, Math.cos(a) * .8, 5.4, Math.sin(a) * .8); }
@@ -1063,6 +1116,23 @@ function bSalz(type) {
     saltPile(g, 1.1, .9, 1.1); saltPile(g, -1.2, 1.2, .8); crates(g, .7, -1.4, 2);
     part(g, cyl(.06, .08, 3.2, 6), L.woodD, 1.4, 1.6, -1.2, true); brazier(g, 1.4, -1.2, 3.2, .6);
     banner(g, -1.7, 1.2, 1.6, bannerS(), .8); drift(g, -1.6, -1.6, 1.0, .8);
+  } else if (type === 'lumber') { // Treibholzhof: gebleichte Stämme, Netze, Bootsrumpf als Unterstand
+    part(g, box(3.7, .25, 3.7), L.dirt, 0, -.05, 0);
+    const pale = mat(0xb8ad98, { roughness: 1 }), paleD = mat(0x8f8573, { roughness: 1 });
+    for (const [x, z] of [[-1.3, -1.2], [1.0, -1.2]]) part(g, cyl(.08, .09, 1.7, 6), L.woodD, x, .85, z, true);
+    hullRoof(g, -.15, 1.65, -1.2, 1.5, .6, 2.9);
+    logPile(g, -.15, -1.2, 2.6, 3, pale, .2); logPile(g, -.4, .35, 2.2, 4, paleD, .19);
+    for (let i = 0; i < 5; i++) part(g, cyl(.01, .01, 1.7, 3), SZ.rope, -1.7 + i * .3, 1.1, .35 + Math.sin(i) * .1).rotation.z = .2 + i * .06; // Netzschnüre
+    part(g, box(1.4, .05, .7), mat(0x6a6250, { roughness: 1 }), 1.2, 1.3, .9).rotation.z = .12; // Netz über der Leine
+    part(g, cyl(.04, .04, 1.4, 5), L.woodD, 1.9, .7, .9); part(g, cyl(.04, .04, 1.4, 5), L.woodD, .5, .7, .9);
+    saltPile(g, 1.4, -.6, .8); barrel(g, 1.6, 1.5, BS.tar); banner(g, -1.8, 1.4, 1.5, bannerS(), .8); drift(g, -1.7, 1.7, 1.0, .8);
+  } else if (type === 'market') { // Hafenmarkt: Bohlenplattform mit Sonnensegeln, Fisch, Waagen
+    part(g, box(3.7, .28, 3.7), BS.tar, 0, .06, 0, true);
+    for (let i = 0; i < 8; i++) part(g, box(.4, .04, 3.5), i % 2 ? L.wood : L.woodD, -1.55 + i * .44, .22, 0);
+    stall(g, -.95, -1.0, 1.4, mat(0x5b4a8a), mat(0xe2e0dc)); stall(g, .95, -1.0, 1.4, mat(0x2e6f7e), mat(0xe2e0dc)); stall(g, 0, 1.0, 1.6, mat(0x8a74c4), mat(0xe2e0dc), Math.PI);
+    fishRack(g, -1.4, 0.1, 1.0); saltPile(g, 1.5, .1, .8); barrel(g, 1.4, 1.5, BS.tar); barrel(g, 1.7, 1.2, BS.tar);
+    const pole = part(g, cyl(.05, .05, 2.2, 6), L.woodD, 1.7, 1.2, -.1); lanternRoom(g, 1.7, 2.4, -.1, .18);
+    banner(g, -1.7, 1.6, 1.5, bannerS(), 1.0); drift(g, -1.8, 1.8, 1.0, .8);
   } else { // Leuchtturm
     part(g, box(1.9, .4, 1.9), BS.limeD, 0, -.05, 0);
     stripedTower(g, 0, 0, .9, .6, 5.0, .15);
@@ -1168,7 +1238,7 @@ export function playAnim(an, want, dt) {
 }
 // Kopie mit eigenem Skelett, damit jede Einheit ihre Animation unabhängig abspielt.
 const skeletonClone = o => SkeletonUtils.clone(o);
-export const BLD_H = { wacht: { hq: 9.0, barracks: 3.8, workshop: 3.8, farm: 2.8, tower: 7, outpost: 3.0 }, asch: { hq: 8.4, barracks: 3.2, workshop: 3.4, farm: 2, tower: 6, outpost: 3 }, salz: { hq: 9.4, barracks: 3.4, workshop: 3.4, farm: 2.6, tower: 7.2, outpost: 3.4 } };
+export const BLD_H = { wacht: { hq: 9.0, barracks: 3.8, workshop: 3.8, farm: 2.8, tower: 7, outpost: 3.0, lumber: 2.6, market: 4.2 }, asch: { hq: 8.4, barracks: 3.2, workshop: 3.4, farm: 2, tower: 6, outpost: 3, lumber: 2.4, market: 2.4 }, salz: { hq: 9.4, barracks: 3.4, workshop: 3.4, farm: 2.6, tower: 7.2, outpost: 3.4, lumber: 2.4, market: 3.4 } };
 
 /* ---------- Erzader ---------- */
 // Fels: Ikosaeder mit verschobenen Ecken, kantig wie gebrochener Stein (gleiche Ecke, gleiche Verschiebung).

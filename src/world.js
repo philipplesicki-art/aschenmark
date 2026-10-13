@@ -1,9 +1,10 @@
 import { TS, GW, GH, MAP, DIFF } from './config.js';
-import { G, setG, rng, simR } from './state.js';
+import { G, setG, rng, simR, hooks } from './state.js';
 import { defOf, WILD } from './factions.js';
 import { initEvents } from './events.js';
 import { initQuests } from './quests.js';
 import { REGIONS, ridgeCells, regionAt } from './regions.js';
+import { START } from './economy.js';
 
 export const free = (cx, cy) => cx >= 0 && cy >= 0 && cx < GW && cy < GH && G.blk[cy * GW + cx] === 0;
 
@@ -66,15 +67,17 @@ function forests(R) {
   const hq0 = [9.5, 39.5], hq1 = [70.5, 16.5];
   const lx = hq1[0] - hq0[0], ly = hq1[1] - hq0[1], ll = Math.hypot(lx, ly);
   const mines = G.ents.filter(e => e.kind === 'dep');
-  const put = (cx, cy) => {
+  const put = (cx, cy, fixed) => {
     if (cx < 0 || cy < 0 || cx >= GW || cy >= GH || G.blk[cy * GW + cx]) return;
     G.blk[cy * GW + cx] = 1;
-    G.trees.push({ x: (cx + .5 + (R() - .5) * .5) * TS, y: (cy + .6 + (R() - .5) * .4) * TS, s: 15 + R() * 9, v: R() });
+    const tr = { x: (cx + .5 + (R() - .5) * .5) * TS, y: (cy + .6 + (R() - .5) * .4) * TS, s: 15 + R() * 9, v: R() };
+    if (fixed) tr.fx = 1; // Randwald und Grate bleiben stehen
+    G.trees.push(tr);
   };
-  for (let i = 0; i < GW; i++) { put(i, 0); put(i, GH - 1); }
-  for (let j = 0; j < GH; j++) { put(0, j); put(GW - 1, j); }
+  for (let i = 0; i < GW; i++) { put(i, 0, 1); put(i, GH - 1, 1); }
+  for (let j = 0; j < GH; j++) { put(0, j, 1); put(GW - 1, j, 1); }
   // Grate zwischen Kernland und Außengebieten
-  for (const [x, y] of ridgeCells()) put(x, y);
+  for (const [x, y] of ridgeCells()) put(x, y, 1);
   for (let k = 0; k < 90; k++) {
     const cx = R() * GW, cy = R() * GH, r = 2 + R() * 3.6;
     if (Math.hypot(cx - hq0[0], cy - hq0[1]) < 13 || Math.hypot(cx - hq1[0], cy - hq1[1]) < 13) continue;
@@ -88,6 +91,40 @@ function forests(R) {
       }
   }
   G.trees.sort((a, b) => a.y - b.y);
+}
+
+/* ---------- Bäume als Vorrat ---------- */
+// Jedes Feld trägt höchstens einen Baum. Die Zuordnung Feld → Baum wird je Baumliste einmal gebaut (nicht gespeichert).
+const tmaps = new WeakMap();
+const tcell = t => Math.floor(t.y / TS) * GW + Math.floor(t.x / TS);
+export function treeMap() {
+  let m = tmaps.get(G.trees);
+  if (!m) { m = new Map(); for (const t of G.trees) m.set(tcell(t), t); tmaps.set(G.trees, m); }
+  return m;
+}
+export const treeAtCell = (cx, cy) => treeMap().get(cy * GW + cx) || null;
+export const treeWood = t => (t.w ??= Math.round(t.s * 2)); // 30 bis 48 Holz je Baum
+export const choppable = t => !t.fx && !!G.regions[regionAt(t.x, t.y)];
+// Ein Baum ist erreichbar, wenn ein Nachbarfeld frei ist: so wird von außen nach innen gefällt.
+export function treeReach(t) {
+  const cx = Math.floor(t.x / TS), cy = Math.floor(t.y / TS);
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if ((i || j) && free(cx + i, cy + j)) return true;
+  return false;
+}
+export function nearestTree(x, y, maxD) {
+  let best = null, bd = maxD * maxD;
+  for (const t of G.trees) {
+    const d = (t.x - x) * (t.x - x) + (t.y - y) * (t.y - y);
+    if (d < bd && !(t.bad > G.t) && choppable(t) && treeReach(t)) { bd = d; best = t; } // t.bad: Arbeiter kamen nicht hin
+  }
+  return best;
+}
+export const treesNear = (x, y, r) => G.trees.reduce((n, t) => n + ((t.x - x) ** 2 + (t.y - y) ** 2 < r * r && choppable(t) ? 1 : 0), 0);
+export function fellTree(t) {
+  const i = G.trees.indexOf(t); if (i < 0) return;
+  G.trees.splice(i, 1); treeMap().delete(tcell(t));
+  G.blk[tcell(t)] = 0;
+  hooks.treeFelled(t);
 }
 
 export function nearestDep(u, maxD) {
@@ -111,7 +148,7 @@ export function popUsed(t) {
 }
 export function popCap(t) {
   let n = 0;
-  for (const e of G.ents) if (e.team === t && e.kind === 'bld' && e.built && !e.dead) n += e.d.supply || 0;
+  for (const e of G.ents) if (e.team === t && e.kind === 'bld' && e.built && !e.dead) n += (e.d.supply || 0) + (e.type === 'hq' ? 4 * ((e.tier || 1) - 1) : 0);
   return Math.min(n, 60);
 }
 export const hasBuilt = (team, type) => G.ents.some(e => e.team === team && e.type === type && e.built && !e.dead);
@@ -123,7 +160,7 @@ export function newWorld({ fac0 = 'wacht', fac1 = 'asch', diff = 'normal', seed,
   setG({
     t: 0, nid: 1, ents: [], map: new Map(), projs: [], parts: [], marks: [], zones: [], floats: [], corpses: [],
     blk: new Uint8Array(GW * GH), fog: new Uint8Array(GW * GH), fogDirty: true,
-    ore: [300, 300], pp: [0, 0], ppCd: [0, 0], teamKills: [0, 0], kills: 0, lost: 0,
+    ore: [START.ore, START.ore], wood: [START.wood, START.wood], tech: [{}, {}], pp: [0, 0], ppCd: [0, 0], teamKills: [0, 0], kills: 0, lost: 0,
     over: null, paused: false, sel: [], groups: {}, alertT: -99, diff, trees: [], aiT: 3, fogT: 0, idleI: -1,
     fac: [fac0, fac1], seed, gates: {}, mined: [0, 0], regions: Object.fromEntries(Object.values(REGIONS).map(r => [r.id, r.open])), rs: (seed ^ 0x9E3779B9) >>> 0, combat: 0, shakeT: 0, shakeA: 0,
     ai: { p: P, k: 0, next: P.first, size: P.size0, wave: 0, active: false }
@@ -151,6 +188,11 @@ export function canPlaceAt(tp, gx, gy, team) {
     const cx = (gx + s / 2) * TS, cy = (gy + s / 2) * TS;
     if (!G.ents.some(e => e.kind === 'dep' && !e.dead && e.amt > 0 && Math.hypot(e.x - cx, e.y - cy) < 230)) return false;
     if (G.ents.some(e => e.team === team && e.kind === 'bld' && !e.dead && (e.type === 'hq' || e.d.dropoff) && Math.hypot(e.x - cx, e.y - cy) < 260)) return false;
+  }
+  if (tp === 'lumber') { // nur am Wald, nicht dicht neben einer anderen Holzabgabe
+    const cx = (gx + s / 2) * TS, cy = (gy + s / 2) * TS;
+    if (treesNear(cx, cy, 190) < 6) return false;
+    if (G.ents.some(e => e.team === team && e.kind === 'bld' && !e.dead && e.d.drops && e.d.drops.includes('wood') && Math.hypot(e.x - cx, e.y - cy) < 170)) return false;
   }
   for (let j = -m; j < s + m; j++) for (let i = -m; i < s + m; i++) {
     if (!free(gx + i, gy + j)) return false;

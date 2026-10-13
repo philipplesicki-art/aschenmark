@@ -5,6 +5,7 @@ import { updProjs, updZones } from './combat.js';
 import { aiTick } from './ai.js';
 import { updEvents, evSight } from './events.js';
 import { updQuests } from './quests.js';
+import { tierOf } from './economy.js';
 
 export function updFog() {
   const f = G.fog;
@@ -29,7 +30,8 @@ export function updFog() {
 }
 
 export function beginMatch() {
-  for (const e of G.ents) if (e.kind === 'unit' && e.type === 'worker') autoGather(e);
+  // Die ersten beiden Arbeiter jeder Seite holen Holz, der Rest baut Erz ab.
+  for (const t of [0, 1]) G.ents.filter(e => e.kind === 'unit' && e.type === 'worker' && e.team === t).forEach((e, i) => autoGather(e, i < 2 ? 'wood' : 'ore'));
   updFog();
 }
 
@@ -51,7 +53,7 @@ export function step(dt) {
   for (const c of G.corpses) c.t += dt;
   G.corpses = G.corpses.filter(c => c.t < c.life);
   for (let t = 0; t < 2; t++) {
-    G.pp[t] = Math.min(6, G.pp[t] + dt / 50);
+    G.pp[t] = Math.min(6, G.pp[t] + dt / 50 * (tierOf(t) >= 3 ? 1.4 : 1)); // Burgstufe 3: Machtpunkte schneller
     G.ppCd[t] = Math.max(0, G.ppCd[t] - dt);
   }
   G.ents = G.ents.filter(e => !e.dead);

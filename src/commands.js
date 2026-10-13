@@ -2,11 +2,12 @@
 // Kein DOM hier, damit die Logik auch in Tests laufen kann.
 import { TS, GW } from './config.js';
 import { G, UI, hooks, cam, view, proj, byId, alive } from './state.js';
-import { FACTIONS, HK, defOf } from './factions.js';
-import { mkBld, canPlaceAt, hasBuilt } from './world.js';
+import { FACTIONS, HK, defOf, bldName } from './factions.js';
+import { mkBld, canPlaceAt, hasBuilt, treeReach } from './world.js';
 import { setOrder } from './path.js';
 import { trainBlock, train } from './units.js';
 import { kill, cast, canCast, abilityList, canPower, castPower, powerOf, heroOf } from './combat.js';
+import { costOf, costStr, lack, pay, refund, UPGRADE, upgradeBlock, startUpgrade, cancelUpgrade, techsAt, techNext, techBlock, startResearch, cancelResearch, techName, techDesc, TECH, tradeBlock, trade, tradeRate, tierOf } from './economy.js';
 
 export const selEnts = () => G.sel.map(id => G.map.get(id)).filter(Boolean);
 export function select(ids) { G.sel = ids; UI.sig = ''; }
@@ -39,6 +40,18 @@ export function pickAt(wx, wy, pad) {
 
 export function mark(x, y, kind) { G.marks.push({ x, y, t: 0, kind }); }
 
+// Baum unter dem Mauszeiger. Im 3D-Bild zählt die Krone (Bäume sind hoch), nicht der Fußpunkt.
+function treeAtClick(wx, wy) {
+  const c = UI.click; UI.click = null;
+  let best = null, bd = 1e9;
+  for (const tr of G.trees) {
+    if (tr.fx || Math.abs(tr.x - wx) > 280 || Math.abs(tr.y - wy) > 280) continue;
+    const [sx, sy] = toScreen(tr.x, tr.y, 2.6), px = Math.abs(toScreen(tr.x + 16, tr.y, 2.6)[0] - sx) || 1;
+    const d = c ? Math.hypot(sx - c[0], sy - c[1]) / (px * 1.6) : Math.hypot(tr.x - wx, tr.y - wy) / 24; // 1 = Rand der Krone
+    if (d < 1 && d < bd) { bd = d; best = tr; }
+  }
+  return best;
+}
 export function cmdAt(wx, wy, am) {
   const s = selEnts();
   if (!s.length || s[0].team !== 0) return;
@@ -49,6 +62,14 @@ export function cmdAt(wx, wy, am) {
     return;
   }
   const t = am ? null : pickAt(wx, wy, 10);
+  if (!t && !am && units.some(u => u.type === 'worker')) {
+    const tr = treeAtClick(wx, wy);
+    if (tr) {
+      units.forEach(u => { if (u.type === 'worker') setOrder(u, { t: 'chop', cx: Math.floor(tr.x / TS), cy: Math.floor(tr.y / TS), hx: tr.x, hy: tr.y }); else setOrder(u, { t: 'move', x: wx, y: wy }); });
+      mark(tr.x, tr.y, 'move'); hooks.sfx('cmd'); return;
+    }
+  }
+  UI.click = null;
   if (t) {
     if (t.team === 1 || t.team === 3) { units.forEach(u => setOrder(u, { t: 'attack', tg: t.id })); mark(t.x, t.y, 'atk'); hooks.sfx('cmd'); return; }
     if (t.kind === 'dep') {
@@ -117,9 +138,9 @@ export function selectIdle() {
 /* ---------- Bauen ---------- */
 export function buildBlock(tp) {
   const d = defOf(G.fac[0], tp);
-  if (G.ore[0] < d.cost) return 'Nicht genug Erz';
+  if (d.tier && tierOf(0) < d.tier) return 'Burgstufe ' + d.tier + ' nötig';
   if (d.needs && !hasBuilt(0, d.needs)) return defOf(G.fac[0], d.needs).name + ' nötig';
-  return null;
+  return lack(0, costOf(d));
 }
 export function startPlace(tp) {
   const m = buildBlock(tp);
@@ -137,13 +158,13 @@ export function doPlace() {
   if (!p.ok) { hooks.toast('Hier kann nicht gebaut werden', 'bad'); return; }
   const d = defOf(G.fac[0], p.type), ws = selEnts().filter(e => e.type === 'worker');
   if (!ws.length || buildBlock(p.type)) return;
-  G.ore[0] -= d.cost;
+  pay(0, costOf(d));
   const s = mkBld(p.type, 0, p.gx, p.gy, false);
   ws.forEach(w => setOrder(w, { t: 'build', site: s.id }));
   UI.mode = null; UI.place = null; UI.sig = ''; hooks.sfx('place');
 }
 export function cancelSite(b) {
-  G.ore[0] += Math.floor(defOf(b.fac, b.type).cost * .75);
+  refund(0, costOf(defOf(b.fac, b.type)), .75);
   kill(b); G.lost--; select([]);
 }
 export function cancelMode() { UI.mode = null; UI.place = null; UI.target = null; UI.sig = ''; }
@@ -182,15 +203,34 @@ export function cmdDefs() {
     if (!b.built) { defs.push({ id: 'cs', label: 'Bau abbrechen', key: 'x', en: () => true, fn: () => cancelSite(b) }); return defs; }
     for (const tp of b.d.trains || []) {
       const d = defOf(b.fac, tp);
-      defs.push({ id: 't' + tp, label: d.name, key: HK[tp], cost: d.cost, en: () => !trainBlock(b, tp), fn: () => train(b, tp) });
+      defs.push({ id: 't' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !trainBlock(b, tp), fn: () => train(b, tp), title: d.tier ? 'Braucht Burgstufe ' + d.tier : '' });
+    }
+    if (b.type === 'hq') { // Burg ausbauen
+      if (b.up) defs.push({ id: 'upc', label: 'Ausbau abbrechen', en: () => true, fn: () => cancelUpgrade(b) });
+      else if ((b.tier || 1) < 3) {
+        const to = (b.tier || 1) + 1, f = FACTIONS[b.fac];
+        defs.push({ id: 'up' + to, label: 'Ausbau: ' + f.tiers[to - 1], cost: costStr(UPGRADE[to]), en: () => !upgradeBlock(b), fn: () => startUpgrade(b),
+          title: 'Burgstufe ' + to + ': mehr Leben und Versorgung, schaltet ' + (to === 2 ? 'Reiter, Werkstatt, Markt und die zweite Technikstufe' : 'die dritte Technikstufe und schnellere Machtpunkte') + ' frei.' });
+      }
+    }
+    for (const id of techsAt(b.type)) {
+      const n = techNext(b.team, id); if (!n) continue;
+      const lv = TECH[id].levels[n - 1];
+      defs.push({ id: 'r' + id + n, label: techName(b.fac, id, n), cost: costStr(lv), en: () => !techBlock(b, id), fn: () => startResearch(b, id),
+        title: techDesc(b.fac, id) + (lv.tier > 1 ? ' (Burgstufe ' + lv.tier + ')' : '') + ' · ' + lv.time + ' s' });
+    }
+    if (b.rs) defs.push({ id: 'rsc', label: 'Forschung abbrechen', en: () => true, fn: () => cancelResearch(b) });
+    if (b.type === 'market') for (const [from, to, lb] of [['ore', 'wood', '100 Erz → Holz'], ['wood', 'ore', '100 Holz → Erz']]) {
+      defs.push({ id: 'tr' + from, label: lb.replace(/100 /, '') + ' tauschen', cost: '100 → ' + Math.floor(100 * tradeRate(b.team)), en: () => !tradeBlock(b, from), fn: () => trade(b.team, from, to, 100),
+        title: 'Kurs: 100 gegen ' + Math.floor(100 * tradeRate(b.team)) });
     }
     return defs;
   }
   const units = s.filter(e => e.kind === 'unit');
   if (units.some(u => u.type === 'worker')) {
-    for (const tp of ['farm', 'barracks', 'workshop', 'tower', 'outpost']) {
+    for (const tp of ['farm', 'lumber', 'barracks', 'workshop', 'market', 'tower', 'outpost']) {
       const d = fac.blds[tp];
-      defs.push({ id: 'b' + tp, label: d.name, key: HK[tp], cost: d.cost, en: () => !buildBlock(tp), fn: () => startPlace(tp) });
+      defs.push({ id: 'b' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !buildBlock(tp), fn: () => startPlace(tp), title: d.tier ? 'Braucht Burgstufe ' + d.tier : '' });
     }
   }
   if (units.some(u => u.type !== 'worker')) defs.push({ id: 'am', label: 'Angriffsmarsch', key: 'a', en: () => true, on: () => UI.mode === 'amove', fn: () => { UI.mode = 'amove'; UI.sig = ''; hooks.toast('Ziel wählen'); } });

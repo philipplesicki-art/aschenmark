@@ -26,7 +26,7 @@ export function initInput(cv, mm) {
     if (e.pointerType === 'mouse') {
       UI.touching = false;
       if (e.button === 2) {
-        if (UI.mode) cancelMode(); else { const w = toWorld(x, y); cmdAt(w[0], w[1], false); }
+        if (UI.mode) cancelMode(); else { const w = toWorld(x, y); UI.click = [x, y]; cmdAt(w[0], w[1], false); }
         return;
       }
       if (e.button === 0 && !UI.mode) UI.drag = { sx: x, sy: y, x, y, active: false };
@@ -83,7 +83,7 @@ export function initInput(cv, mm) {
       if (sel.length === 1 && sel[0] === e && e.kind === 'unit' && now - lastTap < 500) selectSameType(e); else select([e.id]);
       lastTap = now; return;
     }
-    if (sel.length && sel[0].team === 0) { cmdAt(wx, wy, false); return; }
+    if (sel.length && sel[0].team === 0) { UI.click = [x, y]; cmdAt(wx, wy, false); return; }
     if (e) { select([e.id]); hooks.sfx('click'); } else select([]);
   }
   function endPointer(e) {

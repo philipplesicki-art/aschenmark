@@ -18,6 +18,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:600 16px/1.25 var(--ui)
 .stat span{color:var(--muted);font-size:14px;letter-spacing:.06em;text-transform:uppercase}
 .stat b{font-variant-numeric:tabular-nums;font-weight:700}
 .stat.ore b{color:var(--brass)}
+.stat.wood b{color:#9ccb7e}
+.btn .c{white-space:nowrap}
 .btn{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:6px 12px;min-height:38px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{border-color:var(--brass)}
 .btn:focus-visible{outline:2px solid var(--brass);outline-offset:1px}

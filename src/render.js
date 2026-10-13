@@ -268,6 +268,16 @@ function drawBld(e, sel) {
     ctx.fillStyle = fl ? '#fff' : (asch ? '#6a5040' : '#c9a44a'); ctx.beginPath(); ctx.moveTo(x0 + w * .04, y0 + w * .2); ctx.lineTo(x0 + w * .29, y0 - w * .04); ctx.lineTo(x0 + w * .54, y0 + w * .2); ctx.fill();
     ctx.fillStyle = roof; ctx.fillRect(x0 + w * .7, y0 + w * .16, w * .18, w * .12);
     ctx.strokeStyle = '#d8d0b0'; ctx.beginPath(); ctx.moveTo(x0 + w * .7, y0 + w * .04); ctx.lineTo(x0 + w * .7, y0 + w * .3); ctx.stroke();
+  } else if (e.type === 'lumber') { // Holzlager: Stapel und Sägebock unter einem Schleppdach
+    ctx.fillStyle = asch ? '#3a2e24' : '#5b4528'; ctx.fillRect(x0 + 2, y0 + w * .5, w - 4, w * .46);
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? '#8a6238' : '#6f4c2a'; ctx.fillRect(x0 + 6, y0 + w * .56 + i * w * .1, w * .6, w * .07); }
+    ctx.fillStyle = wood; ctx.fillRect(x0 + w * .64, y0 + w * .46, w * .3, w * .4);
+    ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(x0 + w * .58, y0 + w * .5); ctx.lineTo(x0 + w * .79, y0 + w * .22); ctx.lineTo(x0 + w, y0 + w * .5); ctx.fill();
+  } else if (e.type === 'market') { // Markt: Stände mit Sonnensegel
+    ctx.fillStyle = wood; ctx.fillRect(x0 + 3, y0 + w * .46, w - 6, w * .5);
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? roof : (fl ? '#fff' : '#d8d0b0'); ctx.fillRect(x0 + 3 + i * (w - 6) / 4, y0 + w * .26, (w - 6) / 4, w * .26); }
+    ctx.fillStyle = '#c9a44a'; for (let i = 0; i < 3; i++) ctx.fillRect(x0 + w * (.18 + i * .28), y0 + w * .62, w * .12, w * .1);
+    ctx.strokeStyle = dk; ctx.lineWidth = 2; ctx.strokeRect(x0 + 3, y0 + w * .26, w - 6, w * .7);
   } else if (e.type === 'tower') {
     ctx.fillStyle = stoneD; ctx.fillRect(x0 + 5, y0 - 26, w - 10, w + 22); ctx.fillStyle = stone; ctx.fillRect(x0 + 8, y0 - 26, w - 18, w + 22);
     ctx.fillStyle = stoneD;

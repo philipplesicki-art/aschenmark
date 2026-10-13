@@ -67,7 +67,7 @@ for (const fac of ['wacht', 'asch', 'salz']) {
 newWorld({ fac0: 'asch', fac1: 'wacht', diff: 'easy', seed: 5 });
 beginMatch();
 const hq = G.ents.find(e => e.type === 'hq' && e.team === 0);
-G.ore[0] = 1000;
+G.ore[0] = 1000; G.wood[0] = 500; hq.tier = 2; // Reiter brauchen Burgstufe 2
 assert.ok(train(hq, 'worker'));
 const bar = mkBld('barracks', 0, 14, 36, true);
 assert.ok(train(bar, 'cav'));
@@ -324,4 +324,83 @@ console.log('Alle Tests bestanden');
   assert.equal(endCalls, 0);
   hooks.endGame = k => { ended = k; };
   console.log('Menüszene ok');
+}
+
+// Wirtschaft: Holzfällen, Kosten, Burgstufen, Forschung, Handel.
+{
+  const E = await import('../src/economy.js'), W = await import('../src/world.js'), { dmgFor, hurt } = await import('../src/combat.js');
+  const { serialize, deserialize } = await import('../src/save.js');
+  newWorld({ fac0: 'wacht', fac1: 'asch', diff: 'easy', seed: 31 });
+  beginMatch(); G.ai.next = 1e9;
+  const hq = G.ents.find(e => e.type === 'hq' && e.team === 0);
+
+  // Bäume sind Vorräte: Randwald bleibt, Waldbäume sind fällbar
+  const fixed = G.trees.filter(t => t.fx).length, n0 = G.trees.length;
+  assert.ok(fixed > 300 && n0 - fixed > 800, 'Rand fest, Wald fällbar: ' + fixed + '/' + n0);
+  const w = mkUnit('worker', 0, hq.x + 200, hq.y + 150), tr = W.nearestTree(w.x, w.y, 900);
+  assert.ok(tr && !tr.fx, 'es gibt einen fällbaren Baum');
+  const cell = Math.floor(tr.y / 32) * 120 + Math.floor(tr.x / 32), wood0 = G.wood[0], have = W.treeWood(tr);
+  w.order = { t: 'chop', cx: Math.floor(tr.x / 32), cy: Math.floor(tr.y / 32), hx: tr.x, hy: tr.y };
+  let felled = null; hooks.treeFelled = t => { if (t === tr) felled = t; };
+  for (let i = 0; i < 20 * 120 && !felled; i++) step(.05);
+  assert.equal(felled, tr, 'Baum wurde gefällt'); assert.equal(G.blk[cell], 0, 'Feld ist wieder frei');
+  assert.ok(!G.trees.includes(tr) && !W.treeAtCell(Math.floor(tr.x / 32), Math.floor(tr.y / 32)), 'Baum aus Liste und Feldzuordnung entfernt');
+  for (let i = 0; i < 20 * 40; i++) step(.05);
+  assert.ok(G.wood[0] >= wood0 + Math.min(10, have) - 1, 'Holz wurde abgegeben: ' + wood0 + ' → ' + G.wood[0]);
+
+  // Kosten: Holz fehlt, Burgstufe fehlt, Zahlung
+  const bar = mkBld('barracks', 0, 14, 36, true);
+  G.ore[0] = 500; G.wood[0] = 10;
+  assert.equal(trainBlock(bar, 'ranged'), 'Nicht genug Holz');
+  G.wood[0] = 100; assert.equal(trainBlock(bar, 'cav'), 'Burgstufe 2 nötig');
+  assert.equal(trainBlock(bar, 'ranged'), null); const o1 = G.ore[0], w1 = G.wood[0]; assert.ok(train(bar, 'ranged'));
+  assert.equal(o1 - G.ore[0], 90); assert.equal(w1 - G.wood[0], 20);
+
+  // Burgstufen: Ausbau kostet, dauert, gibt Leben und Versorgung
+  G.ore[0] = 1000; G.wood[0] = 1000; const cap0 = popCap(0), hp0 = hq.maxhp;
+  assert.equal(E.tierOf(0), 1); assert.equal(E.upgradeBlock(hq), null); assert.ok(E.startUpgrade(hq));
+  assert.equal(E.upgradeBlock(hq), 'Ausbau läuft'); assert.equal(G.ore[0], 750);
+  for (let i = 0; i < 20 * 41; i++) step(.05);
+  assert.equal(E.tierOf(0), 2); assert.equal(popCap(0), cap0 + 4); assert.ok(hq.maxhp > hp0 * 1.15, 'Burg hat mehr Leben');
+  assert.equal(trainBlock(bar, 'cav'), null, 'Reiter ab Stufe 2');
+
+  // Forschung: Waffen erhöhen Schaden, Rüstung senkt ihn, Stufen brauchen Burgstufe
+  const sp = mkUnit('melee', 0, hq.x + 300, hq.y + 300), foe = mkUnit('melee', 1, sp.x + 20, sp.y);
+  const base = dmgFor(sp, foe), tk = foe.hp;
+  assert.equal(E.techBlock(bar, 'weapons'), null); assert.ok(E.startResearch(bar, 'weapons'));
+  assert.equal(E.techBlock(bar, 'armor'), 'Forschung läuft', 'ein Gebäude forscht nur eines');
+  for (let i = 0; i < 20 * 36; i++) step(.05);
+  assert.equal(E.tl(0, 'weapons'), 1); assert.ok(Math.abs(dmgFor(sp, foe) - base * 1.1) < .01, 'Waffen I: +10 %');
+  assert.equal(E.techBlock(bar, 'weapons'), null); // Stufe II geht, weil Burgstufe 2
+  G.tech[0].weapons = 3; assert.equal(E.techBlock(bar, 'weapons'), 'Schon erforscht');
+  G.tech[0].armor = 2; const tgt = mkUnit('melee', 0, hq.x + 60, hq.y - 120), hp1 = tgt.hp; hurt(tgt, 80, null); assert.ok(Math.abs((hp1 - tgt.hp) - 80 * .84) < .01, 'Rüstung II: −16 %: ' + (hp1 - tgt.hp));
+  G.tech[0].carry = 2; assert.equal(E.carryCap(0), 18);
+
+  // Handel
+  G.ore[0] = 300; G.wood[0] = 50; assert.ok(E.trade(0, 'ore', 'wood', 100)); assert.equal(G.ore[0], 200); assert.equal(G.wood[0], 125);
+  G.tech[0].trade = 2; assert.equal(E.tradeRate(0), .95); assert.ok(!E.trade(0, 'ore', 'wood', 999), 'zu wenig Erz');
+
+  // Speichern und Laden: Holz, Technik, Burgstufe, Forschung, gefällte Bäume
+  G.tech[0].mining = 1; hq.rs = { id: 'felling', lvl: 1, t: 3, dur: 25 };
+  const trees = G.trees.length, text = serialize(); deserialize(text);
+  const hq2 = G.ents.find(e => e.type === 'hq' && e.team === 0);
+  assert.equal(G.trees.length, trees); assert.equal(hq2.tier, 2); assert.equal(hq2.rs.id, 'felling'); assert.equal(G.tech[0].mining, 1); assert.equal(G.wood[0], 125);
+  assert.ok(!W.treeAtCell(Math.floor(tr.x / 32), Math.floor(tr.y / 32)), 'gefällter Baum bleibt weg');
+  console.log('Wirtschaft ok');
+}
+
+// Die KI wirtschaftet: Holzfäller, Holzlager, Ausbau, Forschung (Schwierigkeit Normal und Schwer).
+{
+  const E = await import('../src/economy.js');
+  for (const diff of ['normal', 'hard']) {
+    newWorld({ fac0: 'wacht', fac1: 'salz', diff, seed: 77 });
+    beginMatch(); G.ai.next = 1e9;
+    for (let i = 0; i < 20 * 900; i++) step(.05);
+    const mine = G.ents.filter(e => e.team === 1 && !e.dead), has = t => mine.filter(e => e.type === t).length;
+    const techs = Object.values(G.tech[1]).reduce((n, v) => n + v, 0);
+    console.log(`KI ${diff}: Stufe ${E.tierOf(1)}, Holzlager ${has('lumber')}, Markt ${has('market')}, Technikstufen ${techs}, Erz ${Math.round(G.ore[1])}, Holz ${Math.round(G.wood[1])}, Bäume ${G.trees.length}`);
+    assert.ok(has('lumber') >= 1, 'KI baut ein Holzlager'); assert.ok(E.tierOf(1) >= 2, 'KI baut die Burg aus'); assert.ok(techs >= 1, 'KI forscht');
+    assert.ok(G.wood[1] < 3000 && G.ore[1] < 5000, 'KI hortet nicht');
+  }
+  console.log('KI-Wirtschaft ok');
 }

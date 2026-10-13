@@ -35,6 +35,7 @@ wireHooks({
   chainDone: () => showChainEnd(),
   setFx: on => R.setPost && R.setPost(on),
   setQuality: q => R.setQuality && R.setQuality(q),
+  treeFelled: tr => { if (R.treeFelled) R.treeFelled(tr); if (G && G.demo) return; burst(tr.x, tr.y - 12, 8, '#8a6a46', 10); burst(tr.x, tr.y - 12, 6, '#e6eef6', 16); },
   regionsChanged: id => {
     buildTerrain();
     const g = GATES[id]; if (!g || G.demo) return;

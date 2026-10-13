@@ -3,7 +3,8 @@ import { saveGame, hasSave } from './save.js';
 import { G, UI, hooks, cam, view } from './state.js';
 import { regionAt, REGIONS } from './regions.js';
 import { EVENTS, evAt } from './events.js';
-import { FACTIONS, FAC_IDS, XP_STEPS, MAX_HERO_LVL, defOf } from './factions.js';
+import { FACTIONS, FAC_IDS, XP_STEPS, MAX_HERO_LVL, defOf, bldName } from './factions.js';
+import { techName } from './economy.js';
 import { DIFF, QUALITY } from './config.js';
 import { popUsed, popCap } from './world.js';
 import { cmdDefs, selEnts, selectArmy, selectIdle, usePower } from './commands.js';
@@ -40,14 +41,15 @@ function renderQuest() {
 
 function renderInfo() {
   const s = selEnts(); let h = '';
-  if (!s.length) h = '<div class="hint">Einheit antippen oder Rahmen ziehen. Zerstöre die gegnerische Festung im Nordosten, bevor deine fällt.</div>';
+  if (!s.length) h = '<div class="hint">Einheit antippen oder Rahmen ziehen. Zerstöre die gegnerische Festung im Nordosten, bevor deine fällt. Rechtsklick auf einen Baum: Arbeiter fällen Holz. Ein Holzlager am Wald spart lange Wege.</div>';
   else if (s.length === 1) {
     const e = s[0];
-    h = '<div class="nm">' + e.d.name + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
+    h = '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
     if (e.kind === 'dep') h += '<div class="sub">Erz: ' + Math.ceil(e.amt) + ' von ' + e.max + '</div>' + bar(e.amt, e.max, 'q');
     else {
       h += bar(e.hp, e.maxhp) + '<div class="sub">' + Math.ceil(e.hp) + ' / ' + e.maxhp + ' Leben';
-      if (e.type === 'worker' && e.team === 0) h += ' · trägt ' + e.carry;
+      if (e.type === 'worker' && e.team === 0 && e.carry > 0) h += ' · trägt ' + e.carry + (e.cres === 'wood' ? ' Holz' : ' Erz');
+      if (e.type === 'hq') h += ' · Stufe ' + (e.tier || 1);
       if (e.type === 'hero') {
         h += ' · Stufe ' + e.lvl;
         const next = XP_STEPS[e.lvl - 1], prev = e.lvl > 1 ? XP_STEPS[e.lvl - 2] : 0;
@@ -56,6 +58,8 @@ function renderInfo() {
       if (e.kind === 'bld' && !e.built) h += ' · Bau ' + Math.floor(e.prog * 100) + '%';
       if (e.kind === 'bld' && e.queue.length) { const q = e.queue[0], qd = defOf(e.fac, q.type); h += ' · ' + qd.name + ' (' + e.queue.length + ')</div>' + bar(q.t, qd.time, 'q'); }
       else h += '</div>';
+      if (e.kind === 'bld' && e.up) h += '<div class="sub">Ausbau zur ' + FACTIONS[e.fac].tiers[e.up.to - 1] + '</div>' + bar(e.up.t, e.up.dur, 'q');
+      if (e.kind === 'bld' && e.rs) h += '<div class="sub">Forschung: ' + techName(e.fac, e.rs.id, e.rs.lvl) + '</div>' + bar(e.rs.t, e.rs.dur, 'x');
     }
   } else {
     const c = {}; s.forEach(e => { c[e.d.name] = (c[e.d.name] || 0) + 1; });
@@ -82,6 +86,7 @@ function buildCmds() {
 export function refreshUI() {
   if (!G) return;
   $('ore').textContent = Math.floor(G.ore[0]);
+  $('wood').textContent = Math.floor(G.wood[0]);
   $('pop').textContent = popUsed(0) + '/' + popCap(0);
   $('pp').textContent = G.pp[0].toFixed(1);
   renderQuest();

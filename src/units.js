@@ -1,8 +1,8 @@
 import { evGather } from './events.js';
-import { CARRY } from './config.js';
+import { canAfford, lack, pay, costOf, carryCap, gatherMul, tierOf, trainMul, updEconomy } from './economy.js';
 import { G, hooks, byId, alive, simR } from './state.js';
-import { defOf } from './factions.js';
-import { free, mkUnit, nearestDep, popUsed, popCap } from './world.js';
+import { defOf, takes } from './factions.js';
+import { free, mkUnit, nearestDep, popUsed, popCap, nearestTree, treeAtCell, treeWood, choppable, treeReach, fellTree } from './world.js';
 import { goTo, setOrder, nearestFree } from './path.js';
 import { gap, entPoint, acquire, strike } from './combat.js';
 import { TS } from './config.js';
@@ -17,20 +17,37 @@ export function nearestOwn(u, type) {
   return best;
 }
 
-// Nächster Abgabepunkt für Erz: Burg oder Vorposten.
-export function nearestDrop(u) {
+// Nächster Abgabepunkt für einen Rohstoff: Burg, Vorposten oder (nur Holz) Holzlager.
+export function nearestDrop(u, res = 'ore') {
   let best = null, bd = 1e9;
   for (const e of G.ents) {
-    if (e.team !== u.team || e.kind !== 'bld' || e.dead || !e.built || !(e.type === 'hq' || e.d.dropoff)) continue;
+    if (e.team !== u.team || e.kind !== 'bld' || e.dead || !e.built || !takes(e, res)) continue;
     const d = Math.hypot(e.x - u.x, e.y - u.y);
     if (d < bd) { bd = d; best = e; }
   }
   return best;
 }
 
-export function autoGather(u) {
+// Arbeiter schickt sich selbst los: Holz fällen (res 'wood', falls ein Baum in Reichweite ist) oder Erz abbauen.
+export function autoGather(u, res) {
+  if (res === 'wood') {
+    const tr = nearestTree(u.x, u.y, 900);
+    if (tr) { setOrder(u, { t: 'chop', cx: Math.floor(tr.x / TS), cy: Math.floor(tr.y / TS), hx: tr.x, hy: tr.y }); return; }
+  }
   const d = nearestDep(u, 700);
   if (d) setOrder(u, { t: 'gather', dep: d.id }); else u.order = null;
+}
+// Fuhre abgeben; gibt true zurück, solange der Arbeiter noch zur Abgabestelle unterwegs ist.
+function deliver(u, dt) {
+  const res = u.cres || 'ore', hq = nearestDrop(u, res);
+  if (!hq) { u.order = null; return true; }
+  if (gap(u, hq) <= 6) {
+    const k = u.team === 1 ? G.ai.p.rate : 1;
+    if (res === 'wood') G.wood[u.team] += u.carry * k;
+    else { G.ore[u.team] += u.carry * k; (G.mined ||= [0, 0])[u.team] += u.carry; }
+    u.carry = 0; u.gt = 0; u.path = null; u.done = false; u.pdx = undefined; return false;
+  }
+  const p = entPoint(u, hq); goTo(u, p[0], p[1], dt); return true;
 }
 
 function engage(u, t, dt) {
@@ -84,20 +101,37 @@ export function updUnit(u, dt) {
         const nd = nearestDep(u, 500);
         if (nd) { o.dep = nd.id; dep = nd; } else if (u.carry <= 0) { u.order = null; break; }
       }
-      if (u.carry > 0) {
-        const hq = nearestDrop(u); if (!hq) { u.order = null; break; }
-        if (gap(u, hq) <= 6) {
-          G.ore[u.team] += u.carry * (u.team === 1 ? G.ai.p.rate : 1);
-          (G.mined ||= [0, 0])[u.team] += u.carry;
-          u.carry = 0; u.gt = 0; u.path = null; u.done = false; u.pdx = undefined;
-        } else { const p = entPoint(u, hq); goTo(u, p[0], p[1], dt); }
-      } else if (dep) {
+      if (u.carry > 0) deliver(u, dt);
+      else if (dep) {
         if (gap(u, dep) <= 6) {
-          u.path = null; u.working = true; u.face = Math.atan2(dep.y - u.y, dep.x - u.x); u.gt += dt * evGather(u);
+          u.path = null; u.working = true; u.face = Math.atan2(dep.y - u.y, dep.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'ore');
           if (u.gt >= 1.6) {
-            u.gt = 0; const take = Math.min(CARRY, dep.amt); dep.amt -= take; u.carry = take; u.pdx = undefined; u.done = false;
+            u.gt = 0; const take = Math.min(carryCap(u.team), dep.amt); dep.amt -= take; u.carry = take; u.cres = 'ore'; u.pdx = undefined; u.done = false;
           }
         } else { const p = entPoint(u, dep); goTo(u, p[0], p[1], dt); }
+      }
+      break;
+    }
+    case 'chop': { // Holz fällen: Baum nach Feld, danach der nächste in der Nähe
+      let tr = treeAtCell(o.cx, o.cy);
+      if (!tr || !choppable(tr) || !treeReach(tr)) { // gefällt, gesperrt oder zugewachsen: nächsten erreichbaren Baum suchen
+        tr = nearestTree(o.hx, o.hy, 320);
+        if (tr) { o.cx = Math.floor(tr.x / TS); o.cy = Math.floor(tr.y / TS); o.hx = tr.x; o.hy = tr.y; }
+        else if (u.carry <= 0) { u.order = null; break; }
+      }
+      if (u.carry > 0) deliver(u, dt);
+      else if (tr) {
+        if (Math.hypot(tr.x - u.x, tr.y - u.y) <= 56) { // Axtreichweite: auch vom diagonalen Nachbarfeld aus
+          o.walk = 0; u.path = null; u.working = true; u.face = Math.atan2(tr.y - u.y, tr.x - u.x); u.gt += dt * evGather(u) * gatherMul(u.team, 'wood');
+          if (u.gt >= 1.8) {
+            u.gt = 0; const take = Math.min(carryCap(u.team), treeWood(tr)); tr.w -= take; u.carry = take; u.cres = 'wood'; u.pdx = undefined; u.done = false;
+            if (u.team === 0) hooks.sfx('chop');
+            if (tr.w <= 0) fellTree(tr);
+          }
+        } else {
+          goTo(u, tr.x, tr.y, dt);
+          if ((o.walk = (o.walk || 0) + dt) > 25) { tr.bad = G.t + 150; o.walk = 0; o.cx = -1; } // unerreichbar (eingeschlossene Lücke): später wieder versuchen, jetzt anderen Baum suchen
+        }
       }
       break;
     }
@@ -121,9 +155,10 @@ export function updUnit(u, dt) {
 export function updBld(b, dt) {
   b.hit = Math.max(0, b.hit - dt);
   if (!b.built) return;
+  updEconomy(b, dt);
   if (b.queue.length) {
     const q = b.queue[0]; q.t += dt;
-    if (q.t >= defOf(b.fac, q.type).time) {
+    if (q.t >= defOf(b.fac, q.type).time * trainMul(b.team, b.fac)) {
       b.queue.shift();
       const u = mkUnit(q.type, b.team, b.x + (simR() - .5) * 40, b.y + b.r + 12);
       if (b.team === 0) hooks.sfx('done');
@@ -168,7 +203,8 @@ export function separate() {
 export function trainBlock(b, tp) {
   const d = defOf(b.fac, tp), t = b.team;
   if (!b.built) return 'Gebäude im Bau';
-  if (G.ore[t] < d.cost) return 'Nicht genug Erz';
+  if (d.tier && tierOf(t) < d.tier) return 'Burgstufe ' + d.tier + ' nötig';
+  const lk = lack(t, costOf(d)); if (lk) return lk;
   if (popUsed(t) + d.pop > popCap(t)) return 'Mehr Höfe nötig';
   if (b.queue.length >= 5) return 'Warteschlange voll';
   if (tp === 'hero' && G.ents.some(e => e.team === t && !e.dead && (e.type === 'hero' || (e.queue && e.queue.some(q => q.type === 'hero'))))) return 'Held bereits im Dienst';
@@ -178,7 +214,7 @@ export function trainBlock(b, tp) {
 export function train(b, tp) {
   const m = trainBlock(b, tp);
   if (m) { if (b.team === 0) hooks.toast(m, 'bad'); return false; }
-  G.ore[b.team] -= defOf(b.fac, tp).cost;
+  pay(b.team, costOf(defOf(b.fac, tp)));
   b.queue.push({ type: tp, t: 0 });
   if (b.team === 0) hooks.sfx('train');
   return true;

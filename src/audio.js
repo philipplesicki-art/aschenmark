@@ -1,6 +1,6 @@
 // Prozeduraler Ton: Effekte aus Oszillatoren und Rauschen, Musik als generative Partitur, die bei
 // Kämpfen dichter wird. Es werden keine Audiodateien geladen, das Spiel bleibt klein.
-let AC = null, master, sfxG, musicG, fxIn, noiseBuf, timer = null, lastHit = 0;
+let AC = null, master, sfxG, musicG, fxIn, noiseBuf, timer = null, lastHit = 0, lastChop = 0;
 const vol = { m: .6, s: .8 };
 const st = { fac: 'wacht', intensity: 0, next: 0, beat: 0, chordEnd: 0, chord: 0, note: 3, on: false };
 
@@ -60,6 +60,7 @@ const SF = {
     noise(.09, .07, 'bandpass', 900); tone(120, .08, 'sine', .08, 55);
   },
   shot: () => noise(.07, .03, 'highpass', 3000),
+  chop: () => { const n = performance.now(); if (n - lastChop < 90) return; lastChop = n; noise(.06, .05, 'bandpass', 700); tone(170, .07, 'triangle', .05, 95); },
   alarm: () => { tone(300, .18, 'sawtooth', .05); setTimeout(() => tone(240, .25, 'sawtooth', .05), 180); },
   done: () => { tone(520, .1, 'triangle', .05); setTimeout(() => tone(780, .14, 'triangle', .05), 100); },
   place: () => { tone(200, .1, 'square', .04, 120); noise(.12, .04, 'lowpass', 500); },

@@ -3,6 +3,7 @@ import { G, hooks, byId, alive, simR } from './state.js';
 import { FACTIONS, XP_STEPS, MAX_HERO_LVL, heroLevel, facOf } from './factions.js';
 import { setBlock } from './world.js';
 import { setOrder } from './path.js';
+import { damageDealtMul, damageTakenMul, xpMul, cooldownMul } from './economy.js';
 
 export function gap(a, t) {
   const ar = a.kind === 'unit' ? a.r : 0;
@@ -22,7 +23,7 @@ export function entPoint(u, t) {
 }
 
 export function dmgFor(a, t) {
-  let d = a.d.dmg * (a.dmgMul || 1) * (a.buff > 0 ? 1.4 : 1) * (a.weak > 0 ? .75 : 1);
+  let d = a.d.dmg * (a.dmgMul || 1) * (a.buff > 0 ? 1.4 : 1) * (a.weak > 0 ? .75 : 1) * damageDealtMul(a);
   if (t.kind === 'bld') d *= (BMULT[a.type] || 1);
   else { const m = MULT[a.type]; if (m && m[t.type]) d *= m[t.type]; }
   return d;
@@ -36,7 +37,7 @@ function giveXp(team, x, y, amount) {
   for (const h of G.ents) {
     if (h.team !== team || h.type !== 'hero' || h.dead) continue;
     if (Math.hypot(h.x - x, h.y - y) > 520) continue;
-    h.xp += amount;
+    h.xp += Math.round(amount * xpMul(team));
     const nl = Math.min(MAX_HERO_LVL, heroLevel(h.xp));
     while (h.lvl < nl) {
       h.lvl++;
@@ -51,6 +52,7 @@ function giveXp(team, x, y, amount) {
 export function hurt(t, d, src) {
   if (!alive(t) || t.kind === 'dep') return;
   if (t.shield > 0) d *= .6;
+  d *= damageTakenMul(t);
   t.hp -= d; t.hit = .12;
   G.combat = Math.min(12, G.combat + .5);
   hooks.burst(t.x, t.y, 2, colOf(t), t.kind === 'bld' ? t.r : 4);
@@ -147,7 +149,7 @@ export function cast(h, i, x, y) {
     if (x === undefined) return false;
     if (Math.hypot(x - h.x, y - h.y) > a.range * 1.1) { if (h.team === 0) hooks.toast('Ziel zu weit entfernt', 'bad'); return false; }
   }
-  h.abCd[i] = a.cd;
+  h.abCd[i] = a.cd * cooldownMul(h.team, h.fac);
   if (a.id === 'cry') {
     around(h, 250, false).forEach(e => { e.buff = 10; });
     G.marks.push({ x: h.x, y: h.y, t: 0, kind: 'cry', life: .9 }); hooks.sfx('horn');
@@ -191,7 +193,7 @@ export const canPower = team => G.pp[team] >= powerOf(team).cost && G.ppCd[team]
 export function castPower(team, x, y) {
   if (!canPower(team)) return false;
   const p = powerOf(team);
-  G.pp[team] -= p.cost; G.ppCd[team] = p.cd;
+  G.pp[team] -= p.cost; G.ppCd[team] = p.cd * cooldownMul(team, G.fac[team]);
   G.zones.push({ type: p.id, x, y, r: p.radius, t: 0, dur: p.dur, team, acc: 0 });
   hooks.sfx(p.id === 'spring' ? 'done' : 'horn');
   if (team === 0) { hooks.toast(p.name + '!', 'good'); hooks.achieve('POWER_USED'); }

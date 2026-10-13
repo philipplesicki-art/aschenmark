@@ -44,6 +44,7 @@ export function setQuality(id) {
 }
 const LIGHTS_N = 8, lights = [], LI = { wacht: { hq: [34, 3.4], workshop: [36, 1.8], barracks: [16, 1.6], outpost: [18, 1.6], farm: [12, 1.4], tower: [16, 5.6] }, asch: { hq: [55, 2.4], workshop: [28, 1.4], barracks: [26, 1.4], outpost: [26, 1.6], farm: [6, 1], tower: [30, 4.8] }, salz: { hq: [42, 7.2], workshop: [24, 1.2], barracks: [16, 1.6], outpost: [24, 3.4], farm: [10, 1.2], tower: [30, 5.6] } };
 const LCOL = { wacht: 0xffa25a, asch: 0xff7a33, salz: 0xffd9a0 };
+const treeInst = new WeakMap(); // Baum → Platz in der Instanzgruppe, damit ein gefällter Baum verschwinden kann
 let treesMesh = [], pts = null, snow = null, smokes = [], arrows = [];
 const objs = new Map(), corpseObjs = new Map(), tmp = new THREE.Vector3(), ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -132,6 +133,13 @@ export function attach3d(glCanvas, overlayCanvas, mini) {
   try { if (!/[?&]fx=0/.test(location.search)) { post = makePost(renderer, scene, camera, 1280, 760); MD.GLOW.k = .2; } } catch (err) { console.warn('Nachbearbeitung nicht verfügbar:', err); post = null; }
   proj.toWorld = toWorld3; proj.toScreen = toScreen3; proj.sync = sync;
   return true;
+}
+
+// Gefällter Baum: Instanz auf null skalieren.
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+export function treeFelled(tr) {
+  const r = treeInst.get(tr); if (!r) return;
+  r.im.setMatrixAt(r.i, ZERO); r.im.instanceMatrix.needsUpdate = true; treeInst.delete(tr);
 }
 
 export function resizeCanvas() {
@@ -297,7 +305,7 @@ export function buildTerrain() {
   const mk = (geom, list, matl, hs) => {
     if (!list.length) return;
     const im = new THREE.InstancedMesh(geom, matl, list.length), d = new THREE.Object3D();
-    list.forEach((tr, i) => { const X = tr.x * S, Z = tr.y * S, s = (.7 + tr.s / 24 * .55) * hs * .72; d.position.set(X, hAt(X, Z) - .05, Z); d.rotation.set(0, tr.v * 40, 0); d.scale.set(s, s * (.9 + tr.v * .3), s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+    list.forEach((tr, i) => { const X = tr.x * S, Z = tr.y * S, s = (.7 + tr.s / 24 * .55) * hs * .72; d.position.set(X, hAt(X, Z) - .05, Z); d.rotation.set(0, tr.v * 40, 0); d.scale.set(s, s * (.9 + tr.v * .3), s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); treeInst.set(tr, { im, i }); });
     im.castShadow = true; im.receiveShadow = true; world.add(im); treesMesh.push(im);
   };
   mk(MD.pineGeometry(), live, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }), 1);

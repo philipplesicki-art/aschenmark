@@ -1,37 +1,41 @@
 import { TS } from './config.js';
 import { G, hooks, simR } from './state.js';
 import { defOf } from './factions.js';
-import { mkBld, popUsed, popCap, canPlaceAt, hasBuilt } from './world.js';
+import { mkBld, popUsed, popCap, canPlaceAt, hasBuilt, nearestTree } from './world.js';
 import { regionAt, openedRegion } from './regions.js';
 import { setOrder } from './path.js';
 import { autoGather, train, trainBlock } from './units.js';
 import { cast, canCast, abilityList, canPower, castPower, powerOf } from './combat.js';
+import { costOf, canAfford, pay, tierOf, UPGRADE, upgradeBlock, startUpgrade, TECH, techNext, techBlock, startResearch, trade, tradeBlock } from './economy.js';
 
 // Die KI spielt eine Seite (T) gegen die andere (O). Im Spiel ist das Team 1; für Balance-Tests kann auch
 // Team 0 von der KI gespielt werden (Zustand in G.ai0 statt G.ai).
 let T = 1, O = 0;
 
-function aiBuild(tp, ws) {
-  const hq = G.ents.find(e => e.team === T && e.type === 'hq' && !e.dead);
-  if (!hq || !ws.length) return;
-  const d = defOf(G.fac[T], tp);
-  if (G.ore[T] < d.cost) return;
+const affordable = (c, reserveOre = 0, reserveWood = 0) => G.ore[T] >= (c.ore || 0) + reserveOre && G.wood[T] >= (c.wood || 0) + reserveWood;
+
+function aiBuild(tp, ws, near) {
+  const hq = near || G.ents.find(e => e.team === T && e.type === 'hq' && !e.dead);
+  if (!hq || !ws.length) return false;
+  const d = defOf(G.fac[T], tp), c = costOf(d);
+  if (!canAfford(T, c)) return false;
   for (let k = 0; k < 40; k++) {
-    const a = simR() * 6.28, rad = 110 + simR() * (tp === 'tower' ? 170 : 130);
+    const a = simR() * 6.28, rad = (near ? 50 : 110) + simR() * (tp === 'tower' ? 170 : near ? 90 : 130);
     const gx = Math.round((hq.x + Math.cos(a) * rad) / TS - d.size / 2), gy = Math.round((hq.y + Math.sin(a) * rad) / TS - d.size / 2);
     if (!canPlaceAt(tp, gx, gy, T)) continue;
     const w = ws.find(w => !w.order || w.order.t !== 'build') || ws[0];
-    G.ore[T] -= d.cost;
+    pay(T, c);
     const s = mkBld(tp, T, gx, gy, false);
     setOrder(w, { t: 'build', site: s.id });
-    return;
+    return true;
   }
+  return false;
 }
 
 // Vorposten an einer Erzader gründen, die vom Hauptlager weit weg liegt.
 function aiOutpost(ws, hq) {
-  const d = defOf(G.fac[T], 'outpost');
-  if (!d || G.ore[T] < d.cost + 120) return;
+  const d = defOf(G.fac[T], 'outpost'), c = costOf(d);
+  if (!d || !affordable(c, 120, 60)) return;
   const drops = G.ents.filter(e => e.team === T && !e.dead && e.kind === 'bld' && (e.type === 'hq' || e.d.dropoff));
   const deps = G.ents.filter(e => e.kind === 'dep' && !e.dead && e.amt > 900 && G.regions[regionAt(e.x, e.y)] && Math.hypot(e.x - hq.x, e.y - hq.y) < 900
     && !drops.some(o => Math.hypot(o.x - e.x, o.y - e.y) < 330)).sort((a, b) => Math.hypot(a.x - hq.x, a.y - hq.y) - Math.hypot(b.x - hq.x, b.y - hq.y));
@@ -40,8 +44,66 @@ function aiOutpost(ws, hq) {
     const gx = Math.round((dep.x + Math.cos(a) * rad) / TS - d.size / 2), gy = Math.round((dep.y + Math.sin(a) * rad) / TS - d.size / 2);
     if (!canPlaceAt('outpost', gx, gy, T)) continue;
     const w = ws.find(w => !w.order || w.order.t !== 'build') || ws[0];
-    G.ore[T] -= d.cost; const s = mkBld('outpost', T, gx, gy, false); setOrder(w, { t: 'build', site: s.id });
+    pay(T, c); const s = mkBld('outpost', T, gx, gy, false); setOrder(w, { t: 'build', site: s.id });
     return;
+  }
+}
+
+/* ---------- Wirtschaft: Holz, Holzlager, Ausbau, Forschung, Handel ---------- */
+const isChopper = w => (w.order && w.order.t === 'chop') || (w.carry > 0 && w.cres === 'wood');
+const busy = w => w.order && w.order.t === 'build';
+
+// Anteil der Arbeiter, die Holz fällen sollen, je nach Vorrat
+function woodShare() {
+  const w = G.wood[T];
+  return w < 120 ? .5 : w < 300 ? .38 : w < 600 ? .22 : .1;
+}
+// Holzfäller nahe an der besten Abgabestelle (Holzlager oder Burg) ansetzen
+function aiChop(w, drops) {
+  let best = null, bd = 1e9;
+  for (const d of drops) { const tr = nearestTree(d.x, d.y, 1100); if (tr) { const k = Math.hypot(tr.x - d.x, tr.y - d.y); if (k < bd) { bd = k; best = tr; } } }
+  if (!best) { autoGather(w, 'ore'); return; }
+  setOrder(w, { t: 'chop', cx: Math.floor(best.x / TS), cy: Math.floor(best.y / TS), hx: best.x, hy: best.y });
+}
+function aiWood(ws, mine, hq, D) {
+  const drops = mine.filter(e => e.kind === 'bld' && e.built && e.d.drops && e.d.drops.includes('wood'));
+  const choppers = ws.filter(isChopper), want = Math.round(ws.length * woodShare());
+  if (choppers.length < want) {
+    const w = ws.find(x => !isChopper(x) && !busy(x) && !(x.carry > 0 && x.cres === 'ore'));
+    if (w) aiChop(w, drops.length ? drops : [hq]);
+  } else if (choppers.length > want + 1) {
+    const w = choppers.find(x => !(x.carry > 0 && x.cres === 'wood')); if (w) autoGather(w, 'ore');
+  }
+  for (const w of ws) if (!w.order && !(w.carry > 0)) { if (choppers.length < want) aiChop(w, drops.length ? drops : [hq]); else autoGather(w, 'ore'); }
+  // Holzlager am Wald: sobald Holzfäller weit von jeder Abgabestelle arbeiten
+  const camps = mine.filter(e => e.type === 'lumber' && !e.dead).length;
+  if (choppers.length >= 2 && camps < (D.maxCamps ?? 2) && G.t > 50 && !mine.some(e => e.type === 'lumber' && !e.built)) {
+    const far = choppers.map(w => (w.order && w.order.t === 'chop' ? { x: w.order.hx, y: w.order.hy } : null)).filter(Boolean)
+      .filter(p => !drops.some(d => Math.hypot(d.x - p.x, d.y - p.y) < 260));
+    if (far.length >= 2) aiBuild('lumber', ws, { x: far[0].x, y: far[0].y });
+  }
+}
+function aiEconomy(hq, mine, ws, army, D) {
+  const tier = tierOf(T);
+  // Burg ausbauen
+  if (tier < 3 && !hq.up && ws.length >= 6 && G.t > (D.tierAt[tier - 1] ?? 1e9) && !upgradeBlock(hq) && affordable(UPGRADE[tier + 1], 90, 40)) startUpgrade(hq);
+  // Markt: gleicht aus, wenn ein Rohstoff übrig ist und der andere fehlt
+  if (D.trade && tier >= 2 && !mine.some(e => e.type === 'market') && G.ore[T] > 380 && G.wood[T] > 380) aiBuild('market', ws);
+  const mk = mine.find(e => e.type === 'market' && e.built);
+  if (mk && D.trade) {
+    if (G.ore[T] > 450 && G.wood[T] < 150 && !tradeBlock(mk, 'ore')) trade(T, 'ore', 'wood', 100);
+    else if (G.wood[T] > 450 && G.ore[T] < 150 && !tradeBlock(mk, 'wood')) trade(T, 'wood', 'ore', 100);
+  }
+  // Forschung
+  if (!D.research || G.t < 200) return;
+  const order = D.research === 1 ? ['mining', 'felling', 'weapons', 'carry', 'armor', 'fort'] : ['mining', 'felling', 'weapons', 'armor', 'carry', 'sig', 'fort', 'hero', 'siege', 'trade'];
+  for (const id of order) {
+    if (!techNext(T, id)) continue;
+    const b = mine.find(e => e.type === TECH[id].at && e.built && !e.rs); if (!b || techBlock(b, id)) continue;
+    const lv = TECH[id].levels[techNext(T, id) - 1];
+    if (!affordable(lv, 110, 60)) continue;
+    if (army.length < 4 && G.t < 400) continue; // zuerst ein Mindestheer
+    startResearch(b, id); return;
   }
 }
 
@@ -95,27 +157,30 @@ export function aiTick(team = 1) {
   const shops = mine.filter(e => e.type === 'workshop');
   const army = mine.filter(e => e.kind === 'unit' && e.type !== 'worker');
   const sites = mine.filter(e => e.kind === 'bld' && !e.built);
-  for (const w of ws) if (!w.order) autoGather(w);
+  aiWood(ws, mine, hq, D);
 
   const queuedW = hq.queue.filter(q => q.type === 'worker').length;
   if (ws.length + queuedW < D.workers && hq.queue.length < 2 && !trainBlock(hq, 'worker')) train(hq, 'worker');
-  if (popUsed(T) >= popCap(T) - 3 && !sites.some(s => s.type === 'farm') && G.ore[T] >= defOf(G.fac[T], 'farm').cost) aiBuild('farm', ws);
+  if (popUsed(T) >= popCap(T) - 3 && !sites.some(s => s.type === 'farm') && canAfford(T, costOf(defOf(G.fac[T], 'farm')))) aiBuild('farm', ws);
   const wantBars = Math.min(D.maxBars, 1 + Math.floor(G.t / D.barEvery));
   if (bars.length + sites.filter(s => s.type === 'barracks').length < wantBars && ws.length >= 4) aiBuild('barracks', ws);
-  if (D.siege && G.t > D.siegeAt - 90 && !shops.length && !sites.some(s => s.type === 'workshop') && hasBuilt(T, 'barracks') && ws.length >= 4) aiBuild('workshop', ws);
+  if (D.siege && G.t > D.siegeAt - 90 && tierOf(T) >= 2 && !shops.length && !sites.some(s => s.type === 'workshop') && hasBuilt(T, 'barracks') && ws.length >= 4) aiBuild('workshop', ws);
   if (D.towers && G.t > D.towerAt && mine.filter(e => e.type === 'tower').length + sites.filter(s => s.type === 'tower').length < D.towers && ws.length >= 4) aiBuild('tower', ws);
 
   if (D.hero && G.t > 240 && G.t > (A.opT || 0) && ws.length >= 5) {
     A.opT = G.t + 45;
     if (mine.filter(e => e.type === 'outpost').length < 2) aiOutpost(ws, hq);
   }
+  aiEconomy(hq, mine, ws, army, D);
 
   const seq = ['melee', 'ranged', 'melee', 'cav', 'ranged'];
   const queued = bars.reduce((n, b) => n + b.queue.length, 0);
   const room = A.size + 4 - army.length - queued;
   if (room > 0) for (const b of bars) {
     if (!b.built || b.queue.length >= 2) continue;
-    const tp = seq[A.k++ % seq.length];
+    let tp = seq[A.k++ % seq.length];
+    if (tp === 'cav' && tierOf(T) < 2) tp = 'melee'; // Reiter gibt es erst ab Burgstufe 2
+    if (trainBlock(b, tp) && tp !== 'melee') tp = 'melee'; // fehlt Holz für Fernkämpfer, dann Speerträger
     if (!trainBlock(b, tp)) train(b, tp);
   }
   for (const s of shops) {
