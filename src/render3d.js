@@ -41,6 +41,18 @@ function treeMat(rough) {
 }
 let post = null, postOn = true, wk = 0, snowK = 1, seasonK = 0; // seasonK: 0 mild bis 1 Hartfrost, weich nachgeführt
 const FROST_C = new THREE.Color(0x9db8d8);
+// Lichtstimmung: [Sonne, Stärke, Himmel, Boden, Himmelslicht, Nebel, Belichtung] für milde Zeit und Hartfrost; dazwischen wird gemischt
+let hemi = null;
+const MOOD = { warm: [new THREE.Color(0xffdcb0), 4.3, new THREE.Color(0xc4d8e8), new THREE.Color(0x6a5a40), .9, new THREE.Color(0x76817c), 1.5],
+  cold: [new THREE.Color(0xc8d8ff), 2.9, new THREE.Color(0x9fb6d2), new THREE.Color(0x2c2a2a), .62, new THREE.Color(FOGC), 1.3] };
+const MOOD_T = new THREE.Color();
+function applyMood(k) { // k: 0 mild bis 1 Hartfrost
+  if (!hemi || !sun) return; const a = MOOD.warm, b = MOOD.cold;
+  sun.color.copy(a[0]).lerp(b[0], k); sun.intensity = a[1] + (b[1] - a[1]) * k;
+  hemi.color.copy(a[2]).lerp(b[2], k); hemi.groundColor.copy(a[3]).lerp(b[3], k); hemi.intensity = a[4] + (b[4] - a[4]) * k;
+  renderer.toneMappingExposure = a[6] + (b[6] - a[6]) * k;
+  return MOOD_T.copy(a[5]).lerp(b[5], k);
+}
 let Q = QUALITY.high;
 const postActive = () => !!(post && postOn && Q.post);
 export function setPost(on) { postOn = !!on; if (MD.GLOW) MD.GLOW.k = postActive() ? .2 : 1; }
@@ -76,7 +88,8 @@ function hAt(X, Z) {
 }
 function hAt0(X, Z) {
   const dx = Math.max(0, -X, X - WU), dz = Math.max(0, -Z, Z - HU), out = Math.hypot(dx, dz);
-  const dune = .22 * Math.sin(X * .21 + Z * .13) + .15 * Math.sin(X * .09 - Z * .17) + .08 * Math.sin(X * .47 + Z * .41);
+  const dune = .22 * Math.sin(X * .21 + Z * .13) + .15 * Math.sin(X * .09 - Z * .17) + .08 * Math.sin(X * .47 + Z * .41)
+    + .55 * Math.sin(X * .043 + 1.3) * Math.sin(Z * .051 + .4) + .32 * Math.sin(X * .027 - Z * .034 + 2.1); // weite Hügel
   const rim = out > 0 ? Math.pow(out / 6, 1.55) * .95 * (1 + .3 * Math.sin(X * .5) * Math.sin(Z * .6)) : 0;
   return dune * (1 - sstep(0, 3, out)) + rim;
 }
@@ -138,7 +151,7 @@ export function attach3d(glCanvas, overlayCanvas, mini) {
   camera = new THREE.PerspectiveCamera(FOV, 1, 1, 700);
   // Kaltes Mondlicht von der Seite, schwaches Himmelslicht und ein warmer Gegenschein.
   scene.environment = skyEnvironment(r);
-  scene.add(new THREE.HemisphereLight(0x9fb6d2, 0x2c2a2a, .62));
+  hemi = new THREE.HemisphereLight(0x9fb6d2, 0x2c2a2a, .62); scene.add(hemi);
   sun = new THREE.DirectionalLight(0xc8d8ff, 2.9); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera; sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 5; sc.far = 220; sun.shadow.bias = -.0004; sun.shadow.normalBias = .06;
   scene.add(sun); scene.add(sun.target);
@@ -198,8 +211,8 @@ function sync() {
   camera.userData = { cx, cz, D };
   const ev = G && G.ev, ek = ev && ev.id ? wk : 0;
   const W = ev && ev.id && WEATHER[ev.id];
-  scene.fog.density = .5 / D * (1 + ek * (W ? W.dens : 0)) * (1 + .3 * seasonK);
-  FOG_TMP.set(FOGC); FOG_TMP.lerp(FROST_C, .35 * seasonK); if (W) FOG_TMP.lerp(W.col, ek); scene.fog.color.copy(FOG_TMP); scene.background.copy(FOG_TMP);
+  scene.fog.density = .5 / D * (1 + ek * (W ? W.dens : 0)) * (.62 + .68 * seasonK); // milde Zeit: klare Luft
+  FOG_TMP.copy(applyMood(Math.min(1, seasonK * 1.6)) || MOOD.cold[5]); FOG_TMP.lerp(FROST_C, .35 * seasonK); if (W) FOG_TMP.lerp(W.col, ek); scene.fog.color.copy(FOG_TMP); scene.background.copy(FOG_TMP);
 }
 function toWorld3(x, y) {
   ray.setFromCamera(new THREE.Vector2(x / view.w * 2 - 1, -(y / view.h * 2 - 1)), camera);
@@ -350,7 +363,7 @@ function paintGround() {
 /* ---------- Bodenbewuchs: Büschel, Sträucher, Brocken (nur Kulisse, drei Instanzgruppen) ---------- */
 // Je Gebiet: [Büschel je 1000 Felder, Sträucher, Brocken, Farbe Büschel, Farbe Strauch, Schneekappe]
 const DRESS = {
-  grenz: [260, 60, 28, 0x7d7a5c, 0x3c4a3a, 1], wald: [420, 130, 24, 0x5f6e4c, 0x2e4032, 1], berg: [120, 30, 260, 0x7d7a6c, 0x44483e, 1],
+  grenz: [620, 110, 28, 0x7d7a5c, 0x3c4a3a, 1], wald: [900, 220, 24, 0x5f6e4c, 0x2e4032, 1], berg: [260, 50, 260, 0x7d7a6c, 0x44483e, 1],
   asch: [60, 60, 150, 0x4a4038, 0x2a2420, 0], trocken: [330, 60, 130, 0xb39a5e, 0x6c5a34, 0], sumpf: [620, 130, 30, 0x66783e, 0x33442a, 0], kueste: [300, 50, 90, 0xa9a070, 0x5b6a44, 0]
 };
 let dressGeo = null, dressList = []; // dressList: alle Stücke mit Lage, damit Bauplätze sie verdrängen können
@@ -434,7 +447,7 @@ export function buildTerrain() {
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .95, metalness: 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.detailMap = { value: det }; sh.uniforms.uSeas = SEAS;
-    sh.fragmentShader = 'uniform sampler2D detailMap; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n float sLow = texture2D(detailMap, vMapUv * vec2(7., 5.)).r * .6 + texture2D(detailMap, vMapUv * vec2(31., 23.)).g * .4;\n float sAmt = clamp((sLow - (1.05 - uSeas * 1.25)) * 3.5, 0., 1.);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.62, .66, .72), sAmt * .9);\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
+    sh.fragmentShader = 'uniform sampler2D detailMap; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n float sLow = texture2D(detailMap, vMapUv * vec2(7., 5.)).r * .6 + texture2D(detailMap, vMapUv * vec2(31., 23.)).g * .4;\n float sAmt = clamp((sLow - (1.05 - uSeas * 1.25)) * 3.5, 0., 1.);\n float thawK = 1. - clamp(uSeas * 1.6, 0., 1.);\n float moss = smoothstep(.38, .62, texture2D(detailMap, vMapUv * vec2(11., 8.)).g * .55 + texture2D(detailMap, vMapUv * vec2(3.7, 2.9)).r * .45);\n diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.18, 1.04, .78) + vec3(.012, .01, 0.), thawK * .85);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.25, .36, .13) * (.7 + dot(diffuseColor.rgb, vec3(.7))), moss * thawK * .78);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.62, .66, .72), sAmt * .9);\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
   };
   const ground = new THREE.Mesh(g, m); ground.receiveShadow = true; ground.userData.own = true; world.add(ground);
   if (wgrid) { // Wasserspiegel: liegt unter dem Gelände und zeigt sich nur in den Senken
@@ -862,7 +875,7 @@ export function render(dt, selSet) {
   const sh = G.shakeT > 0 ? G.shakeA * (G.shakeT / .35) * .045 : 0;
   if (sh) camera.position.add(new THREE.Vector3((Math.random() - .5) * sh, (Math.random() - .5) * sh, (Math.random() - .5) * sh));
   const { cx, cz } = camera.userData;
-  sun.target.position.set(cx, 0, cz); sun.position.set(cx - 38, 52, cz + 14);
+  sun.target.position.set(cx, 0, cz); sun.position.set(cx - 46, 40 + 12 * seasonK, cz + 20); // milde Zeit: tiefere Sonne, längere Schatten
   { // Schattenausschnitt folgt dem Bild: die ganze Auflösung für das, was zu sehen ist
     const ext = Math.max(18, Math.max(view.w, view.h) / cam.z * S * .62 + 4), sc = sun.shadow.camera;
     if (Math.abs(sc.right - ext) > ext * .08) { sc.left = sc.bottom = -ext; sc.right = sc.top = ext; sc.updateProjectionMatrix(); }
