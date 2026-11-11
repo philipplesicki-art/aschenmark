@@ -51,3 +51,8 @@ Ziel: realistischere Figuren und Gebäude als Blender-Modelle (.glb), per Python
 - Steam: eigene App-ID, Erfolge im Partnerbereich anlegen (Liste in docs/BUILD_STEAM.md), Store-Seite
 - Schriften für Offline-Betrieb lokal einbinden (derzeit Google Fonts, mit Ersatzschriften)
 - Handlungsfaden Teil 2 (die Enden deuten ihn an)
+
+## Blender-Modelle (Stand 11.11.2026)
+- Blender 5.3 liegt unter `C:\Program Files\Blender Foundation\Blender 5.3\blender.exe`; Aufruf ohne Fenster: `blender --background --python tools/blender/<skript>.py -- <ausgabe.glb> [vorschau.png]`
+- Pilot fertig: `tools/blender/wacht_melee.py` erzeugt `public/models/wacht_melee.glb` (Körper per Skin-Modifier, Rüstzeug starr, ein Netz, zwei Materialien mit Eckenfarben, Gewichte im Skript berechnet, Animationen stehen/gehen/angriff/arbeit/tod über NLA-Spuren). Eingetragen in `public/models/index.json`
+- Weitere Einheiten nach demselben Muster bauen; Vorschaubilder immer ansehen, bevor ein Modell in die index.json kommt
