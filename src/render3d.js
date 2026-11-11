@@ -581,16 +581,35 @@ function updateEnts(dt) {
     if (e.kind === 'unit') {
       o.g.position.set(X, Y, Z);
       let d = -e.face - o.rot; d = Math.atan2(Math.sin(d), Math.cos(d)); o.rot += d * Math.min(1, dt * 14); o.m.rotation.y = o.rot;
-      const j = o.j, mv = e.moving, ph = t * (e.type === 'cav' ? 13 : 9) + e.id;
-      o.m.position.y = mv ? Math.abs(Math.sin(ph)) * (e.type === 'cav' ? .12 : .08) : 0;
-      if (j.legL) { j.legL.rotation.z = mv ? Math.sin(ph) * .7 : 0; j.legR.rotation.z = mv ? -Math.sin(ph) * .7 : 0; }
-      if (j.legs) j.legs.forEach((l, i) => { l.rotation.z = mv ? Math.sin(ph + (i % 2 ? Math.PI : 0) + (i > 1 ? 1.6 : 0)) * .8 : 0; });
-      if (j.body && !j.ram) j.body.rotation.z = mv ? -.1 : 0;
-      const sw = e.cd > 0 && e.cd > e.d.cd - .3 ? Math.sin((e.d.cd - e.cd) / .3 * Math.PI) : 0;
+      // Bewegungsablauf: Zustände gehen weich ineinander über (mvK), der Schritt folgt dem zurückgelegten Weg (kein Gleiten),
+      // der Schlag hat Ausholen und Nachschwingen, Treffer lassen die Figur zurückzucken, im Stand atmet und schaut sie sich um.
+      const j = o.j, mv = e.moving, cav = e.type === 'cav', an0 = o.m.userData.anim;
+      o.mvK = (o.mvK || 0) + ((mv ? 1 : 0) - (o.mvK || 0)) * Math.min(1, dt * 9);
+      const moved = o.px === undefined ? 0 : Math.hypot(X - o.px, Z - o.pz); o.px = X; o.pz = Z;
+      o.ph = (o.ph === undefined ? e.id * 1.7 : o.ph) + Math.min(.4, moved) * (cav ? 3.4 : 5.6);
+      const ph = o.ph, mk = o.mvK, idle = 1 - mk, br = Math.sin(t * 1.7 + e.id * 1.3);
+      const el = e.cd > 0 ? e.d.cd - e.cd : 99, AW = Math.min(.42, e.d.cd * .6);
+      let sw = 0; if (el < AW) { const u = el / AW; sw = u < .3 ? u / .3 : 1 - (u - .3) / .7; sw = sw * sw * (3 - 2 * sw); }
+      const fl = Math.min(1, Math.max(0, e.hit) / .12), rout = e.rout ? 1 : 0;
+      if (!o.b) o.b = { aL: j.armL ? j.armL.rotation.z : 0, aR: j.armR ? j.armR.rotation.z : 0, hy: j.head ? j.head.rotation.y : 0, hz: j.head ? j.head.rotation.z : 0, by: j.body ? j.body.rotation.y : 0, bx: j.body ? j.body.rotation.x : 0 };
+      { const L = (e.d.rng > 60 ? -sw * .06 : sw * .24) - fl * .1; o.m.position.x = Math.cos(o.rot) * L; o.m.position.z = -Math.sin(o.rot) * L; } // Ausfallschritt beim Schlag, Rückstoß beim Schuss und bei Treffern
+      o.m.position.y = an0 ? 0 : Math.abs(Math.sin(ph)) * (cav ? .12 : .07) * mk + br * .012 * idle;
+      if (j.legL) { const a = (.62 + rout * .2) * mk; j.legL.rotation.z = Math.sin(ph) * a + sw * .28; j.legR.rotation.z = -Math.sin(ph) * a - sw * .22; }
+      if (j.armL && !e.working) j.armL.rotation.z = o.b.aL - Math.sin(ph) * .34 * mk + fl * .25;
+      if (j.armR && !e.working) j.armR.rotation.z = o.b.aR + Math.sin(ph) * (j.weapon ? .12 : .34) * mk - (e.d.rng > 60 ? 0 : sw * .55);
+      if (j.head) { j.head.rotation.y = o.b.hy + Math.sin(t * .55 + e.id * 2.1) * .32 * idle * (sw ? 0 : 1); j.head.rotation.z = o.b.hz + fl * .22 - sw * .12 + Math.sin(ph * 2) * .03 * mk; }
+      if (j.legs) j.legs.forEach((l, i) => { l.rotation.z = Math.sin(ph + (i % 2 ? Math.PI : 0) + (i > 1 ? 1.6 : 0)) * .8 * mk; });
+      if (j.body && !j.ram) {
+        const chop = e.working ? ((t * 1.5 + e.id * .37) % 1) : -1, cz = chop < 0 ? 0 : chop < .22 ? chop / .22 : 1 - (chop - .22) / .78;
+        j.body.rotation.z = -(.1 + rout * .12) * mk - sw * .2 + fl * .2 + br * .01 * idle - cz * .22;
+        j.body.rotation.y = o.b.by + sw * .3 + Math.sin(ph) * .06 * mk; j.body.rotation.x = o.b.bx + Math.sin(ph) * .045 * mk;
+        if (j.tool) j.tool.rotation.z = chop < 0 ? 0 : .35 - cz * 1.25;
+      }
+
       const an = o.m.userData.anim;
       if (an) MD.playAnim(an, MD.pickClip(e, e.cd > 0 && e.cd > e.d.cd - .6), dt); // Modelle aus Blender: Skelettanimation
       if (j.weapon) { if (e.type === 'ranged') j.weapon.rotation.z = sw * .25; else j.weapon.rotation.z = -sw * 1.2; }
-      if (j.tool) j.tool.rotation.z = e.working ? Math.sin(t * 14 + e.id) * .8 : 0;
+      if (j.tool && (!j.body || j.ram)) j.tool.rotation.z = e.working ? Math.sin(t * 9 + e.id) * .8 : 0;
       if (j.sack) j.sack.visible = e.carry > 0;
       if (j.ram) { j.ram.position.x = sw * 1.5; if (mv) j.wheels.forEach(w => w.rotateY(dt * 4)); }
       if (j.arm) { // Wurfarm: schnellt beim Schuss nach vorn und zieht langsam zurück
@@ -645,11 +664,22 @@ function updateCorpses(dt) {
         const R = rng((c.x * 13 + c.y * 7) | 0), rm = MD.mat(c.fac === 'asch' ? 0x2b2624 : c.fac === 'salz' ? 0xa9a69c : 0x6d7078, { roughness: 1 });
         for (let i = 0; i < 9; i++) { const r = new THREE.Mesh(new THREE.BoxGeometry(.5 + R() * 1.1, .3 + R() * .8, .5 + R() * 1.1), rm); r.position.set((R() - .5) * c.size * 1.8, .2, (R() - .5) * c.size * 1.8); r.rotation.set(R() * .5, R() * 6, R() * .5); r.castShadow = true; m.add(r); }
       } else {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(.9, .28, .5), MD.mat(c.fac === 'asch' ? 0x5a1a10 : c.fac === 'salz' ? 0x34433f : 0x2f4150, { roughness: 1 })); body.position.y = .16; body.rotation.y = -c.face; m.add(body);
+        let um = null;
+        if (corpseObjs.size < 36) try { um = MD.buildUnit(c.fac, c.type); um.scale.multiplyScalar(UF[c.type] || 1); } catch (_) { um = null; }
+        if (um) {
+          um.rotation.y = -c.face; m.add(um); m.userData.um = um; m.userData.side = ((c.x * 7 + c.y * 13) | 0) % 2 ? 1 : -1;
+          const an = um.userData.anim, tod = an && an.actions.tod; if (tod) { tod.setLoop(THREE.LoopOnce, 1); tod.clampWhenFinished = true; m.userData.tod = true; }
+        } else { const body = new THREE.Mesh(new THREE.BoxGeometry(.9, .28, .5), MD.mat(c.fac === 'asch' ? 0x5a1a10 : c.fac === 'salz' ? 0x34433f : 0x2f4150, { roughness: 1 })); body.position.y = .16; body.rotation.y = -c.face; m.add(body); }
       }
       scene.add(m); corpseObjs.set(c, m);
     }
-    m.position.set(X, hAt(X, Z), Z); m.scale.y = Math.min(1, k * 3); 
+    m.position.set(X, hAt(X, Z), Z);
+    const um = m.userData.um;
+    if (um) { // umkippen (mit kurzem Nachfedern), liegen bleiben, am Ende im Boden versinken
+      if (m.userData.tod) MD.playAnim(um.userData.anim, 'tod', dt);
+      else { const u = Math.min(1, c.t / .5), f = u < .8 ? (u / .8) * (u / .8) : 1 - Math.sin((u - .8) / .2 * Math.PI) * .06; um.rotation.z = f * 1.5; um.rotation.x = f * .25 * m.userData.side; um.position.y = f * .16; }
+      m.position.y -= (1 - Math.min(1, k * 4)) * .7;
+    } else m.scale.y = Math.min(1, k * 3); 
   }
   for (const [c, m] of corpseObjs) if (!alive.has(c)) { scene.remove(m); corpseObjs.delete(c); }
 }
