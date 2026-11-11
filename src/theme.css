@@ -257,11 +257,11 @@ table.swap tr.hero td{color:var(--brass2)}
 #panel{min-height:196px}
 #cmds .cg{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:3px 5px;align-items:start;justify-content:start}
 #cmds .cgl{grid-row:1;grid-column:1/-1;min-width:0;width:auto;font-size:11.5px;letter-spacing:.16em;opacity:.75;border-bottom:1px solid rgba(210,160,90,.22);padding-bottom:1px}
-#cmds .btn.tile{grid-row:2;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;width:78px;height:66px;min-height:0;padding:5px 3px 3px;font-size:12px;line-height:1.1}
+#cmds .btn.tile{grid-row:2;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;width:92px;height:66px;min-height:0;padding:5px 3px 3px;font-size:12px;line-height:1.1}
 #cmds .cg:not(:has(.cgl)) .btn.tile{grid-row:1/3}
 #cmds .tile .ic{width:28px;height:28px;flex:none;color:#e9c98d;filter:drop-shadow(0 1px 0 rgba(0,0,0,.9))}
 #cmds .tile:hover:not(.off) .ic{color:#ffe9bd}
-#cmds .tile .l{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;letter-spacing:.02em}
+#cmds .tile .l{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;letter-spacing:0}
 #cmds .tile .k{position:absolute;top:3px;left:5px;margin:0;padding:0 4px;min-width:0;font-size:10.5px;line-height:14px;text-transform:uppercase;background:rgba(0,0,0,.55);border:1px solid #5a4a33;color:#cdb98f}
 #cmds .tile .c{display:flex;gap:5px;font-size:11.5px;margin:0;font-family:var(--ui)}
 #cmds .tile .c .res i{width:9px;height:9px}
@@ -284,3 +284,9 @@ table.swap tr.hero td{color:var(--brass2)}
 .mbtn:hover,.mbtn:focus-visible{padding-left:34px;background:var(--grain),linear-gradient(90deg,rgba(92,62,26,.9) 0%,rgba(46,34,20,.7) 55%,rgba(22,20,17,0) 100%);border-top-color:rgba(242,207,142,.55)}
 .mbtn:hover span,.mbtn:focus-visible span{color:#ffe6b8;text-shadow:0 0 18px rgba(240,170,80,.45)}
 .mbtn span{text-shadow:0 2px 0 rgba(0,0,0,.8)}
+#info .vet{color:#ffd98a;font-family:var(--sc);letter-spacing:.04em}
+
+/* Kopfleiste bleibt bis herunter zu mittleren Breiten einzeilig: Beschriftungen und Tastenkürzel weichen zuerst */
+@media (min-width:900px){#top{flex-wrap:nowrap}#top .stat,#top .btn{white-space:nowrap;flex:none}#top .sp{min-width:4px}}
+@media (min-width:900px) and (max-width:1500px){#top{gap:5px;padding:6px 10px}#top .btn .k{display:none}#top .stat:has(#clock) span,#top .stat:has(#reg) span{display:none}}
+@media (min-width:900px) and (max-width:1320px){#top .stat span{display:none}#top .stat.season span{display:inline}#top .stat,#top .btn{padding:3px 7px}}

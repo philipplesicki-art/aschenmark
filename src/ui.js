@@ -16,6 +16,7 @@ import { platform, ACHIEVEMENTS } from './platform.js';
 import { questProgress, ENDINGS } from './quests.js';
 import { finishBattle, startBattle } from './battle.js';
 import { iconFor } from './icons.js';
+import { VET_NAMES } from './combat.js';
 import { avgMorale } from './tactics.js';
 import { coverAt, mudAt } from './terrain.js';
 
@@ -55,6 +56,7 @@ function renderInfo() {
       if (e.type === 'worker' && e.team === 0 && e.carry > 0) h += ' · trägt ' + e.carry + (e.cres === 'wood' ? ' Holz' : ' Erz');
       if (e.type === 'hq') h += ' · Stufe ' + (e.tier || 1);
       if (e.kind === 'unit' && G.battle && e.mor !== undefined && e.type !== 'hero') h += e.rout ? ' · <span class="mor low">auf der Flucht</span>' : ' · <span class="mor' + (e.mor < 35 ? ' low' : '') + '">Moral ' + Math.round(e.mor) + '</span>';
+      if (e.kind === 'unit' && e.vet) h += ' · <span class="vet">' + '▲'.repeat(e.vet) + ' ' + VET_NAMES[e.vet] + '</span>';
       if (e.kind === 'unit' && e.hold && e.team === 0) h += ' · hält Stellung';
       if (e.kind === 'unit' && coverAt(e.x, e.y)) h += ' · <span class="terr">Deckung</span>';
       if (e.kind === 'unit' && mudAt(e.x, e.y)) h += ' · <span class="terr">Schlamm</span>';
@@ -173,7 +175,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.7.0';
+export const VERSION = '0.7.1';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 
@@ -364,6 +366,7 @@ export const HANDBOOK = {
     ['Sturmangriff', 'Reiter mit Anlauf treffen beim ersten Schlag fast doppelt so hart. Danach brauchen sie neuen Anlauf: herausziehen und wieder anreiten lohnt sich.'],
     ['Feste Reihe', 'Fußvolk, das steht, ist von vorn schwerer zu treffen und fängt einen Sturmangriff ab; der Reiter nimmt dabei selbst Schaden. Reiter gehören deshalb in Flanke und Rücken oder auf Schützen.'],
     ['Stellung halten', 'Taste G. Die Truppe bleibt stehen und schlägt nur, was in Reichweite kommt. So bleibt die Reihe geschlossen und lässt sich nicht herauslocken.'],
+    ['Erfahrung', 'Wer Feinde erschlägt, steigt im Rang: nach zwei, fünf und neun Gegnern. Jeder Rang bringt ein Zehntel mehr Schaden und Leben, und die Truppe wankt später. Erfahrene Trupps zu schonen und zurückzuziehen lohnt sich.'],
     ['Moral', 'Gilt in den Schlachten der Kampagne. Verluste, Tote in der Nähe, Treffer in Flanke und Rücken und Unterzahl lassen sie sinken. Bei null flieht die Truppe hinter die eigene Linie. In Sicherheit sammelt sie sich wieder, beim Helden schneller. Fällt der Held, wankt das ganze Heer.'],
     ['Sieg durch Flucht', 'Eine Seite, bei der niemand mehr standhält, hat verloren. Wer geflohen ist, überlebt und zählt weiter zum Heer. Ein Gegner muss also nicht vernichtet, nur gebrochen werden.'],
     ['Aufstellung', 'Vor jeder Schlacht der Kampagne bleiben vierzig Sekunden, um das Heer im markierten Feld zu ordnen: Speere nach vorn, Schützen in den Wald, Reiter an die Flanke. Der Knopf oben beginnt die Schlacht früher.']

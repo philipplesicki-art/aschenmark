@@ -96,7 +96,10 @@ export const SITES = {
   shrine:      { name: 'Heiligtum der Frostmutter', glyph: '✦', desc: 'Unruhe klingt im ganzen Reich eine Runde schneller ab.' },
   barrow:      { name: 'Hünengrab', glyph: '☗', desc: 'Der Held gewinnt jede Runde 15 Erfahrung.' },
   ironpit:     { name: 'Eisengrube', glyph: '⛏', desc: 'Hier 45 Erz mehr je Runde.' },
-  camp:        { name: 'Söldnerlager', glyph: '⚑', desc: 'Jede zweite Runde schließen sich hier zwei Söldner dem Reich an.' }
+  camp:        { name: 'Söldnerlager', glyph: '⚑', desc: 'Jede zweite Runde schließen sich hier zwei Söldner dem Reich an.' },
+  grove:       { name: 'Uralter Hain', glyph: '♣', desc: 'Hier 45 Holz mehr je Runde.' },
+  quarry:      { name: 'Steinbruch der Alten', glyph: '▣', desc: 'Bauwerke kosten im ganzen Reich ein Zehntel weniger.' },
+  harbor:      { name: 'Versunkener Hafen', glyph: '⚓', desc: 'Hier 25 Erz und 25 Vorräte mehr je Runde.' }
 };
 export const SITE_IDS = Object.keys(SITES);
 

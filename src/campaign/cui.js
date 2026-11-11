@@ -40,6 +40,7 @@ export function openCampaign(exit) {
 export const campaignOpen = () => !!(root && !root.hidden);
 export function closeCampaign() { if (root) root.hidden = true; }
 export function selectArmyUi(id) { sel = { kind: 'army', id }; render(); } // für Tests und Fehlersuche
+export function pendingUi() { afterBattle(); }
 
 function build() {
   root = document.createElement('div'); root.id = 'camp'; root.hidden = true;
@@ -415,11 +416,12 @@ function choose(pb) {
     + '<div class="vs">' + side(pl, pPow, !spec.playerAttacks) + '<div class="vmid">gegen</div>' + side(en, ePow, spec.playerAttacks) + '</div>'
     + '<div class="vbar" title="Kräfteverhältnis"><i style="width:' + share + '%;background:' + facColor(pl.fac) + '"></i><i style="width:' + (100 - share) + '%;background:' + facColor(en.fac) + '"></i></div>'
     + '<p class="sub">Berechnet stehen die Aussichten bei etwa <b>' + chance + ' %</b>. Wer die Schlacht selbst schlägt, kann mit Gelände und Geschick mehr herausholen, aber auch mehr verlieren.</p>'
-    + '<div class="row end"><button class="btn" data-d="auto" type="button">Berechnen lassen</button>'
+    + '<div class="row end">' + (spec.playerAttacks ? '<button class="btn" data-d="cancel" type="button" title="Das Heer bleibt stehen, der Angriff findet nicht statt.">Angriff abbrechen</button>' : '') + '<button class="btn" data-d="auto" type="button">Berechnen lassen</button>'
     + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',
   d => {
     if (d === 'auto') { const r = resolvePending(pb); saveCampaign(); owners = null; render(); if (r) showBattle(r); else afterBattle(); }
     else if (d === 'fight') fight(pb, spec);
+    else if (d === 'cancel') { C.pending = (C.pending || []).filter(x => x !== pb); a.path = []; saveCampaign(); $('cDlg').hidden = true; render(); afterBattle(); } // Heer bleibt, wo es steht
   });
 }
 const waiting = () => !!((C.story && C.story.msgs && C.story.msgs.length) || nextPending() || (C.heroPick && C.heroPick.length) || (C.events && C.events.length) || (C.offers && C.offers.length));

@@ -46,7 +46,7 @@ const hasMorale = u => !!G.battle && u.kind === 'unit' && u.mor !== undefined;
 export function initMorale() {
   for (const u of G.ents) if (u.kind === 'unit') { u.mor = u.type === 'hero' ? 100 : u.militia ? 70 : 100; u.rout = false; }
 }
-export function moraleLoss(u, n) { if (hasMorale(u) && u.type !== 'hero') u.mor = Math.max(0, u.mor - n); }
+export function moraleLoss(u, n) { if (hasMorale(u) && u.type !== 'hero') u.mor = Math.max(0, u.mor - n * (1 - .15 * (u.vet || 0))); } // erfahrene Truppen wanken später
 export function onDamage(t, d) { if (hasMorale(t)) moraleLoss(t, d / t.maxhp * 55); }
 export function onDeath(e) {
   if (!G.battle || e.kind !== 'unit') return;

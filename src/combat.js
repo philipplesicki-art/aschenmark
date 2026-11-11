@@ -72,6 +72,16 @@ export function hurt(t, d, src) {
   if (t.hp <= 0) kill(t, src);
 }
 
+// Erfahrung der Truppen: nach 2, 5 und 9 erschlagenen Feinden steigt eine Einheit im Rang (je +10 % Schaden und Leben, standhafter).
+export const VET_STEPS = [2, 5, 9], VET_NAMES = ['', 'Erprobt', 'Veteran', 'Elite der Mark'];
+function veteran(src, e) {
+  if (!src || src.kind !== 'unit' || src.dead || e.kind !== 'unit' || src.team === e.team || src.type === 'hero' || src.type === 'worker' || e.type === 'worker') return;
+  src.vk = (src.vk || 0) + 1; const r = VET_STEPS.filter(n => src.vk >= n).length;
+  if (r <= (src.vet || 0)) return;
+  src.vet = r; src.dmgMul = 1 + .1 * r; const up = Math.round(src.d.hp * .1); src.maxhp += up; src.hp = Math.min(src.maxhp, src.hp + up + src.maxhp * .15);
+  if (src.mor !== undefined) src.mor = Math.min(100, src.mor + 25);
+  if (src.team === 0) hooks.float(src.x, src.y - 20, VET_NAMES[r], '#ffe9a8');
+}
 export function kill(e, src) {
   if (e.dead) return;
   e.dead = true; e.hp = 0; onDeath(e);
@@ -89,6 +99,7 @@ export function kill(e, src) {
     G.ore[src.team] += e.d.bounty || 0; giveXp(src.team, e.x, e.y, (e.d.pop || 1) * 12);
     if (src.team === 0) hooks.float(e.x, e.y - 14, '+' + (e.d.bounty || 0), '#e0933f');
   }
+  veteran(src, e);
   G.map.delete(e.id);
   if (src && src.team !== e.team && src.team < 2 && (e.team === 0 || e.team === 1)) {
     const st = src.team;

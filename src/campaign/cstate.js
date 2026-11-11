@@ -110,6 +110,7 @@ export function provYield(p) {
     if (r === 'ore') v += (p.blds.market || 0) * cfx(p.owner, 'marketOre');
     v += (p.bonus && p.bonus[r]) || 0; // Ereignisse (neue Erzader)
     if (p.site === 'ironpit' && r === 'ore') v += 45; if (p.site === 'saltlake' && r === 'food') v += 40;
+    if (p.site === 'grove' && r === 'wood') v += 45; if (p.site === 'harbor' && (r === 'ore' || r === 'food')) v += 25;
     y[r] = v * (1 + .1 * (p.blds.market || 0)) * (1 + cfx(p.owner, 'yieldAll'));
   }
   return y;
@@ -136,7 +137,7 @@ export const adminMul = (n, f) => 1 / (1 + Math.max(0, n - adminFree(f)) * ADMIN
 export const unrestTurns = p => 3 + p.lvl;
 
 /* ---------- Bauen und Ausbau ---------- */
-export const bldCost = (id, L, f) => { const k = id === 'walls' ? 1 - cfx(f, 'wallCost') : 1; return CBLD[id].cost[L].map(v => Math.round(v * k)); };
+export const bldCost = (id, L, f) => { const k = (id === 'walls' ? 1 - cfx(f, 'wallCost') : 1) * (C && C.emp[f] && hasSite(f, 'quarry') ? .9 : 1); return CBLD[id].cost[L].map(v => Math.round(v * k)); };
 export const slotsUsed = p => CBLD_IDS.reduce((n, b) => n + (p.blds[b] ? 1 : 0), 0);
 export function buildBlock(p, id, f = C.player) {
   if (p.owner !== f) return 'Nicht deine Provinz';
