@@ -112,7 +112,17 @@ export const ITEMS = {
   heilstein:    { slot: 'talisman', rank: 1, name: 'Heilstein', desc: 'Der Held ist nach einer Niederlage nur zwei Runden verwundet', heal: 1 },
   ahnenhorn:    { slot: 'talisman', rank: 2, name: 'Horn der Ahnen', desc: 'Das Heldenheer hat einen Zug mehr', moves: 1 },
   markbanner:   { slot: 'talisman', rank: 2, name: 'Banner der ersten Wacht', desc: 'Heldenheer +10 % Stärke', army: .1 },
-  siegelring:   { slot: 'talisman', rank: 3, name: 'Siegelring der Gelehrten', desc: 'Forschung ein halber Punkt mehr je Runde, Heer +4 % Stärke', research: .5, army: .04 }
+  siegelring:   { slot: 'talisman', rank: 3, name: 'Siegelring der Gelehrten', desc: 'Forschung ein halber Punkt mehr je Runde, Heer +4 % Stärke', research: .5, army: .04 },
+  // Zweite Reihe: gleiche Ränge, andere Schwerpunkte. So lohnt nicht jeder Fund, und zwei Kampagnen gleichen sich weniger.
+  wolfszahn:    { slot: 'waffe', rank: 1, name: 'Wolfszahn-Dolch', desc: 'Held +12 % Schaden, Heer +6 % Stärke', hero: { dmg: .12 }, army: .06 },
+  richtschwert: { slot: 'waffe', rank: 2, name: 'Richtschwert von Karsschart', desc: 'Held +45 % Schaden', hero: { dmg: .45 } },
+  aschenhammer: { slot: 'waffe', rank: 3, name: 'Hammer der Aschenschmiede', desc: 'Held +40 % Schaden und +15 % Leben, Heer +11 % Stärke', hero: { dmg: .4, hp: .15 }, army: .11 },
+  kettenhemd:   { slot: 'ruestung', rank: 1, name: 'Geflicktes Kettenhemd', desc: 'Held +12 % Leben, Heer +3 % Stärke', hero: { hp: .12 }, army: .03 },
+  baerenfell:   { slot: 'ruestung', rank: 2, name: 'Fell des Höhlenbären', desc: 'Held +45 % Leben', hero: { hp: .45 } },
+  wachtplatte:  { slot: 'ruestung', rank: 3, name: 'Plattenharnisch der ersten Wacht', desc: 'Held +45 % Leben und +15 % Schaden, Heer +7 % Stärke', hero: { hp: .45, dmg: .15 }, army: .07 },
+  feldkarte:    { slot: 'talisman', rank: 1, name: 'Feldkarte der Kundschafter', desc: 'Heldenheer +5 % Stärke', army: .05 },
+  wanderstab:   { slot: 'talisman', rank: 3, name: 'Wanderstab des Pilgers', desc: 'Das Heldenheer hat einen Zug mehr, der Held ist nach einer Niederlage nur zwei Runden verwundet', moves: 1, heal: 1 },
+  sternglas:    { slot: 'talisman', rank: 2, name: 'Sternglas', desc: 'Forschung ein Drittelpunkt mehr je Runde, Heldenheer +4 % Stärke', research: .34, army: .04 }
 };
 export const ITEM_IDS = Object.keys(ITEMS);
 export const SLOT_NAME = { waffe: 'Waffe', ruestung: 'Rüstung', talisman: 'Talisman' };
