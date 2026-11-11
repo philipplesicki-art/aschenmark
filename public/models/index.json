@@ -7,5 +7,13 @@
   "wacht:workshop": "wacht_workshop.glb",
   "wacht:lumber": "wacht_lumber.glb",
   "wacht:market": "wacht_market.glb",
-  "wacht:outpost": "wacht_outpost.glb"
+  "wacht:outpost": "wacht_outpost.glb",
+  "asch:hq": "asch_hq.glb",
+  "asch:barracks": "asch_barracks.glb",
+  "asch:tower": "asch_tower.glb",
+  "asch:farm": "asch_farm.glb",
+  "asch:workshop": "asch_workshop.glb",
+  "asch:lumber": "asch_lumber.glb",
+  "asch:market": "asch_market.glb",
+  "asch:outpost": "asch_outpost.glb"
 }
