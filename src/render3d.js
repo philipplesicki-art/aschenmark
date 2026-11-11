@@ -329,7 +329,9 @@ const DRESS = {
   grenz: [260, 70, 50, 0x7d7a5c, 0x3c4a3a, 1], wald: [420, 150, 40, 0x5f6e4c, 0x2e4032, 1], berg: [120, 30, 260, 0x7d7a6c, 0x44483e, 1],
   asch: [60, 60, 150, 0x4a4038, 0x2a2420, 0], trocken: [330, 60, 130, 0xb39a5e, 0x6c5a34, 0], sumpf: [620, 130, 30, 0x66783e, 0x33442a, 0], kueste: [300, 50, 90, 0xa9a070, 0x5b6a44, 0]
 };
-let dressGeo = null;
+let dressGeo = null, dressList = []; // dressList: alle Stücke mit Lage, damit Bauplätze sie verdrängen können
+const ZERO_M = new THREE.Matrix4().makeScale(0, 0, 0);
+function clearDress(e) { const r = e.r + 10; for (const d of dressList) if (!d.off && Math.abs(d.x - e.x) < r && Math.abs(d.y - e.y) < r) { d.off = true; d.im.setMatrixAt(d.i, ZERO_M); d.im.instanceMatrix.needsUpdate = true; } }
 function dressGeos() {
   if (dressGeo) return dressGeo;
   // Büschel: sieben schmale Halme als Dreiecke, fächerförmig
@@ -346,6 +348,7 @@ function dressGeos() {
   return (dressGeo = { tuft, bush, rock });
 }
 function dressGround() {
+  dressList = [];
   const R = rng((G.seed ^ 0x77aa11) >>> 0), g = dressGeos(), cells = GW * GH, lists = { tuft: [], bush: [], rock: [] };
   const biomeAt = (cx, cy) => (G.battle ? G.battle.biome : regionAtCell(cx, cy));
   const tries = Math.round(cells * 1.1);
@@ -368,7 +371,7 @@ function dressGround() {
       if (kind === 'tuft') col.setHex(D[3]).multiplyScalar(.7 + b * .45);
       else if (kind === 'bush') { col.setHex(D[4]).multiplyScalar(1.7 + b * .6); if (D[5]) col.lerp(white, .12 + a * .18); }
       else { col.setHex(D[5] ? 0x9aa0a8 : G.battle && G.battle.biome === 'asch' ? 0x3a3432 : 0x8a7f72); col.multiplyScalar(.8 + b * .4); }
-      im.setColorAt(i, col);
+      im.setColorAt(i, col); dressList.push({ im, i, x, y });
     });
     im.castShadow = kind !== 'tuft'; im.receiveShadow = true; im.instanceColor.needsUpdate = true; world.add(im);
   }
@@ -523,12 +526,12 @@ function makeObj(e) {
     const b = blob(); b.scale.setScalar(e.r * S * (e.type === 'siege' ? 3.8 : e.type === 'cav' ? 3.6 : 3)); b.position.y = .06; g.add(b);
     o = { g, e, m, j: m.userData.j || {}, rot: e.face, spin: 0 };
   } else if (e.kind === 'bld') {
-    const m = MD.buildBld(e.fac, e.type, e.id); g.add(m);
+    const m = MD.buildBld(e.fac, e.type, e.id); g.add(m); clearDress(e);
     if (e.type === 'wall' && e.rot !== undefined) m.rotation.y = -(e.rot + Math.PI / 2); // Mauerstück quer zur Angriffsrichtung
     g.add(meltDecal(e));
     o = { g, e, m, built: e.built, fireSp: null };
   } else {
-    const m = MD.buildDep(); g.add(m); o = { g, e, m };
+    const m = MD.buildDep(); g.add(m); clearDress(e); o = { g, e, m };
   }
   scene.add(g); objs.set(e.id, o); return o;
 }
