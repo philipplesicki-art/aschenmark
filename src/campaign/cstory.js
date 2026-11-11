@@ -2,7 +2,7 @@
 // Akt I: fünf Kapitel je Fraktion (für den Spieler) mit Zielen und Belohnungen. Akt II: Vorzeichen. Akt III: Ein Schlund bricht im
 // Gebirge auf, die Erwachten (Wilde unter Besitzer 'wild') ziehen gegen alle Reiche, bis jemand den Schlund erobert und drei Runden hält.
 // Zustand in C.story (gespeichert). Erzähltexte warten für den Spieler in C.story.msgs.
-import { C, MAP, cR, cHooks, addLog, prov, pinfo, armiesAt, unitCount, mkArmy, orderMove, empireName, hostile, dipOf } from './cstate.js';
+import { C, MAP, cR, cHooks, addLog, prov, pinfo, armiesAt, unitCount, mkArmy, orderMove, empireName, hostile, dipOf, Nc } from './cstate.js';
 import { FACTIONS, FAC_IDS } from '../factions.js';
 import { CTECH } from './ctech.js';
 
@@ -109,8 +109,8 @@ function riftTurn() {
     if (++S.riftHeld >= 3) {
       S.sealedBy = p.owner; p.rift = false; S.rift = -1; S.act = 4;
       for (const a of C.armies.filter(x => x.owner === 'wild')) C.armies = C.armies.filter(x => x !== a);
-      addLog(empireName(p.owner) + ' versiegelt den Schlund in ' + pinfo(p.id).name + '. Die Erwachten zerfallen zu Asche.', p.owner === C.player ? 'good' : '');
-      if (p.owner !== C.player) tell('Der Schlund ist versiegelt', empireName(p.owner) + ' hat den Schlund geschlossen. Ganz Orsa spricht davon, und nicht in deinem Namen.');
+      addLog(Nc(p.owner) + ' versiegelt den Schlund in ' + pinfo(p.id).name + '. Die Erwachten zerfallen zu Asche.', p.owner === C.player ? 'good' : '');
+      if (p.owner !== C.player) tell('Der Schlund ist versiegelt', Nc(p.owner) + ' hat den Schlund geschlossen. Ganz Orsa spricht davon, und nicht in deinem Namen.');
     }
     return;
   }

@@ -85,7 +85,7 @@ export function newCampaign({ player = 'wacht', diff = 'normal', seed = (Math.ra
   for (const f of FAC_IDS) mkArmy(f, map.capitals[f], { melee: 6, ranged: 4 }, true);
   // Zu Beginn herrscht Frieden mit Waffenstillstand: erst die Wildnis, dann die Nachbarn
   for (const f of FAC_IDS) for (const g of FAC_IDS) if (f < g) c.dip[dkey(f, g)] = { st: 'peace', since: 1, truce: 8 };
-  addLog('Jahr 1, Tauzeit. ' + FACTIONS[player].name + ' erhebt Anspruch auf Orsa.', 'good');
+  addLog('Jahr 1, Tauzeit. ' + Nc(player) + ' erhebt Anspruch auf Orsa.', 'good');
   return c;
 }
 // Wilde Besatzung neutraler Provinzen: Stärke wächst mit dem Abstand zur nächsten Hauptstadt
@@ -261,7 +261,7 @@ export function advance(a) {
       const fort = p.owner && hostile(p.owner, a.owner) && (C.emp[p.owner].capital === next || (p.blds.walls || 0) - breachOf(a) > 0);
       if (fort && a.siege !== next) {
         a.siege = next; a.moved = movesOf(a); a.path = [next];
-        if (a.owner === C.player || p.owner === C.player) addLog(empireName(a.owner) + ' belagert ' + pinfo(next).name + '. Der Sturm folgt in der nächsten Runde.', a.owner === C.player ? '' : 'bad');
+        if (a.owner === C.player || p.owner === C.player) addLog(Nc(a.owner) + ' belagert ' + pinfo(next).name + '. Der Sturm folgt in der nächsten Runde.', a.owner === C.player ? '' : 'bad');
         return { siege: next };
       }
       a.moved = movesOf(a); a.path = []; a.siege = null;
@@ -377,7 +377,7 @@ export function attack(a, id, out) {
   const winLoss = Math.max(.05, Math.min(.85, weaker / Math.max(1, stronger) * .55)), loseLoss = Math.min(1, .55 + (stronger / Math.max(1, weaker)) * .2);
   const report = { att: a.owner, def: p.owner || (def.armies[0] ? def.armies[0].owner : 'wild'), prov: id, atkPow: Math.round(atk), defPow: Math.round(def.pow), won, fought: !!(out && out.fought) };
   const before = unitCount(a.units), beforeD = def.armies.reduce((n, d) => n + unitCount(d.units), 0) + (p.owner === null ? unitCount(p.garrison) : 0);
-  const nameD = p.owner ? FACTIONS[p.owner].name : 'Wilde'; // vor der Eroberung festhalten
+  const nameD = p.owner ? D(p.owner) : 'Wilden'; // vor der Eroberung festhalten
   if (out) { // gespielte Schlacht: die Überlebenden zählen
     for (const r of Object.keys(a.units)) a.units[r] = Math.min(a.units[r], (out.atk && out.atk[r]) || 0);
     setDefenders(def.armies, p, out.def || {});
@@ -406,7 +406,7 @@ export function attack(a, id, out) {
   const nameA = empireName(a.owner);
   report.awk = a.owner === 'wild' || def.armies.some(d => d.owner === 'wild'); report.awkDef = p.owner || (def.armies[0] && def.armies[0].owner);
   storyBattle(report, a);
-  if (a.owner === 'wild') { if (!won) addLog('Die Erwachten scheitern an ' + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ')', report.def === C.player ? 'good' : ''); } else addLog((won ? nameA + ' erobert ' : nameA + ' scheitert an ') + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ', Verteidiger: ' + nameD + ')', a.owner === C.player ? (won ? 'good' : 'bad') : (report.def === C.player ? (won ? 'bad' : 'good') : ''));
+  if (a.owner === 'wild') { if (!won) addLog('Die Erwachten scheitern an ' + pinfo(id).name + ' (' + report.atkPow + ' gegen ' + report.defPow + ')', report.def === C.player ? 'good' : ''); } else addLog((won ? Nc(a.owner) + ' erobert ' : Nc(a.owner) + ' scheitert vor ') + pinfo(id).name + ' (Stärke ' + report.atkPow + ' gegen ' + report.defPow + ', verteidigt von ' + nameD + ')', a.owner === C.player ? (won ? 'good' : 'bad') : (report.def === C.player ? (won ? 'bad' : 'good') : ''));
   cHooks.battle(report);
   return report;
 }
@@ -463,7 +463,7 @@ export function endTurn(aiTurn) {
     if (e.food < 0) { // Hunger: Heere schrumpfen
       e.food = 0;
       for (const a of C.armies) if (a.owner === f) takeLosses(a.units, .08);
-      if (f === C.player) addLog('Hunger in den Heerlagern! Truppen desertieren. Mehr Gehöfte oder weniger Truppen.', 'bad');
+      if (f === C.player) addLog('Hunger in den Heerlagern! Trupps laufen davon. Baue Gehöfte, tausche Vorräte ein oder entlasse Truppen.', 'bad');
     }
     e.food = Math.min(e.food, foodCapE(f));
     if (e.research && (e.research.prog += researchRate(f)) >= e.research.need) { finishResearch(f, e.research.id); e.research = null; }
@@ -480,7 +480,7 @@ export function endTurn(aiTurn) {
     if (!held && p.unrest > 0 && cR() < REVOLT * (cfx(p.owner, 'garrison') ? .5 : 1)) {
       const old = p.owner; p.owner = null; p.unrest = 0; p.queue = null; p.garrison = wildGarrison(MAP.provs[p.id]);
       C.recruits = C.recruits.filter(r => r.prov !== p.id);
-      addLog('Aufstand in ' + pinfo(p.id).name + '! Die Provinz sagt sich von ' + FACTIONS[old].name + ' los.', old === C.player ? 'bad' : '');
+      addLog('Aufstand in ' + pinfo(p.id).name + '! Die Provinz sagt sich von ' + D(old) + ' los.', old === C.player ? 'bad' : '');
       if (C.emp[old].capital === p.id) { const rest = C.provs.filter(q => q.owner === old).sort((a, b) => b.lvl - a.lvl); C.emp[old].capital = rest.length ? rest[0].id : -1; }
     }
   }
@@ -509,7 +509,7 @@ export function endTurn(aiTurn) {
   for (const a of C.armies) a.moved = 0;
   C.armies = C.armies.filter(a => unitCount(a.units) > 0 || a.hero);
   const s = season();
-  addLog('Jahr ' + year() + ', ' + s.name + (s.id === 'frost' ? ': kaum Ernte, Heere frieren und kommen langsam voran.' : '.'), s.id === 'frost' ? 'bad' : '');
+  addLog('Jahr ' + year() + ', ' + s.name + (s.id === 'frost' ? ': Die Ernte ruht, und die Heere kommen nur halb so weit.' : '.'), s.id === 'frost' ? 'bad' : '');
   for (const a of C.armies.filter(x => x.owner === C.player && x.path.length)) advance(a);
   checkEnd(); cHooks.changed();
 }
@@ -521,7 +521,7 @@ export function checkEnd() {
     const e = C.emp[f]; if (!e.alive) continue;
     if (!C.provs.some(p => p.owner === f) && !C.armies.some(a => a.owner === f && unitCount(a.units) > 0)) {
       e.alive = false; C.armies = C.armies.filter(a => a.owner !== f);
-      addLog(FACTIONS[f].name + ' ist aus Orsa verschwunden.', f === C.player ? 'bad' : 'good');
+      addLog(Nc(f) + ' ist aus Orsa verschwunden.', f === C.player ? 'bad' : 'good');
     }
   }
   if (!C.emp[C.player].alive) { C.over = { win: false }; addLog('Dein Reich ist untergegangen.', 'bad'); return; }
@@ -529,4 +529,9 @@ export function checkEnd() {
   const capsHeld = FAC_IDS.filter(f => f !== C.player).every(f => !C.emp[f].alive || C.provs[MAP.capitals[f]].owner === C.player);
   if (capsHeld || own >= Math.ceil(C.provs.length * .75)) { C.over = { win: true }; addLog('Orsa gehört dir. Der Sieg ist errungen.', 'good'); }
 }
+// Reichsnamen mit Artikel im passenden Fall: N(f) "die Grenzwacht", D(f) "der Grenzwacht", A(f) "den Salzbund"; Nc(f) am Satzanfang
+const ART = { wacht: ['die', 'der', 'die'], asch: ['die', 'der', 'die'], salz: ['der', 'dem', 'den'], wild: ['die', 'den', 'die'] };
+const withArt = (f, k) => (FACTIONS[f] ? ART[f][k] + ' ' + FACTIONS[f].name : f === 'wild' ? ART.wild[k] + ' Erwachten' : ['die Wilden', 'den Wilden', 'die Wilden'][k]);
+export const N = f => withArt(f, 0), D = f => withArt(f, 1), A = f => withArt(f, 2);
+export const Nc = f => { const s = N(f); return s[0].toUpperCase() + s.slice(1); };
 export const empireName = f => (f && FACTIONS[f] ? FACTIONS[f].name : f === 'wild' ? 'Die Erwachten' : 'Wilde');

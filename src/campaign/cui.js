@@ -2,7 +2,7 @@
 // Die Regeln stehen in cstate.js; hier wird nur gezeichnet und weitergereicht.
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
   recruitBlock, recruit, recruitCost, bldCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
-  unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
+  unitCount, armyPower, defense, endTurn, N, D, A, Nc, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
   nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE, dipOf } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
@@ -332,10 +332,10 @@ function openLog() {
 function showBattle(r) {
   const att = empireName(r.att), def = r.def === 'wild' ? 'Wilde' : empireName(r.def), involved = r.att === C.player || r.def === C.player;
   const mine = r.att === C.player ? r.won : r.def === C.player ? !r.won : r.won, name = pinfo(r.prov).name;
-  const head = !involved ? (r.won ? att + ' erobert ' + name : att + ' scheitert vor ' + name) : (mine ? 'Sieg bei ' : 'Niederlage bei ') + name;
+  const head = !involved ? (r.won ? Nc(r.att) + ' erobert ' + name : Nc(r.att) + ' scheitert vor ' + name) : (mine ? 'Sieg bei ' : 'Niederlage bei ') + name;
   const side = (f, label, role, pow, lost, win) => '<div class="vside' + (win ? ' win' : '') + '" style="--fc:' + facColor(f) + '"><h4>' + label + '<small>' + role + '</small></h4><div class="vpow">Stärke ' + pow + '</div>'
     + '<ul><li><b>' + (lost || 0) + '</b> ' + ((lost || 0) === 1 ? 'Trupp' : 'Trupps') + ' verloren</li><li class="' + (win ? 'hero' : 'ex') + '">' + (win ? 'behauptet das Feld' : 'geschlagen') + '</li></ul></div>';
-  const after = r.won ? (r.att === 'wild' ? name + ' ist verwüstet und fällt an die Wildnis.' : name + ' gehört nun ' + att + '. Die Provinz ist einige Runden unruhig: Ein Heer vor Ort hält sie ruhig.')
+  const after = r.won ? (r.att === 'wild' ? name + ' ist verwüstet und fällt an die Wildnis.' : name + ' gehört nun ' + D(r.att) + '. Die Provinz ist einige Runden unruhig: Ein Heer vor Ort hält sie ruhig.')
     : 'Der Angriff ist abgewehrt, ' + name + ' hält stand.';
   dlg('<h2>' + head + '</h2><p class="sub">' + (r.fought ? 'Die Schlacht wurde auf dem Feld geschlagen.' : 'Der Ausgang wurde berechnet.') + '</p>'
     + '<div class="vs">' + side(r.att, att, 'Angreifer', r.atkPow, r.atkLost, r.won) + '<div class="vmid">gegen</div>' + side(r.def, def, 'Verteidiger', r.defPow, r.defLost, !r.won) + '</div>'
@@ -410,7 +410,7 @@ function showEvent(ev) {
 // Angebot eines anderen Reiches
 function showOffer(o) {
   const peace = o.kind === 'peace', n = empireName(o.from);
-  dlg('<h2>' + (peace ? n + ' bittet um Frieden' : n + ' bietet ein Bündnis an') + '</h2>'
+  dlg('<h2>' + (peace ? Nc(o.from) + ' bittet um Frieden' : Nc(o.from) + ' bietet ein Bündnis an') + '</h2>'
     + '<p>' + (peace ? 'Ihre Gesandten kommen mit weißem Banner. Nimmst du an, schweigen die Waffen für mindestens sechs Runden, und keines der Heere darf das Land des anderen betreten.' : 'Sie bieten Beistand an: Wer einen von euch angreift, hat beide zum Feind, und eure Heere dürfen durch das Land des anderen ziehen. Ohne gemeinsamen Feind erlischt das Bündnis nach einiger Zeit.') + '</p>'
     + '<div class="row end"><button class="btn" data-d="no" type="button">Ablehnen</button><button class="btn go" data-d="yes" type="button">Annehmen</button></div>',
   d => {
@@ -442,11 +442,11 @@ function openDiplomacy(note = '') {
   d => {
     if (d === 'x') return closeDlg();
     const [k, g, t] = d.split(':'); let msg = '';
-    if (k === 'war') { declareWar(f, g); msg = 'Krieg mit ' + empireName(g) + '.'; }
-    else if (k === 'peace') { if (acceptsPeace(g, f, +t)) { e.ore -= +t; C.emp[g].ore += +t; makePeace(f, g); msg = empireName(g) + ' nimmt den Frieden an.'; } else msg = empireName(g) + ' lehnt ab. Sie sehen sich im Vorteil: mehr Tribut, Siege im Feld oder ein langer Krieg können das ändern.'; }
-    else if (k === 'ally') { if (acceptsAlliance(g, f)) { makeAlliance(f, g); msg = 'Bündnis mit ' + empireName(g) + '.'; } else msg = empireName(g) + ' lehnt ab. Ein Bündnis braucht einen gemeinsamen Feind, eine freundliche Haltung und einige Runden Frieden.'; }
+    if (k === 'war') { declareWar(f, g); msg = 'Du hast ' + D(g) + ' den Krieg erklärt.'; }
+    else if (k === 'peace') { if (acceptsPeace(g, f, +t)) { e.ore -= +t; C.emp[g].ore += +t; makePeace(f, g); msg = Nc(g) + ' nimmt den Frieden an.'; } else msg = Nc(g) + ' lehnt ab. Dort sieht man sich im Vorteil. Mehr Tribut, Siege im Feld oder ein langer Krieg können das ändern.'; }
+    else if (k === 'ally') { if (acceptsAlliance(g, f)) { makeAlliance(f, g); msg = 'Du stehst nun im Bündnis mit ' + D(g) + '.'; } else msg = Nc(g) + ' lehnt ab. Ein Bündnis braucht einen gemeinsamen Feind, eine freundliche Haltung und einige Runden Frieden.'; }
     else if (k === 'unally') { breakAlliance(f, g); msg = 'Bündnis gekündigt.'; }
-    else if (k === 'gift') { gift(f, g, 150); msg = empireName(g) + ' nimmt das Geschenk an.'; }
+    else if (k === 'gift') { gift(f, g, 150); msg = Nc(g) + ' nimmt das Geschenk an.'; }
     owners = null; render(); openDiplomacy(msg);
   });
 }
