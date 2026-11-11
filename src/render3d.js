@@ -326,7 +326,7 @@ function paintGround() {
 /* ---------- Bodenbewuchs: Büschel, Sträucher, Brocken (nur Kulisse, drei Instanzgruppen) ---------- */
 // Je Gebiet: [Büschel je 1000 Felder, Sträucher, Brocken, Farbe Büschel, Farbe Strauch, Schneekappe]
 const DRESS = {
-  grenz: [260, 70, 50, 0x7d7a5c, 0x3c4a3a, 1], wald: [420, 150, 40, 0x5f6e4c, 0x2e4032, 1], berg: [120, 30, 260, 0x7d7a6c, 0x44483e, 1],
+  grenz: [260, 60, 28, 0x7d7a5c, 0x3c4a3a, 1], wald: [420, 130, 24, 0x5f6e4c, 0x2e4032, 1], berg: [120, 30, 260, 0x7d7a6c, 0x44483e, 1],
   asch: [60, 60, 150, 0x4a4038, 0x2a2420, 0], trocken: [330, 60, 130, 0xb39a5e, 0x6c5a34, 0], sumpf: [620, 130, 30, 0x66783e, 0x33442a, 0], kueste: [300, 50, 90, 0xa9a070, 0x5b6a44, 0]
 };
 let dressGeo = null, dressList = []; // dressList: alle Stücke mit Lage, damit Bauplätze sie verdrängen können

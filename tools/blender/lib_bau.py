@@ -199,7 +199,8 @@ def _preview(path):
     for eng in ('BLENDER_EEVEE', 'BLENDER_EEVEE_NEXT'):
         try: scene.render.engine = eng; break
         except TypeError: pass
-    for tag, pos in (('a', (5.5, -9.5, 8.5)), ('b', (-8.5, -6.5, 5.0))):
-        cam.location = pos; d = Vector((0, 0, 1.6)) - cam.location; cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
+    far = max(1.0, max(o.dimensions.length for o in scene.objects if o.type == 'MESH' and o.name != 'boden') / 7)
+    for tag, pos in (('a', (5.5 * far, -9.5 * far, 8.5 * far)), ('b', (-8.5 * far, -6.5 * far, 5.0 * far))):
+        cam.location = pos; d = Vector((0, 0, 1.6 * far)) - cam.location; cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
         scene.render.filepath = path.replace('.png', '_' + tag + '.png'); bpy.ops.render.render(write_still=True)
     for o in (g, cam, sun): bpy.data.objects.remove(o)
