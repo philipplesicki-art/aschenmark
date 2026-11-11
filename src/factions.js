@@ -105,6 +105,40 @@ export const FACTIONS = {
     power: { id: 'surge', name: 'Sturmflut', cost: 3, radius: 140, dur: 6, cd: 55, desc: 'Kaltes Wasser schwemmt über das Gebiet, schadet Feinden und bremst sie.' }
   }
 };
+// Beschreibungen der Einheiten: erst Charakter, dann Zweck. Einheiten mit besonderer Wirkung nennen sie am Ende.
+const UNIT_TEXT = {
+  wacht: {
+    worker: 'Bauern und Handwerker der Mark. Bauen, schürfen Erz und fällen Holz.',
+    melee: 'Das Rückgrat der Wacht: Schild, Speer und ein fester Stand. Hält Reiter auf.',
+    ranged: 'Jäger aus den Grenzwäldern. Treffen weit, fallen aber schnell im Nahkampf.',
+    cav: 'Gepanzerte Reiter der Mark. Brechen in Schützenreihen ein, scheitern an Speeren.',
+    siege: 'Ein Balken mit Eisenkopf unter einem Schutzdach. Bricht Tore und Mauern, taugt nicht gegen Truppen.',
+    support: 'Wundarzt im Tross. Heilt bis zu drei verletzte Verbündete in der Nähe und kämpft selbst kaum.',
+    elite: 'Die Leibwache der Hauptfrau in schwerem Harnisch. Fernkampf trifft sie um 30 Prozent schwächer.',
+    hero: 'Befehlshaberin der Grenzburg. Ihr Kriegsruf treibt die Truppen an, ihr Schildwall lässt sie standhalten.'
+  },
+  asch: {
+    worker: 'Unfreie des Stammes. Bauen, schürfen Erz und schlagen Holz für die Essen.',
+    melee: 'Schnell, billig und zahlreich. Schlagen härter zu, als ihre dünne Rüstung vermuten lässt.',
+    ranged: 'Werfen kurze Glutpfeile in schneller Folge. Geringe Reichweite, geringe Kosten.',
+    cav: 'Die schnellsten Reiter Orsas, auf Aschwölfen. Jagen Schützen und fliehende Arbeiter.',
+    siege: 'Ein Koloss aus den Schlackenbergen. Seine Keule trifft alles im Umkreis und zertrümmert Mauern.',
+    support: 'Schürt mit Rauch und Gesang den Zorn. Verbündete in der Nähe schlagen 15 Prozent härter.',
+    elite: 'Hüter der heiligen Glut. Unter halbem Leben verfallen sie in Kampfrausch: 50 Prozent mehr Schaden.',
+    hero: 'Herr der Aschenfeste. Sein Brandstoß verbrennt ganze Reihen, sein Schreckensruf lähmt den Feind.'
+  },
+  salz: {
+    worker: 'Träger aus den Salzgärten. Bauen, schürfen Erz und bergen Holz.',
+    melee: 'Schwere Wächter mit Hakenstangen. Teuer, zäh und langsam.',
+    ranged: 'Walfänger mit schweren Harpunen. Die größte Reichweite, aber langsam beim Nachladen.',
+    cav: 'Reiter auf Küstenhirschen. Schnell und ausdauernd, stark gegen Schützen.',
+    siege: 'Schleudert Eisbrocken über große Entfernung. Zerstört Mauern, ohne sich zu nähern.',
+    support: 'Ihr Gesang macht die Glieder schwer. Feinde in der Nähe laufen 20 Prozent langsamer.',
+    elite: 'Wachen in Panzern aus Perlmutt und Dornen. Nahkämpfer erleiden 20 Prozent ihres Schadens selbst.',
+    hero: 'Sie liest die Gezeiten. Ihr Brandungsschlag trifft aus der Ferne, ihr Segen heilt die Reihen.'
+  }
+};
+for (const [f, t] of Object.entries(UNIT_TEXT)) for (const [k, d] of Object.entries(t)) FACTIONS[f].units[k].desc = d;
 export const FAC_IDS = Object.keys(FACTIONS);
 // Gegner, wenn keiner gewählt ist: die nächste Fraktion in der Liste.
 export const otherFac = fac => FAC_IDS[(FAC_IDS.indexOf(fac) + 1) % FAC_IDS.length];

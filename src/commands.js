@@ -193,6 +193,21 @@ export function usePower() {
 }
 
 /* ---------- Befehlsknöpfe ---------- */
+// Jeder Knopf trägt: grp (Überschrift der Gruppe), co (Kosten als Objekt), why() (Sperrgrund oder null), desc, stats (für den Hinweis)
+const BLD_DESC = {
+  farm: 'Erntet Vorräte und schafft Platz für mehr Truppen. Im Hartfrost ruht die Ernte fast ganz.',
+  lumber: 'Abgabestelle für Holz. Dicht am Wald gebaut spart sie den Arbeitern lange Wege.',
+  barracks: 'Bildet Truppen aus. Hier werden auch Waffen und Rüstungen verbessert.',
+  workshop: 'Baut Belagerungsgerät gegen Mauern und Türme.',
+  market: 'Tauscht Erz, Holz und Vorräte. Der Kurs lässt sich durch Forschung verbessern.',
+  tower: 'Beschießt Feinde in Reichweite und deckt Arbeiter und Engstellen.',
+  outpost: 'Abgabestelle für Erz an einer fernen Ader.'
+};
+const ROLE_DESC = {
+  worker: 'Baut, schürft Erz und fällt Holz. Kämpft nur im Notfall.', melee: 'Standfeste Fußtruppe. Stark gegen Reiter.', ranged: 'Schießt aus der Ferne. Stark gegen Fußtruppen, verwundbar im Nahkampf.',
+  cav: 'Schnell und wuchtig. Reitet Fernkämpfer nieder, scheitert an Speeren.', siege: 'Zerstört Gebäude und Mauern. Schwach gegen Truppen.', hero: 'Einzigartig. Sammelt Erfahrung, steigt auf und trägt zwei Fähigkeiten.'
+};
+const unitStats = d => [d.hp + ' Leben', d.dmg ? d.dmg + ' Schaden' + (d.cd ? ' alle ' + String(d.cd).replace('.', ',') + ' s' : '') : '', d.rng > 60 ? 'Reichweite ' + d.rng : d.dmg ? 'Nahkampf' : '', d.pop ? d.pop + (d.pop > 1 ? ' Plätze' : ' Platz') : ''].filter(Boolean).join(' · ');
 export function cmdDefs() {
   if (!G || G.over) return [];
   const s = selEnts(), defs = [], fac = FACTIONS[G.fac[0]];
@@ -200,29 +215,29 @@ export function cmdDefs() {
   if (!s.length || s[0].team !== 0) return defs;
   const b = s.length === 1 && s[0].kind === 'bld' ? s[0] : null;
   if (b) {
-    if (!b.built) { defs.push({ id: 'cs', label: 'Bau abbrechen', key: 'x', en: () => true, fn: () => cancelSite(b) }); return defs; }
+    if (!b.built) { defs.push({ id: 'cs', label: 'Bau abbrechen', desc: 'Reißt die Baustelle ab. Drei Viertel der Kosten kommen zurück.', key: 'x', en: () => true, fn: () => cancelSite(b) }); return defs; }
     for (const tp of b.d.trains || []) {
       const d = defOf(b.fac, tp);
-      defs.push({ id: 't' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !trainBlock(b, tp), fn: () => train(b, tp), title: (d.desc ? d.desc + ' ' : '') + (d.tier ? 'Braucht Burgstufe ' + d.tier + '.' : '') });
+      defs.push({ id: 't' + tp, grp: 'Ausbilden', label: d.name, key: HK[tp], co: costOf(d), time: d.time, why: () => trainBlock(b, tp), desc: d.desc || ROLE_DESC[tp] || '', stats: unitStats(d), en: () => !trainBlock(b, tp), fn: () => train(b, tp) });
     }
     if (b.type === 'hq') { // Burg ausbauen
-      if (b.up) defs.push({ id: 'upc', label: 'Ausbau abbrechen', en: () => true, fn: () => cancelUpgrade(b) });
+      if (b.up) defs.push({ id: 'upc', grp: 'Ausbau', label: 'Ausbau abbrechen', desc: 'Bricht den Ausbau ab und erstattet die Kosten.', en: () => true, fn: () => cancelUpgrade(b) });
       else if ((b.tier || 1) < 3) {
         const to = (b.tier || 1) + 1, f = FACTIONS[b.fac];
-        defs.push({ id: 'up' + to, label: 'Ausbau: ' + f.tiers[to - 1], cost: costStr(UPGRADE[to]), en: () => !upgradeBlock(b), fn: () => startUpgrade(b),
-          title: 'Burgstufe ' + to + ': mehr Leben und Versorgung, schaltet ' + (to === 2 ? 'Reiter, Werkstatt, Markt und die zweite Technikstufe' : 'die dritte Technikstufe und schnellere Machtpunkte') + ' frei.' });
+        defs.push({ id: 'up' + to, grp: 'Ausbau', label: f.tiers[to - 1], co: UPGRADE[to], time: UPGRADE[to].time, why: () => upgradeBlock(b), en: () => !upgradeBlock(b), fn: () => startUpgrade(b),
+          desc: 'Burgstufe ' + to + ': mehr Leben und Versorgung, schaltet ' + (to === 2 ? 'Reiter, Werkstatt, Markt und die zweite Technikstufe' : 'die dritte Technikstufe und schnellere Machtpunkte') + ' frei.' });
       }
     }
     for (const id of techsAt(b.type)) {
       const n = techNext(b.team, id); if (!n) continue;
       const lv = TECH[id].levels[n - 1];
-      defs.push({ id: 'r' + id + n, label: techName(b.fac, id, n), cost: costStr(lv), en: () => !techBlock(b, id), fn: () => startResearch(b, id),
-        title: techDesc(b.fac, id) + (lv.tier > 1 ? ' (Burgstufe ' + lv.tier + ')' : '') + ' · ' + lv.time + ' s' });
+      defs.push({ id: 'r' + id + n, grp: 'Forschung', label: techName(b.fac, id, n), co: lv, time: lv.time, why: () => techBlock(b, id), en: () => !techBlock(b, id), fn: () => startResearch(b, id),
+        desc: techDesc(b.fac, id) + (TECH[id].levels.length > 1 ? ' Stufe ' + n + ' von ' + TECH[id].levels.length + '.' : '') });
     }
-    if (b.rs) defs.push({ id: 'rsc', label: 'Forschung abbrechen', en: () => true, fn: () => cancelResearch(b) });
+    if (b.rs) defs.push({ id: 'rsc', grp: 'Forschung', label: 'Forschung abbrechen', desc: 'Bricht die laufende Forschung ab und erstattet die Kosten.', en: () => true, fn: () => cancelResearch(b) });
     if (b.type === 'market') for (const [from, to] of [['ore', 'wood'], ['wood', 'ore'], ['ore', 'food'], ['food', 'ore']]) {
-      defs.push({ id: 'tr' + from + to, label: RES_NAME[from] + ' → ' + RES_NAME[to], cost: '100 → ' + Math.floor(100 * tradeRate(b.team)), en: () => !tradeBlock(b, from), fn: () => trade(b.team, from, to, 100),
-        title: 'Tauschkurs: 100 ' + RES_NAME[from] + ' gegen ' + Math.floor(100 * tradeRate(b.team)) + ' ' + RES_NAME[to] });
+      defs.push({ id: 'tr' + from + to, grp: 'Handel', label: RES_NAME[from] + ' → ' + RES_NAME[to], cost: '100 → ' + Math.floor(100 * tradeRate(b.team)), why: () => tradeBlock(b, from), en: () => !tradeBlock(b, from), fn: () => trade(b.team, from, to, 100),
+        desc: 'Tauschkurs: 100 ' + RES_NAME[from] + ' gegen ' + Math.floor(100 * tradeRate(b.team)) + ' ' + RES_NAME[to] });
     }
     return defs;
   }
@@ -230,17 +245,18 @@ export function cmdDefs() {
   if (units.some(u => u.type === 'worker')) {
     for (const tp of ['farm', 'lumber', 'barracks', 'workshop', 'market', 'tower', 'outpost']) {
       const d = fac.blds[tp];
-      defs.push({ id: 'b' + tp, label: d.name, key: HK[tp], cost: costStr(costOf(d)), en: () => !buildBlock(tp), fn: () => startPlace(tp), title: d.tier ? 'Braucht Burgstufe ' + d.tier : '' });
+      defs.push({ id: 'b' + tp, grp: 'Bauen', label: d.name, key: HK[tp], co: costOf(d), time: d.time, why: () => buildBlock(tp), desc: BLD_DESC[tp] || '', stats: d.dmg ? d.hp + ' Leben · ' + d.dmg + ' Schaden · Reichweite ' + d.rng : d.hp + ' Leben', en: () => !buildBlock(tp), fn: () => startPlace(tp) });
     }
   }
-  if (units.some(u => u.type !== 'worker')) defs.push({ id: 'am', label: 'Angriffsmarsch', key: 'a', en: () => true, on: () => UI.mode === 'amove', fn: () => { UI.mode = 'amove'; UI.sig = ''; hooks.toast('Ziel wählen'); } });
-  if (units.length) defs.push({ id: 'halt', label: 'Halt', key: 's', en: () => true, fn: () => units.forEach(u => setOrder(u, null)) });
+  if (units.some(u => u.type !== 'worker')) defs.push({ id: 'am', grp: 'Befehle', label: 'Angriffsmarsch', desc: 'Zum Ziel ziehen und unterwegs jeden Feind angreifen.', key: 'a', en: () => true, on: () => UI.mode === 'amove', fn: () => { UI.mode = 'amove'; UI.sig = ''; hooks.toast('Ziel wählen'); } });
+  if (units.length) defs.push({ id: 'halt', grp: 'Befehle', label: 'Halt', desc: 'Stehen bleiben. Die Truppen wehren sich weiter.', key: 's', en: () => true, fn: () => units.forEach(u => setOrder(u, null)) });
   const hero = units.find(u => u.type === 'hero');
   if (hero) {
     abilityList(hero).forEach((a, i) => {
       defs.push({
-        id: 'ab' + i, label: a.name + (hero.lvl < a.lvl ? ' (Stufe ' + a.lvl + ')' : ''), key: a.key,
-        en: () => canCast(hero, i), cd: () => hero.abCd[i], title: a.desc,
+        id: 'ab' + i, grp: 'Fähigkeiten', label: a.name, key: a.key, time: a.cd, timeLabel: 'Abklingzeit',
+        why: () => (hero.lvl < a.lvl ? 'Ab Heldenstufe ' + a.lvl : hero.abCd[i] > 0 ? 'Lädt noch ' + Math.ceil(hero.abCd[i]) + ' s' : null),
+        en: () => canCast(hero, i), cd: () => hero.abCd[i], desc: a.desc,
         fn: () => { if (a.targeted) beginTarget('ability', { hero: hero.id, i }); else cast(hero, i); }
       });
     });

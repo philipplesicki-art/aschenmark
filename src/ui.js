@@ -43,7 +43,7 @@ function renderQuest() {
 
 function renderInfo() {
   const s = selEnts(); let h = '';
-  if (!s.length) h = '<div class="hint">Einheit antippen oder Rahmen ziehen. Zerstöre die gegnerische Festung im Nordosten, bevor deine fällt. Rechtsklick auf einen Baum: Arbeiter fällen Holz. Ein Holzlager am Wald spart lange Wege.</div>';
+  if (!s.length) h = '<div class="hint">' + (G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>A</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
   else if (s.length === 1) {
     const e = s[0];
     h = '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
@@ -62,6 +62,8 @@ function renderInfo() {
       if (e.kind === 'bld' && !e.built) h += ' · Bau ' + Math.floor(e.prog * 100) + '%';
       if (e.kind === 'bld' && e.queue.length) { const q = e.queue[0], qd = defOf(e.fac, q.type); h += ' · ' + qd.name + ' (' + e.queue.length + ')</div>' + bar(q.t, qd.time, 'q'); }
       else h += '</div>';
+      if (e.kind === 'unit' && e.d.dmg) h += '<div class="sub st">' + Math.round(e.d.dmg * (e.dmgMul || 1)) + ' Schaden alle ' + String(e.d.cd).replace('.', ',') + ' s · ' + (e.d.rng > 60 ? 'Reichweite ' + e.d.rng : 'Nahkampf') + ' · Tempo ' + e.d.spd + '</div>' + (e.d.desc ? '<div class="sub">' + e.d.desc + '</div>' : '');
+      if (e.kind === 'bld' && e.d.dmg && e.built) h += '<div class="sub st">' + e.d.dmg + ' Schaden alle ' + String(e.d.cd).replace('.', ',') + ' s · Reichweite ' + e.d.rng + '</div>';
       if (e.kind === 'bld' && e.up) h += '<div class="sub">Ausbau zur ' + FACTIONS[e.fac].tiers[e.up.to - 1] + '</div>' + bar(e.up.t, e.up.dur, 'q');
       if (e.kind === 'bld' && e.rs) h += '<div class="sub">Forschung: ' + techName(e.fac, e.rs.id, e.rs.lvl) + '</div>' + bar(e.rs.t, e.rs.dur, 'x');
     }
@@ -72,17 +74,43 @@ function renderInfo() {
   $('info').innerHTML = h;
 }
 
+// Kosten mit Rohstoffzeichen; was fehlt, wird rot
+const costHtml = c => ' <span class="c">' + [['ore', G.ore[0]], ['wood', G.wood[0]]].filter(([k]) => c[k]).map(([k, have]) => '<span class="res ' + k + (have < c[k] ? ' no' : '') + '"><i></i>' + c[k] + '</span>').join('') + '</span>';
+// Hinweisfeld über dem Knopf: Name, Wirkung, Werte, Kosten, Dauer, Sperrgrund
+let tipFor = null;
+function tipEl() { let t = $('tip'); if (!t) { t = document.createElement('div'); t.id = 'tip'; t.hidden = true; $('app').appendChild(t); } return t; }
+function tipHtml(d) {
+  const why = d.why ? d.why() : null;
+  return '<div class="tn">' + d.label + (d.key && d.key !== 'escape' ? '<span class="k">' + d.key + '</span>' : '') + '</div>'
+    + (d.desc ? '<div class="td">' + d.desc + '</div>' : '') + (d.stats ? '<div class="ts">' + d.stats + '</div>' : '')
+    + (d.co || d.time ? '<div class="tc">' + (d.co ? costHtml(d.co) : '') + (d.time ? '<span class="tt">' + (d.timeLabel || 'Dauer') + ' ' + d.time + ' s</span>' : '') + '</div>' : '')
+    + (why ? '<div class="tw">' + why + '</div>' : '');
+}
+function showTip(d, b) {
+  if (!d.desc && !d.co && !d.why) return;
+  const t = tipEl(); tipFor = { d, b }; t.innerHTML = tipHtml(d); t.hidden = false;
+  const r = b.getBoundingClientRect(), a = $('app').getBoundingClientRect(), w = t.offsetWidth;
+  t.style.left = Math.max(8, Math.min(a.width - w - 8, r.left - a.left + r.width / 2 - w / 2)) + 'px'; t.style.bottom = (a.bottom - r.top + 8) + 'px';
+}
+function hideTip() { tipFor = null; const t = $('tip'); if (t) t.hidden = true; }
 function buildCmds() {
   const defs = cmdDefs();
   const sig = defs.map(d => d.id).join('|') + '#' + G.sel.join(',') + (UI.mode || '');
   if (sig === UI.sig) return;
   UI.sig = sig;
-  const box = $('cmds'); box.textContent = ''; btns = [];
+  const box = $('cmds'); box.textContent = ''; btns = []; hideTip();
+  let grp = null, row = box;
   for (const d of defs) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; if (d.title) b.title = d.title;
-    b.innerHTML = d.label + (d.key && d.key !== 'escape' ? ' <span class="k">' + d.key + '</span>' : '') + (d.cost ? ' <span class="c">' + d.cost + '</span>' : '');
-    b.addEventListener('click', () => { if (d.en()) { d.fn(); sfx('click'); } });
-    box.appendChild(b); btns.push({ d, b });
+    if ((d.grp || '') !== grp) { // neue Gruppe: Überschrift und eigene Zeile
+      grp = d.grp || ''; row = document.createElement('div'); row.className = 'cg';
+      if (grp) { const l = document.createElement('span'); l.className = 'cgl'; l.textContent = grp; row.appendChild(l); }
+      box.appendChild(row);
+    }
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
+    b.innerHTML = '<span class="l">' + d.label + '</span>' + (d.key && d.key !== 'escape' ? ' <span class="k">' + d.key + '</span>' : '') + (d.co ? costHtml(d.co) : d.cost ? ' <span class="c">' + d.cost + '</span>' : '');
+    b.addEventListener('click', () => { if (d.en()) { d.fn(); sfx('click'); } else if (d.why && d.why()) toast(d.why(), 'bad'); });
+    b.addEventListener('pointerenter', () => showTip(d, b)); b.addEventListener('pointerleave', hideTip);
+    row.appendChild(b); btns.push({ d, b });
   }
   renderInfo();
 }
@@ -113,12 +141,14 @@ export function refreshUI() {
   pb.textContent = p.name + ' (' + p.cost + ')' + (G.ppCd[0] > 0 ? ' ' + Math.ceil(G.ppCd[0]) + 's' : '') + ' R';
   pb.disabled = !canPower(0); pb.title = p.desc;
   buildCmds();
+  if (tipFor) { const h = tipHtml(tipFor.d), t = tipEl(); if (t.dataset.h !== h) { t.innerHTML = h; t.dataset.h = h; } }
   for (const { d, b } of btns) {
-    b.disabled = !d.en();
+    b.classList.toggle('off', !d.en());
+    if (d.co) { const c = b.querySelector('.c'), h = costHtml(d.co).trim(); if (c && c.outerHTML !== h) c.outerHTML = h; }
     b.classList.toggle('on', !!(d.on && d.on()));
     if (d.cd) {
       const c = d.cd(), k = b.querySelector('.c');
-      if (c > 0) { if (!k) b.insertAdjacentHTML('beforeend', ' <span class="c"></span>'); b.querySelector('.c').textContent = Math.ceil(c) + 's'; }
+      if (c > 0) { if (!k) b.insertAdjacentHTML('beforeend', ' <span class="c"></span>'); b.querySelector('.c').textContent = Math.ceil(c) + ' s'; }
       else if (k) k.remove();
     }
   }

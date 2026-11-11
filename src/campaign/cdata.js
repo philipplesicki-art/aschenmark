@@ -18,13 +18,13 @@ export const CAPITAL_BASE = { ore: 60, wood: 60, food: 60 };
 // Gebäude einer Provinz. Stufen 1 bis 3; Kosten je Stufe (Erz, Holz), Bauzeit in Runden.
 // yield: Mehrertrag je Stufe (als Anteil am Grundertrag des Rohstoffs oder fester Wert).
 export const CBLD = {
-  farm:     { name: 'Gehöfte',       desc: 'Mehr Vorräte: je Stufe plus 60 Prozent des Grundertrags und 20 fest.', cost: [[20, 60], [50, 120], [100, 200]], turns: [1, 1, 2], yieldMul: { food: .6 }, yieldAdd: { food: 20 } },
-  mine:     { name: 'Bergwerk',      desc: 'Mehr Erz: je Stufe plus 60 Prozent des Grundertrags und 15 fest.', cost: [[40, 60], [100, 120], [180, 220]], turns: [1, 2, 2], yieldMul: { ore: .6 }, yieldAdd: { ore: 15 } },
-  lumber:   { name: 'Sägewerk',      desc: 'Mehr Holz: je Stufe plus 60 Prozent des Grundertrags und 15 fest.', cost: [[30, 40], [80, 90], [150, 160]], turns: [1, 1, 2], yieldMul: { wood: .6 }, yieldAdd: { wood: 15 } },
-  barracks: { name: 'Kaserne',       desc: 'Rekrutierung in dieser Provinz. Stufe 2 erlaubt Reiter und Unterstützer, Stufe 3 Elite und Belagerung.', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
-  walls:    { name: 'Mauern',        desc: 'Verteidiger sind je Stufe 25 Prozent stärker.', cost: [[60, 120], [140, 220], [260, 340]], turns: [2, 2, 3] },
-  school:   { name: 'Gelehrtenhaus', desc: 'Forschung: je Stufe ein Viertel Forschungspunkt mehr je Runde (im ganzen Reich zusammen höchstens 1,5).', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
-  market:   { name: 'Markt',         desc: 'Je Stufe 30 Erz und 10 Prozent mehr Ertrag dieser Provinz.', cost: [[100, 100], [180, 180], [280, 280]], turns: [1, 2, 2], yieldAdd: { ore: 30 }, yieldPct: .1 }
+  farm:     { name: 'Gehöfte',       desc: 'Mehr Vorräte für die Heere und den Winter.', cost: [[20, 60], [50, 120], [100, 200]], turns: [1, 1, 2], yieldMul: { food: .6 }, yieldAdd: { food: 20 } },
+  mine:     { name: 'Bergwerk',      desc: 'Mehr Erz für Rekruten, Bauten und Forschung.', cost: [[40, 60], [100, 120], [180, 220]], turns: [1, 2, 2], yieldMul: { ore: .6 }, yieldAdd: { ore: 15 } },
+  lumber:   { name: 'Sägewerk',      desc: 'Mehr Holz für Bauten und Gerät.', cost: [[30, 40], [80, 90], [150, 160]], turns: [1, 1, 2], yieldMul: { wood: .6 }, yieldAdd: { wood: 15 } },
+  barracks: { name: 'Kaserne',       desc: 'Hier wirbst du Truppen an, sechs Trupps je Stufe und Runde. Stufe 2 erlaubt Reiter und Helfer, Stufe 3 Elite und Belagerung.', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
+  walls:    { name: 'Mauern',        desc: 'Verteidiger sind je Stufe 25 Prozent stärker, und Angreifer müssen erst eine Runde belagern.', cost: [[60, 120], [140, 220], [260, 340]], turns: [2, 2, 3] },
+  school:   { name: 'Gelehrtenhaus', desc: 'Gelehrte beschleunigen die Forschung des Reiches um einen Viertelpunkt je Stufe und Runde.', cost: [[80, 100], [160, 180], [260, 260]], turns: [1, 2, 2] },
+  market:   { name: 'Markt',         desc: 'Je Stufe 30 Erz und 10 Prozent mehr Ertrag dieser Provinz, dazu ein besserer Handelskurs.', cost: [[100, 100], [180, 180], [280, 280]], turns: [1, 2, 2], yieldAdd: { ore: 30 }, yieldPct: .1 }
 };
 export const CBLD_IDS = Object.keys(CBLD);
 

@@ -1,7 +1,7 @@
 // Oberfläche der Kampagne: Weltkarte (Canvas), Kopfleiste, Seitenfeld für Provinz oder Heer, Forschung, Chronik.
 // Die Regeln stehen in cstate.js; hier wird nur gezeichnet und weitergereicht.
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
-  recruitBlock, recruit, recruitCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
+  recruitBlock, recruit, recruitCost, bldCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
   unitCount, armyPower, defense, endTurn, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
   nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE, dipOf } from './cstate.js';
 import { aiTurn } from './cai.js';
@@ -207,14 +207,13 @@ function renderTop() {
   $('cTop').innerHTML = '<div class="stat ore"><span>Erz</span><b>' + Math.floor(e.ore) + '</b><i class="pos">' + sg(inc.ore) + '</i></div>'
     + '<div class="stat wood"><span>Holz</span><b>' + Math.floor(e.wood) + '</b><i class="pos">' + sg(inc.wood) + '</i></div>'
     + '<div class="stat food"><span>Vorräte</span><b>' + Math.floor(e.food) + ' / ' + foodCapE(C.player) + '</b><i class="' + (inc.foodNet < 0 ? 'neg' : 'pos') + '">' + sg(inc.foodNet) + '</i></div>'
-    + '<div class="stat season ' + s.id + '"><span>Jahr ' + year() + '</span><b>' + s.name + '</b></div>'
-    + '<div class="stat"><span>Runde</span><b>' + C.turn + '</b></div>'
+    + '<div class="stat season ' + s.id + '" title="Runde ' + C.turn + '. Eine Runde ist eine Jahreszeit; im Hartfrost ruht die Ernte fast ganz und Heere kommen nur halb so weit."><span>Jahr ' + year() + '</span><b>' + s.name + '</b><i>Runde ' + C.turn + '</i></div>'
     + '<div class="stat"><span>Provinzen</span><b>' + C.provs.filter(p => p.owner === C.player).length + ' / ' + C.provs.length + '</b></div>'
     + (inc.admin < 1 ? '<div class="stat" title="Verwaltung: ab ' + ADMIN_FREE + ' Provinzen kostet jede weitere Ertrag im ganzen Reich"><span>Verwaltung</span><b class="neg">−' + Math.round(100 - inc.admin * 100) + ' %</b></div>' : '')
     + '<div class="sp"></div>'
     + '<button class="btn' + (e.research ? '' : ' idle') + '" data-c="research" type="button" title="' + (e.research ? ctechName(C.player, e.research.id) : 'Keine Forschung in Arbeit') + '">Forschung' + (e.research ? ' <span class="c">' + Math.max(1, Math.ceil((e.research.need - e.research.prog) / researchRate(C.player))) + ' R</span>' : ' <span class="c">!</span>') + '</button>'
     + '<button class="btn" data-c="dip" type="button">Diplomatie</button><button class="btn" data-c="trade" type="button">Handel</button><button class="btn" data-c="log" type="button">Chronik</button><button class="btn" data-c="menu" type="button">Menü</button>'
-    + '<button class="btn go" data-c="end" type="button">Runde beenden <span class="k">Enter</span></button>';
+    + '<button class="btn go" data-c="end" type="button" title="Enter">Runde beenden</button>';
   $('cTop').onclick = ev => { const b = ev.target.closest('[data-c]'); if (!b) return; ({ research: openResearch, dip: () => openDiplomacy(), trade: openTrade, log: openLog, menu, end: nextTurn })[b.dataset.c](); };
 }
 function renderLog() {
@@ -223,8 +222,17 @@ function renderLog() {
 }
 
 /* ---------- Seitenfeld ---------- */
-const costTxt = c => [c.ore ? Math.round(c.ore) + ' Erz' : '', c.wood ? Math.round(c.wood) + ' Holz' : '', c.food ? Math.round(c.food) + ' Vorr.' : ''].filter(Boolean).join(' · ');
-const btn = (act, label, block, title, cost) => '<button class="btn cbtn" type="button" data-a="' + act + '"' + (block ? ' disabled title="' + block + '"' : title ? ' title="' + title + '"' : '') + '><span>' + label + '</span>' + (cost ? '<small>' + cost + '</small>' : '') + '</button>';
+function gainTxt(p, id) {
+  const y0 = provYield(p), q = { ...p, blds: { ...p.blds, [id]: (p.blds[id] || 0) + 1 } }, y1 = provYield(q), names = { ore: 'Erz', wood: 'Holz', food: 'Vorräte' };
+  const parts = ['ore', 'wood', 'food'].map(k => [k, Math.round(y1[k] - y0[k])]).filter(([, v]) => v > 0).map(([k, v]) => '+' + v + ' ' + names[k]);
+  return parts.length ? ' Hier: ' + parts.join(', ') + ' je Runde.' : '';
+}
+const runden = n => n + (n === 1 ? ' Runde' : ' Runden');
+// Kosten mit Rohstoffzeichen; was dem Reich des Spielers fehlt, wird rot
+const costTxt = c => { const e = C.emp[C.player]; return '<span class="c">' + ['ore', 'wood', 'food'].filter(k => c[k]).map(k => '<span class="res ' + k + (e[k] < c[k] ? ' no' : '') + '"><i></i>' + Math.round(c[k]) + '</span>').join('') + '</span>'; };
+// Knopf im Seitenfeld: Name, darunter Beschreibung oder (rot) der Sperrgrund, rechts Kosten und Dauer
+const btn = (act, label, block, desc, cost) => '<button class="btn cbtn' + (block ? ' off' : '') + '" type="button" data-a="' + act + '"' + (block ? ' disabled' : '') + '><span class="bl"><b>' + label + '</b>'
+  + (block ? '<small class="why">' + block + '</small>' : '') + (desc ? '<small>' + desc + '</small>' : '') + '</span>' + (cost ? '<span class="bc">' + cost + '</span>' : '') + '</button>';
 function renderSide() {
   const box = $('cSide'); let h = '';
   if (sel && sel.kind === 'army') {
@@ -237,9 +245,9 @@ function renderSide() {
     if (a.hero && C.emp[a.owner] && C.emp[a.owner].items) { const its = Object.entries(C.emp[a.owner].items).filter(([, id]) => id); if (its.length) h += '<ul class="items">' + its.map(([sl, id]) => '<li title="' + ITEMS[id].desc + '"><small>' + SLOT_NAME[sl] + '</small> ' + ITEMS[id].name + '<span class="rk">' + '✦'.repeat(ITEMS[id].rank) + '</span></li>').join('') + '</ul>'; }
     h += '<ul class="units">' + Object.keys(a.units).filter(r => a.units[r]).map(r => '<li><span>' + uName(a.owner, r) + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
     if (mine) {
-      h += '<p class="sub">Linksklick auf eine Provinz: dorthin ziehen. Gegner und Wilde werden beim Betreten angegriffen.</p>';
-      if (a.path.length) h += btn('halt', 'Marsch anhalten');
-      if (unitCount(a.units) >= 2) h += btn('split', 'Heer teilen', null, 'Die Hälfte jeder Truppenart bildet ein neues Heer');
+      h += '<p class="sub">Klick auf eine Provinz schickt das Heer dorthin. Wer feindliches oder wildes Land betritt, greift an.</p>';
+      if (a.path.length) h += btn('halt', 'Marsch anhalten', null, 'Das Heer bleibt stehen und vergisst sein Ziel.');
+      if (unitCount(a.units) >= 2) h += btn('split', 'Heer teilen', null, 'Die Hälfte jeder Truppenart bildet ein zweites Heer in derselben Provinz.');
     }
     h += btn('toProv', 'Provinz ' + pinfo(a.at).name + ' zeigen');
   } else if (sel && sel.kind === 'prov') {
@@ -247,25 +255,25 @@ function renderSide() {
     h += '<h3 style="color:' + (p.owner ? facColor(p.owner) : '#cfd2c4') + '">' + pi.name + '</h3>';
     h += '<div class="sub">' + BIOMES[pi.biome].name + ' · ' + (p.owner ? empireName(p.owner) : 'herrenlos') + (p.lvl ? ' · ' + settleName(p) + ' (Stufe ' + p.lvl + ')' : '') + '</div>';
     if (p.site) h += '<div class="queue site"><b>' + SITES[p.site].glyph + ' ' + SITES[p.site].name + '</b><br>' + SITES[p.site].desc + (p.owner ? '' : ' Stärker bewacht als andere Provinzen.') + '</div>';
-    if (p.owner) h += '<div class="yields"><span class="ore">' + Math.round(y.ore) + ' Erz</span><span class="wood">' + Math.round(y.wood) + ' Holz</span><span class="food">' + Math.round(y.food) + ' Vorr.</span></div>';
-    if (p.owner && p.unrest > 0) h += '<div class="queue unrest">Unruhe, noch ' + p.unrest + ' Runde(n): Ertrag ein Viertel, Bürgerwehr halb.'
-      + (armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3) ? ' Das Heer hier beruhigt doppelt so schnell.' : ' Ohne Heer (ab 3 Trupps) droht ein Aufstand!') + '</div>';
+    if (p.owner) h += '<div class="yields"><span class="ore">' + Math.round(y.ore) + ' Erz</span><span class="wood">' + Math.round(y.wood) + ' Holz</span><span class="food">' + Math.round(y.food) + ' Vorräte</span><small>je Runde</small></div>';
+    if (p.owner && p.unrest > 0) h += '<div class="queue unrest">Unruhe, noch ' + runden(p.unrest) + ': nur ein Viertel des Ertrags, halbe Bürgerwehr.'
+      + (armiesAt(p.id).some(a => a.owner === p.owner && unitCount(a.units) >= 3) ? ' Das Heer hier beruhigt doppelt so schnell.' : ' Ohne ein Heer von mindestens drei Trupps droht ein Aufstand!') + '</div>';
     if (!p.owner) h += '<div class="sub">Wilde Besatzung, Stärke ' + Math.round(defense(p.id, C.player).pow) + '</div>';
     else if (!mine) h += '<div class="sub">Verteidigung ' + Math.round(defense(p.id, C.player).pow) + (p.blds.walls ? ' · Mauern Stufe ' + p.blds.walls : '') + '</div>';
     const here = armiesAt(p.id); if (here.length) h += '<div class="sub">Heere: ' + here.map(a => empireName(a.owner) + ' (' + unitCount(a.units) + (a.hero ? ' ★' : '') + ')').join(', ') + '</div>';
     if (mine) {
-      if (p.queue) h += '<div class="queue">Im Bau: ' + (p.queue.kind === 'bld' ? CBLD[p.queue.id].name + ' Stufe ' + ((p.blds[p.queue.id] || 0) + 1) : 'Ausbau zu ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1]) + ' · noch ' + p.queue.t + ' Runde(n)</div>';
+      if (p.queue) h += '<div class="queue">Im Bau: ' + (p.queue.kind === 'bld' ? CBLD[p.queue.id].name + ' Stufe ' + ((p.blds[p.queue.id] || 0) + 1) : 'Ausbau zu ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1]) + ' · noch ' + runden(p.queue.t) + '</div>';
       h += '<h4>Gebäude <small>(' + slotsUsed(p) + ' / ' + SETTLE[Math.max(1, p.lvl)].slots + ' Plätze)</small></h4>';
       for (const id of CBLD_IDS) { const L = p.blds[id] || 0, d = CBLD[id]; if (L >= 3) { h += '<div class="bld done">' + d.name + ' Stufe 3</div>'; continue; }
-        h += btn('b:' + id, (L ? d.name + ' auf Stufe ' + (L + 1) : d.name + ' bauen') + (L ? '' : ''), buildBlock(p, id), d.desc, costTxt({ ore: d.cost[L][0], wood: d.cost[L][1] }) + ' · ' + d.turns[L] + ' R'); }
-      if (p.lvl < 5) h += btn('settle', 'Siedlung ausbauen: ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1], settleBlock(p), 'Mehr Ertrag und ein Gebäudeplatz mehr', costTxt({ ore: SETTLE[p.lvl + 1].cost[0], wood: SETTLE[p.lvl + 1].cost[1] }) + ' · ' + SETTLE[p.lvl + 1].turns + ' R');
+        h += btn('b:' + id, (L ? d.name + ' Stufe ' + (L + 1) : d.name), buildBlock(p, id), d.desc + gainTxt(p, id), costTxt({ ore: bldCost(id, L, C.player)[0], wood: bldCost(id, L, C.player)[1] }) + '<i>' + runden(d.turns[L]) + '</i>'); }
+      if (p.lvl < 5) h += btn('settle', 'Siedlung ausbauen: ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1], settleBlock(p), 'Grundertrag plus 35 Prozent, ein Bauplatz mehr, stärkere Bürgerwehr.', costTxt({ ore: SETTLE[p.lvl + 1].cost[0], wood: SETTLE[p.lvl + 1].cost[1] }) + '<i>' + runden(SETTLE[p.lvl + 1].turns) + '</i>');
       if (p.blds.barracks) {
-        h += '<h4>Rekrutieren <small>(erscheinen nächste Runde)</small></h4>';
+        h += '<h4>Rekrutieren <small>(stoßen nächste Runde zum Heer)</small></h4>';
         const queued = C.recruits.filter(r => r.prov === p.id); if (queued.length) h += '<div class="queue">' + queued.map(r => r.n + ' ' + FACTIONS[C.player].units[r.role].name).join(', ') + '</div>';
-        for (const r of ROLES) h += btn('r:' + r, FACTIONS[C.player].units[r].name, recruitBlock(p, r), FACTIONS[C.player].units[r].desc || ROLE_INFO[r].name, costTxt(recruitCost(C.player, r)));
+        for (const r of ROLES) h += '<div class="rrow">' + btn('r:' + r, FACTIONS[C.player].units[r].name, recruitBlock(p, r), recruitBlock(p, r) ? '' : FACTIONS[C.player].units[r].desc || ROLE_INFO[r].name, costTxt(recruitCost(C.player, r))) + '<button class="btn x5" type="button" data-a="r5:' + r + '"' + (recruitBlock(p, r, 5) ? ' disabled' : '') + ' title="Fünf Trupps auf einmal">×5</button></div>';
       }
     }
-  } else h += '<p class="sub">Provinz oder Heer anklicken. Rechtsklick mit gewähltem Heer: dorthin ziehen. Enter beendet die Runde.</p>';
+  } else h += '<p class="sub">Wähle eine Provinz oder ein Heer. Mit gewähltem Heer schickt ein Klick auf eine Provinz es dorthin. Enter beendet die Runde.</p>';
   box.innerHTML = h;
   box.onclick = ev => { const b = ev.target.closest('[data-a]'); if (!b || b.disabled) return; act(b.dataset.a); };
 }
@@ -276,6 +284,7 @@ function act(a) {
   else if (a === 'settle') startSettle(prov(sel.id));
   else if (a.startsWith('b:')) startBuild(prov(sel.id), a.slice(2));
   else if (a.startsWith('r:')) recruit(prov(sel.id), a.slice(2), 1);
+  else if (a.startsWith('r5:')) recruit(prov(sel.id), a.slice(3), 5);
   render();
 }
 function moveTo(id) {
@@ -299,7 +308,7 @@ function openResearch() {
     return '<button class="tcard ' + cls + '" data-d="' + id + '" type="button"' + (done || cur || block ? ' disabled' : '') + ' title="' + (block && !done ? block : '') + '">'
       + '<b>' + ctechName(f, id) + '</b><span>' + t.desc + '</span>'
       + (t.req.length ? '<small>braucht ' + t.req.map(r => ctechName(f, r)).join(', ') + '</small>' : '')
-      + (done ? '<i>erforscht</i>' : cur ? '<i>in Arbeit: ' + e.research.prog.toFixed(1) + ' / ' + e.research.need + '</i>' : c ? '<i>' + costTxt(c) + ' · ' + c.turns + ' R</i>' : '') + '</button>';
+      + (done ? '<i>erforscht</i>' : cur ? '<i>in Arbeit: ' + e.research.prog.toFixed(1) + ' / ' + e.research.need + '</i>' : c ? '<i class="tcost">' + costTxt(c) + runden(c.turns) + '</i>' : '') + '</button>';
   };
   const cols = [1, 2, 3, 4].map(era => '<div class="tcol"><h4>' + ERAS[era].name + '</h4>' + RESEARCH_IDS.filter(id => CTECH[id].era === era).map(card).join('') + '</div>').join('');
   dlg('<h2>Forschung</h2><p class="sub">Eine Forschung zur Zeit. Forschungsrate ' + rate.toFixed(2) + ' Punkte je Runde (Gelehrtenhäuser und Akademien erhöhen sie). Waffen, Rüstung und Gerät gelten auch in Echtzeit-Schlachten.</p>'

@@ -225,7 +225,7 @@ export function aiTick(team = 1) {
   if (!A.active && G.t > A.next && army.length >= A.size && foeHQ) {
     army.forEach(u => setOrder(u, { t: 'amove', x: foeHQ.x, y: foeHQ.y }));
     A.active = true; A.wave++; A.size += D.grow; A.next = G.t + D.gap;
-    if (T === 1) { hooks.toast('Die Gegner marschieren! (Welle ' + A.wave + ')', 'bad'); hooks.sfx('horn'); }
+    if (T === 1) { hooks.toast('Der Feind marschiert! Welle ' + A.wave, 'bad'); hooks.sfx('horn'); }
   } else if (A.active) {
     if (army.length < 3) {
       A.active = false;

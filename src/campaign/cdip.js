@@ -29,7 +29,7 @@ const kind = (f, g) => (f === C.player || g === C.player ? (f === C.player ? 'go
 export function warBlock(f, g) {
   const d = dipOf(f, g);
   if (!d || d.st === 'war') return 'Schon im Krieg';
-  if (d.truce > 0) return 'Waffenstillstand noch ' + d.truce + ' Runde(n)';
+  if (d.truce > 0) return 'Waffenstillstand, noch ' + d.truce + (d.truce === 1 ? ' Runde' : ' Runden');
   return null;
 }
 export function declareWar(f, g) {
