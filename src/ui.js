@@ -15,6 +15,7 @@ import { setVolumes, sfx } from './audio.js';
 import { platform, ACHIEVEMENTS } from './platform.js';
 import { questProgress, ENDINGS } from './quests.js';
 import { finishBattle, startBattle } from './battle.js';
+import { iconFor } from './icons.js';
 import { avgMorale } from './tactics.js';
 import { coverAt, mudAt } from './terrain.js';
 
@@ -109,8 +110,8 @@ function buildCmds() {
       if (grp) { const l = document.createElement('span'); l.className = 'cgl'; l.textContent = grp; row.appendChild(l); }
       box.appendChild(row);
     }
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
-    b.innerHTML = '<span class="l">' + d.label + '</span>' + (d.key && d.key !== 'escape' ? ' <span class="k">' + d.key + '</span>' : '') + (d.co ? costHtml(d.co) : d.cost ? ' <span class="c">' + d.cost + '</span>' : '');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn tile';
+    b.innerHTML = iconFor(d) + (d.key && d.key !== 'escape' ? '<span class="k">' + d.key + '</span>' : '') + '<span class="l">' + d.label + '</span>' + (d.co ? costHtml(d.co) : d.cost ? ' <span class="c">' + d.cost + '</span>' : '');
     b.addEventListener('click', () => { if (d.en()) { d.fn(); sfx('click'); } else if (d.why && d.why()) toast(d.why(), 'bad'); });
     b.addEventListener('pointerenter', () => showTip(d, b)); b.addEventListener('pointerleave', hideTip);
     row.appendChild(b); btns.push({ d, b });

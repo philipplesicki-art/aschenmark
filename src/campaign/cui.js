@@ -15,6 +15,7 @@ import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPe
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
 import { storyStart, currentChapter, CHAPTERS } from './cstory.js';
 import { paintBase, paintOwners, settlement, paintFrame, borderChains, tracePath } from './cmapart.js';
+import { icon } from '../icons.js';
 
 const $ = id => document.getElementById(id);
 let root = null, cv = null, ctx = null, base = null, owners = null, sel = null, hover = -1, onExit = () => {}, view = { s: 1, ox: 0, oy: 0 };
@@ -233,7 +234,10 @@ const runden = n => n + (n === 1 ? ' Runde' : ' Runden');
 // Kosten mit Rohstoffzeichen; was dem Reich des Spielers fehlt, wird rot
 const costTxt = c => { const e = C.emp[C.player]; return '<span class="c">' + ['ore', 'wood', 'food'].filter(k => c[k]).map(k => '<span class="res ' + k + (e[k] < c[k] ? ' no' : '') + '"><i></i>' + Math.round(c[k]) + '</span>').join('') + '</span>'; };
 // Knopf im Seitenfeld: Name, darunter Beschreibung oder (rot) der Sperrgrund, rechts Kosten und Dauer
-const btn = (act, label, block, desc, cost) => '<button class="btn cbtn' + (block ? ' off' : '') + '" type="button" data-a="' + act + '"' + (block ? ' disabled' : '') + '><span class="bl"><b>' + label + '</b>'
+// Zeichen zum Knopf der Seitenleiste
+const CICON = { halt: 'halt', join: 'hold', split: 'trade', toProv: 'outpost', settle: 'up', 'b:mine': 'worker', 'b:walls': 'wall', 'b:school': 'research' };
+const cIcon = act => icon(CICON[act] || (act.startsWith('swap:') ? 'trade' : act.startsWith('r:') ? act.slice(2).split(':')[0] : act.startsWith('b:') ? act.slice(2) : 'def'));
+const btn = (act, label, block, desc, cost) => '<button class="btn cbtn' + (block ? ' off' : '') + '" type="button" data-a="' + act + '"' + (block ? ' disabled' : '') + '>' + cIcon(act) + '<span class="bl"><b>' + label + '</b>'
   + (block ? '<small class="why">' + block + '</small>' : '') + (desc ? '<small>' + desc + '</small>' : '') + '</span>' + (cost ? '<span class="bc">' + cost + '</span>' : '') + '</button>';
 function renderSide() {
   const box = $('cSide'); let h = '';

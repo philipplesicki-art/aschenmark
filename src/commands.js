@@ -255,7 +255,7 @@ export function cmdDefs() {
   if (hero) {
     abilityList(hero).forEach((a, i) => {
       defs.push({
-        id: 'ab' + i, grp: 'Fähigkeiten', label: a.name, key: a.key, time: a.cd, timeLabel: 'Abklingzeit',
+        id: 'ab' + i, icon: a.id === 'wall' ? 'wall_ab' : a.id, grp: 'Fähigkeiten', label: a.name, key: a.key, time: a.cd, timeLabel: 'Abklingzeit',
         why: () => (hero.lvl < a.lvl ? 'Ab Heldenstufe ' + a.lvl : hero.abCd[i] > 0 ? 'Lädt noch ' + Math.ceil(hero.abCd[i]) + ' s' : null),
         en: () => canCast(hero, i), cd: () => hero.abCd[i], desc: a.desc,
         fn: () => { if (a.targeted) beginTarget('ability', { hero: hero.id, i }); else cast(hero, i); }
