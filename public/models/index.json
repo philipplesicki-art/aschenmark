@@ -15,5 +15,13 @@
   "asch:workshop": "asch_workshop.glb",
   "asch:lumber": "asch_lumber.glb",
   "asch:market": "asch_market.glb",
-  "asch:outpost": "asch_outpost.glb"
+  "asch:outpost": "asch_outpost.glb",
+  "salz:hq": "salz_hq.glb",
+  "salz:barracks": "salz_barracks.glb",
+  "salz:tower": "salz_tower.glb",
+  "salz:farm": "salz_farm.glb",
+  "salz:workshop": "salz_workshop.glb",
+  "salz:lumber": "salz_lumber.glb",
+  "salz:market": "salz_market.glb",
+  "salz:outpost": "salz_outpost.glb"
 }

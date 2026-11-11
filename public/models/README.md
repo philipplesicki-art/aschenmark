@@ -8,7 +8,7 @@ So lässt sich Modell für Modell umstellen.
 ```
 
 Schlüssel: `Fraktion:Typ`. Fraktionen `wacht`, `asch`, `salz`, `wild`. Einheiten `worker`, `melee`, `ranged`, `cav`, `siege`, `hero`
-(wild: `melee`, `ranged`, `brute`). Gebäude `hq`, `barracks`, `workshop`, `farm`, `outpost`, `tower`.
+(wild: `melee`, `ranged`, `brute`). Gebäude `hq`, `barracks`, `workshop`, `farm`, `outpost`, `tower`, `lumber`, `market`.
 
 ## Regeln für den Export
 
