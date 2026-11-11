@@ -249,6 +249,7 @@ export function cmdDefs() {
     }
   }
   if (units.some(u => u.type !== 'worker')) defs.push({ id: 'am', grp: 'Befehle', label: 'Angriffsmarsch', desc: 'Zum Ziel ziehen und unterwegs jeden Feind angreifen.', key: 'a', en: () => true, on: () => UI.mode === 'amove', fn: () => { UI.mode = 'amove'; UI.sig = ''; hooks.toast('Ziel wählen'); } });
+  if (units.some(u => u.type !== 'worker')) defs.push({ id: 'hold', grp: 'Befehle', label: 'Stellung halten', desc: 'Die Truppe bleibt stehen und schlägt nur, was in Reichweite kommt. Stehendes Fußvolk ist von vorn schwerer zu treffen und fängt Reiter ab. Erneut drücken hebt den Befehl auf.', key: 'g', en: () => true, on: () => units.every(u => u.hold || u.type === 'worker'), fn: () => { const v = !units.every(u => u.hold || u.type === 'worker'); units.forEach(u => { if (u.type !== 'worker') { u.hold = v; if (v) setOrder(u, null); } }); } });
   if (units.length) defs.push({ id: 'halt', grp: 'Befehle', label: 'Halt', desc: 'Stehen bleiben. Die Truppen wehren sich weiter.', key: 's', en: () => true, fn: () => units.forEach(u => setOrder(u, null)) });
   const hero = units.find(u => u.type === 'hero');
   if (hero) {

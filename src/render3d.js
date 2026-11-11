@@ -724,6 +724,7 @@ function boxO(c, gx, gy, s, stroke, w, fill) {
 let vig = null, vigKey = '';
 function drawOverlay(selSet) {
   const c = octx; c.setTransform(dprNow, 0, 0, dprNow, 0, 0); c.clearRect(0, 0, view.w, view.h); c.lineCap = 'round'; c.lineJoin = 'round';
+  if (G.battle && G.battle.phase === 'deploy' && G.battle.home) ringO(c, G.battle.home[0][0], G.battle.home[0][1], 340, 'rgba(235,200,120,.9)', 2.5, .55 + .25 * Math.sin(G.t * 3), 'rgba(235,200,120,.06)', [10, 8]);
   for (const zn of G.zones) {
     const k = zn.t / zn.dur, pulse = .5 + .5 * Math.sin(G.t * 6);
     if (zn.type === 'spring') ringO(c, zn.x, zn.y, zn.r * (.9 + .1 * pulse), 'rgba(160,240,255,.85)', 2, 1 - k * .6, 'rgba(130,230,255,.16)');

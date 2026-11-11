@@ -6,6 +6,7 @@ import { free, mkUnit, nearestDep, popUsed, popCap, nearestTree, treeAtCell, tre
 import { goTo, setOrder, nearestFree } from './path.js';
 import { gap, entPoint, acquire, strike, applyAura } from './combat.js';
 import { TS } from './config.js';
+import { track, routGoal } from './tactics.js';
 
 export function nearestOwn(u, type) {
   let best = null, bd = 1e9;
@@ -67,13 +68,14 @@ export function updUnit(u, dt) {
   u.weak = Math.max(0, u.weak - dt); u.shield = Math.max(0, u.shield - dt);
   u.rpT = Math.max(0, u.rpT - dt); u.scan -= dt;
   u.abCd[0] = Math.max(0, u.abCd[0] - dt); u.abCd[1] = Math.max(0, u.abCd[1] - dt);
-  u.moving = false; u.working = false;
+  u.moving = false; u.working = false; track(u, dt);
+  if (u.rout) { const g = routGoal(u); if (Math.hypot(g[0] - u.x, g[1] - u.y) > 30) goTo(u, g[0], g[1], dt); return; } // auf der Flucht: kein Befehl, kein Kampf
   if (u.d.aura && (u.auraT = (u.auraT || 0) - dt) <= 0) { u.auraT = .5; applyAura(u, u.d.aura); }
   const o = u.order;
   if (!o) {
     if (u.type !== 'worker' && !u.d.passive && u.scan <= 0) {
       u.scan = .35;
-      const t = acquire(u, Math.max(u.d.rng + 40, 120));
+      const t = acquire(u, u.hold ? u.d.rng + 8 : Math.max(u.d.rng + 40, 120));
       if (t) u.order = { t: 'attack', tg: t.id, auto: 1, hx: u.x, hy: u.y };
     }
     return;
@@ -94,6 +96,7 @@ export function updUnit(u, dt) {
         if (o.auto && Math.hypot(u.x - o.hx, u.y - o.hy) > 40) setOrder(u, { t: 'move', x: o.hx, y: o.hy }); else u.order = null;
         break;
       }
+      if (o.auto && u.hold && gap(u, t) > u.d.rng + 8) { u.order = null; break; } // Stellung halten: nicht nachsetzen
       if (o.auto && gap(u, t) > u.d.sight * 1.4 && u.scan <= 0) { setOrder(u, { t: 'move', x: o.hx, y: o.hy }); break; }
       engage(u, t, dt); break;
     }

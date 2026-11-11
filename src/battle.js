@@ -7,6 +7,7 @@ import { setOrder } from './path.js';
 import { aiSkirmish } from './ai.js';
 import { TS, GW, GH } from './config.js';
 import { SEASONS } from './economy.js';
+import { initMorale, moraleTick, DEPLOY_T } from './tactics.js';
 import { FACTIONS, otherFac, defOf, XP_STEPS, MAX_HERO_LVL } from './factions.js';
 
 const MAX_SIDE = 48; // höchstens so viele Figuren je Seite; größere Heere werden zusammengefasst
@@ -44,8 +45,12 @@ export function newBattle(spec) {
   deploy(0, spec.player, pc, fwd, scale, defIsPlayer ? spec.militia : 0, false);
   deploy(E, spec.enemy, ec, [-fwd[0], -fwd[1]], scale, defIsPlayer ? 0 : spec.militia, wild);
   if (spec.towers && !wild) towers(defIsPlayer ? 0 : 1, defIsPlayer ? pc : ec, defIsPlayer ? fwd : [-fwd[0], -fwd[1]], Math.min(6, spec.towers));
+  Object.assign(G.battle, { home: [pc, ec], fwd, phase: 'deploy', depT: G.t + DEPLOY_T });
+  initMorale();
   return G;
 }
+// Aufstellung beenden: die Schlacht beginnt
+export function startBattle() { const B = G.battle; if (B && B.phase === 'deploy') { B.phase = 'fight'; B.t1 = G.t; hooks.sfx('horn'); } }
 
 // Ein Heer in Reihen aufstellen. Rechts/links wechselnd, damit die Mitte zuerst gefüllt wird.
 function deploy(team, side, c, fwd, scale, militia, wild) {
@@ -146,7 +151,10 @@ function towers(team, c, fwd, n) {
 const fighters = t => G.ents.filter(e => e.team === t && e.kind === 'unit' && !e.dead);
 export function battleTick() {
   const B = G.battle; if (!B || B.over) return;
-  const mine = fighters(0), foes = fighters(B.E);
+  if (B.phase === 'deploy') { if (G.t >= B.depT) startBattle(); else return; }
+  moraleTick();
+  // Wer flieht, kämpft nicht mehr: eine Seite ohne standhafte Kämpfer hat verloren (die Geflohenen überleben)
+  const mine = fighters(0).filter(u => !u.rout), foes = fighters(B.E).filter(u => !u.rout);
   if (!mine.length || !foes.length) return finishBattle(mine.length > 0);
   // Der Verteidiger wartet, bis der Angreifer nahe ist (oder angreift); der Angreifer zieht los.
   if (!B.engaged) {
@@ -160,6 +168,9 @@ export function battleTick() {
     // Im Turnier gemessen: Schützen in Deckung zu schicken zerreißt die Linie und schwächt den Verteidiger; Linie halten stärkt ihn.
     if (B.playerAttacks && G.t - (B.engT || 0) < 75 && bd > 300) continue;
     if (u.order && u.order.t !== 'move') continue;
+    // Rollen: Reiter suchen Schützen, Helfer und Geschütze; Belagerungsgerät nimmt Mauern und Türme
+    if (u.type === 'cav') { let tg = null, td = 760; for (const e of mine) { if (e.type !== 'ranged' && e.type !== 'support' && e.type !== 'siege') continue; const d = Math.hypot(e.x - u.x, e.y - u.y); if (d < td) { td = d; tg = e; } } if (tg) { setOrder(u, { t: 'attack', tg: tg.id }); continue; } }
+    if (u.type === 'siege') { let tg = null, td = 900; for (const e of G.ents) { if (e.team !== 0 || e.kind !== 'bld' || e.dead) continue; const d = Math.hypot(e.x - u.x, e.y - u.y); if (d < td) { td = d; tg = e; } } if (tg) { setOrder(u, { t: 'attack', tg: tg.id }); continue; } }
     if (best) setOrder(u, { t: 'amove', x: best.x + (simR() - .5) * 30, y: best.y + (simR() - .5) * 30 });
   }
   if (B.E === 1) aiSkirmish(1, 0);

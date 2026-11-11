@@ -14,7 +14,8 @@ import { loadSettings, saveSettings } from './settings.js';
 import { setVolumes, sfx } from './audio.js';
 import { platform, ACHIEVEMENTS } from './platform.js';
 import { questProgress, ENDINGS } from './quests.js';
-import { finishBattle } from './battle.js';
+import { finishBattle, startBattle } from './battle.js';
+import { avgMorale } from './tactics.js';
 import { coverAt, mudAt } from './terrain.js';
 
 const $ = id => document.getElementById(id);
@@ -52,6 +53,8 @@ function renderInfo() {
       h += bar(e.hp, e.maxhp) + '<div class="sub">' + Math.ceil(e.hp) + ' / ' + e.maxhp + ' Leben';
       if (e.type === 'worker' && e.team === 0 && e.carry > 0) h += ' · trägt ' + e.carry + (e.cres === 'wood' ? ' Holz' : ' Erz');
       if (e.type === 'hq') h += ' · Stufe ' + (e.tier || 1);
+      if (e.kind === 'unit' && G.battle && e.mor !== undefined && e.type !== 'hero') h += e.rout ? ' · <span class="mor low">auf der Flucht</span>' : ' · <span class="mor' + (e.mor < 35 ? ' low' : '') + '">Moral ' + Math.round(e.mor) + '</span>';
+      if (e.kind === 'unit' && e.hold && e.team === 0) h += ' · hält Stellung';
       if (e.kind === 'unit' && coverAt(e.x, e.y)) h += ' · <span class="terr">Deckung</span>';
       if (e.kind === 'unit' && mudAt(e.x, e.y)) h += ' · <span class="terr">Schlamm</span>';
       if (e.type === 'hero') {
@@ -123,9 +126,13 @@ export function refreshUI() {
     $('food').textContent = Math.floor(G.food[0]);
     fe.textContent = (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1).replace('.', ','); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
     $('seasonN').textContent = s.name; $('seasonT').textContent = Math.floor(s.left / 60) + ':' + String(Math.floor(s.left % 60)).padStart(2, '0'); ch.className = 'stat season ' + s.id; }
-  $('pop').textContent = G.battle ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length : popUsed(0) + '/' + popCap(0);
+  $('pop').textContent = G.battle ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length + ' · Moral ' + avgMorale(0) + ' zu ' + avgMorale(1) : popUsed(0) + '/' + popCap(0);
   $('pp').textContent = G.pp[0].toFixed(1).replace('.', ',');
   renderQuest();
+  { const dp = $('deploy'), on = !!G.battle && G.battle.phase === 'deploy' && !G.battle.over;
+    if (on) { const h = '<span><b>Aufstellung</b> · noch ' + Math.max(0, Math.ceil(G.battle.depT - G.t)) + ' s · Truppen im markierten Feld ordnen</span><button class="btn" type="button" id="bFight">Schlacht beginnen</button>';
+      if (dp.dataset.h !== h) { dp.innerHTML = h; dp.dataset.h = h; } dp.onclick = ev => { if (ev.target && ev.target.id === 'bFight') startBattle(); }; }
+    dp.hidden = !on; }
   { const cx = cam.x + view.w / cam.z / 2, cy = cam.y + view.h / cam.z / 2;
     $('reg').textContent = G.battle ? G.battle.name : REGIONS[regionAt(cx, cy)].name; // in der Schlacht: die Provinz
     const ev = G.ev, chip = $('evChip');
@@ -350,6 +357,15 @@ export const HANDBOOK = {
     ['Gelände', 'Am Waldrand mindert Deckung den Schaden durch Fernkampf um ein Drittel. Schlamm an Tümpeln und tiefer Schnee im Hartfrost bremsen.'],
     ['Wetter', 'Schneesturm, Ascheregen, Staubsturm, Flut und Salznebel kündigen sich an, nehmen Sicht und Tempo und treffen die Fraktionen verschieden hart.'],
     ['Fraktionen', 'Die Grenzwacht hält stand und heilt. Die Aschenhorde kommt billig, schnell und in Massen. Der Salzbund ist teuer, zäh und kämpft auf Abstand.']
+  ]],
+  taktik: ['Taktik', [
+    ['Flanke und Rücken', 'Ein Nahkampftreffer von der Seite wirkt um ein Fünftel stärker, einer in den Rücken um die Hälfte, und beide drücken die Moral. Wer den Feind bindet und mit einer zweiten Gruppe umgeht, gewinnt auch gegen mehr Leute.'],
+    ['Sturmangriff', 'Reiter mit Anlauf treffen beim ersten Schlag fast doppelt so hart. Danach brauchen sie neuen Anlauf: herausziehen und wieder anreiten lohnt sich.'],
+    ['Feste Reihe', 'Fußvolk, das steht, ist von vorn schwerer zu treffen und fängt einen Sturmangriff ab; der Reiter nimmt dabei selbst Schaden. Reiter gehören deshalb in Flanke und Rücken oder auf Schützen.'],
+    ['Stellung halten', 'Taste G. Die Truppe bleibt stehen und schlägt nur, was in Reichweite kommt. So bleibt die Reihe geschlossen und lässt sich nicht herauslocken.'],
+    ['Moral', 'Gilt in den Schlachten der Kampagne. Verluste, Tote in der Nähe, Treffer in Flanke und Rücken und Unterzahl lassen sie sinken. Bei null flieht die Truppe hinter die eigene Linie. In Sicherheit sammelt sie sich wieder, beim Helden schneller. Fällt der Held, wankt das ganze Heer.'],
+    ['Sieg durch Flucht', 'Eine Seite, bei der niemand mehr standhält, hat verloren. Wer geflohen ist, überlebt und zählt weiter zum Heer. Ein Gegner muss also nicht vernichtet, nur gebrochen werden.'],
+    ['Aufstellung', 'Vor jeder Schlacht der Kampagne bleiben vierzig Sekunden, um das Heer im markierten Feld zu ordnen: Speere nach vorn, Schützen in den Wald, Reiter an die Flanke. Der Knopf oben beginnt die Schlacht früher.']
   ]],
   kampagne: ['Kampagne', [
     ['Weltkarte', 'Linksklick wählt Provinz oder Heer. Mit gewähltem Heer schickt ein Klick oder Rechtsklick es los. Ziehen, Pfeiltasten und Mausrad bewegen die Karte, Pos1 zeigt alles, Enter beendet die Runde.'],

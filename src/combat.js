@@ -4,6 +4,7 @@ import { FACTIONS, XP_STEPS, MAX_HERO_LVL, heroLevel, facOf } from './factions.j
 import { setBlock } from './world.js';
 import { setOrder } from './path.js';
 import { coverAt, COVER } from './terrain.js';
+import { PACE, BLD_PACE, meleeMods, onDamage, onDeath, moraleLoss } from './tactics.js';
 import { damageDealtMul, damageTakenMul, xpMul, cooldownMul } from './economy.js';
 
 export function gap(a, t) {
@@ -55,24 +56,25 @@ export function hurt(t, d, src) {
   if (!alive(t) || t.kind === 'dep') return;
   if (t.shield > 0) d *= .6;
   d *= damageTakenMul(t);
+  if (G.battle) d *= t.kind === 'unit' ? PACE : BLD_PACE; // Schlachten dauern länger
   if (t.d.rres && src && src.d && src.d.rng > 60) d *= 1 - t.d.rres; // Schildwache: Fernkampf wirkt schwächer
   if (t.kind === 'unit' && src && src.d && src.d.rng > 60 && coverAt(t.x, t.y)) d *= COVER; // Deckung am Waldrand
   if (t.d.reflect && src && src.kind === 'unit' && src.d.rng <= 60 && alive(src)) { // Dornenpanzer: Nahkämpfer verletzen sich selbst
     src.hp -= d * t.d.reflect; src.hit = .12; if (src.hp <= 0) kill(src, t);
   }
-  t.hp -= d; t.hit = .12;
+  t.hp -= d; t.hit = .12; onDamage(t, d);
   G.combat = Math.min(12, G.combat + .5);
   hooks.burst(t.x, t.y, 2, colOf(t), t.kind === 'bld' ? t.r : 4);
   if (d >= 9 && (t.kind === 'bld' || t.type === 'hero' || Math.random() < .35)) hooks.float(t.x, t.y - (t.kind === 'bld' ? t.r : t.r + 6), Math.round(d), src && src.team === 0 ? '#ffe9a8' : '#ff9d86');
   if (t.team === 0 && G.t - G.alertT > 12) { G.alertT = G.t; hooks.toast('Angriff auf ' + t.d.name + '!', 'bad'); hooks.sfx('alarm'); }
-  if (t.kind === 'unit' && !t.order && t.type !== 'worker' && src && src.kind === 'unit' && alive(src))
+  if (t.kind === 'unit' && !t.order && !t.rout && t.type !== 'worker' && src && src.kind === 'unit' && alive(src))
     t.order = { t: 'attack', tg: src.id, auto: 1, hx: t.x, hy: t.y };
   if (t.hp <= 0) kill(t, src);
 }
 
 export function kill(e, src) {
   if (e.dead) return;
-  e.dead = true; e.hp = 0;
+  e.dead = true; e.hp = 0; onDeath(e);
   if (e.kind === 'bld') {
     setBlock(e, -1);
     hooks.burst(e.x, e.y, 26, '#6b5a45', e.r); hooks.burst(e.x, e.y, 12, '#e0833a', e.r);
@@ -94,7 +96,7 @@ export function kill(e, src) {
     G.teamKills[st]++;
     if (G.teamKills[st] % 6 === 0) G.pp[st] = Math.min(6, G.pp[st] + 1);
   }
-  if (e.type === 'hero' && e.team === 0) hooks.toast(e.d.name + ' ist gefallen', 'bad');
+  if (e.type === 'hero' && e.team === 0 && !G.battle) hooks.toast(e.d.name + ' ist gefallen', 'bad');
   if (e.type === 'hq') hooks.endGame(e.team === 0 ? 'lose' : 'win');
 }
 
@@ -105,7 +107,14 @@ export function strike(a, t) {
     G.projs.push({ x: a.x, y: a.y - (a.kind === 'bld' ? 30 : 6), sx: a.x, sy: a.y, t: t.id, d: dmgFor(a, t), team: a.team, src: a.id, fire: a.fac === 'asch', big: a.type === 'siege' });
     hooks.sfx('shot');
   } else {
-    hurt(t, dmgFor(a, t), a); hooks.sfx('hit');
+    let d = dmgFor(a, t);
+    if (a.kind === 'unit' && t.kind === 'unit') { // Flanke, Rücken, Sturmangriff, gestellte Reihe
+      const m = meleeMods(a, t); d *= m.mul;
+      if (m.f) moraleLoss(t, m.f * 3);
+      if (m.charge) { moraleLoss(t, 8); hooks.float(t.x, t.y - 18, 'Sturmangriff!', a.team === 0 ? '#ffe9a8' : '#ff9d86'); hooks.shake(1.5, t.x, t.y); }
+      if (m.spiked) { hooks.float(a.x, a.y - 18, 'aufgespießt', t.team === 0 ? '#ffe9a8' : '#ff9d86'); hurt(a, t.d.dmg * 1.6, null); if (a.dead) return; }
+    }
+    hurt(t, d, a); hooks.sfx('hit');
     if (a.d.splash) {
       for (const e of G.ents) {
         if (e === t || e.dead || e.kind !== 'unit' || e.team === a.team) continue;
@@ -144,7 +153,7 @@ export function applyAura(u, au) {
   if (au.kind === 'heal') {
     const hurt = G.ents.filter(e => e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && e.hp < e.maxhp && near(e, au.range))
       .sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp).slice(0, au.n || 3);
-    for (const e of hurt) { e.hp = Math.min(e.maxhp, e.hp + au.amount * .5); hooks.burst(e.x, e.y, 1, '#9fe8a0', 3); }
+    for (const e of hurt) { e.hp = Math.min(e.maxhp, e.hp + au.amount * (G.battle ? .04 : .5)); hooks.burst(e.x, e.y, 1, '#9fe8a0', 3); }
   } else if (au.kind === 'dmg') {
     for (const e of G.ents) if (e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && near(e, au.range)) { e.aur = G.t + .8; e.aurm = au.mul; }
   } else if (au.kind === 'slow') {
@@ -212,7 +221,7 @@ export function cast(h, i, x, y) {
 export const powerOf = team => FACTIONS[G.fac[team]].power;
 export const canPower = team => G.pp[team] >= powerOf(team).cost && G.ppCd[team] <= 0;
 export function castPower(team, x, y) {
-  if (!canPower(team)) return false;
+  if (!canPower(team) || (G.battle && G.battle.phase === 'deploy')) return false;
   const p = powerOf(team);
   G.pp[team] -= p.cost; G.ppCd[team] = p.cd * cooldownMul(team, G.fac[team]);
   G.zones.push({ type: p.id, x, y, r: p.radius, t: 0, dur: p.dur, team, acc: 0 });

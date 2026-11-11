@@ -23,5 +23,6 @@ export function terrainSpeed(u) {
   let k = 1;
   if (G.battle && G.season === 'frost') k *= DEEP_SNOW;
   if (mudAt(u.x, u.y)) k *= MUD;
+  if (G.battle) { if (G.battle.phase === 'deploy') k *= 3; else if (u.rout) k *= 1.25; } // Aufstellung geht zügig; wer flieht, rennt
   return k;
 }

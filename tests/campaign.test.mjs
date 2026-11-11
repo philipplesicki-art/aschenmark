@@ -120,7 +120,7 @@ import { GW } from '../src/config.js';
   // Spieler greift an: alle eigenen Truppen auf die Wilden
   const foe = G.ents.find(e => e.team === 3);
   for (const u of G.ents.filter(e => e.team === 0 && e.kind === 'unit')) setOrder(u, { t: 'amove', x: foe.x, y: foe.y });
-  for (let i = 0; i < 20 * 240 && !res; i++) step(.05);
+  for (let i = 0; i < 20 * 1800 && !res; i++) step(.05);
   assert.ok(res, 'Schlacht endet'); assert.ok(res.won, 'die Übermacht siegt');
   assert.ok(res.p.melee <= 14 && res.p.ranged <= 8);
   const rep = CS.resolvePending(r.pending, CS.battleOutcome(spec, res));
@@ -206,7 +206,7 @@ import { GW } from '../src/config.js';
   const p = G.ents.find(e => e.team === 0 && e.kind === 'unit'), q = G.ents.find(e => e.team === 1 && e.kind === 'unit');
   let res = null; hooks.battleEnd = x => { res = x; };
   for (const u of G.ents.filter(e => e.team === 0 && e.kind === 'unit')) setOrder(u, { t: 'amove', x: q.x, y: q.y });
-  for (let i = 0; i < 20 * 300 && !res; i++) step(.05);
+  for (let i = 0; i < 20 * 2400 && !res; i++) step(.05);
   assert.ok(res, 'Schlacht im Bergland endet'); 
   console.log('Schlachtfelder ok: ' + Object.entries(look).map(([b, v]) => b + ' ' + v.t + 'B/' + v.r + 'F/' + v.w + 'W').join(', '));
 }

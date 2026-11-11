@@ -131,3 +131,10 @@ jede Figur steht dann für mehrere Krieger). Wer am Ende steht, kehrt auf die Ka
 - Zahlen in `factions.js` und `tech.js`, Verhalten in `units.js`/`combat.js`, nichts davon darf DOM oder Three.js kennen.
 - Jede neue Mechanik: Test in `tests/sim.test.mjs`, KI-Unterstützung in `ai.js`, danach `npm run balance`.
 - Siegquoten im KI-Turnier sollen zwischen 40 und 60 Prozent liegen.
+
+## Taktik in Schlachten (src/tactics.js)
+- Tempo: in Schlachten der Kampagne wirkt Schaden an Einheiten nur zu 2 % (`PACE`), an Mauern und Türmen zu 20 % (`BLD_PACE`). Ein ausgeglichenes Gefecht dauert so rund fünf Minuten Kampf plus Aufstellung. Vorgabe: mindestens fünf Minuten.
+- Aufstellung: 40 Sekunden vor Beginn, Truppen bewegen sich dreifach schnell in einer Zone um den Startpunkt; Knopf „Schlacht beginnen".
+- Flanke ×1,2, Rücken ×1,5 (gilt auch im freien Gefecht). Sturmangriff der Reiter ×1,9 nach 110 Pixeln Anlauf; stehendes Fußvolk von vorn ×0,8 und fängt den Sturmangriff ab.
+- Moral 0 bis 100 je Einheit, nur in Schlachten: sinkt durch Schaden, Tote in der Nähe, Flanken, Unterzahl, Tod des Helden. Bei 0 Flucht hinter die eigene Linie, Sammeln ab 38. Eine Seite ohne standhafte Kämpfer verliert; Geflohene überleben.
+- Befehl „Stellung halten" (Taste G). Schlacht-KI: Reiter gehen auf Schützen, Helfer und Geschütze, Belagerungsgerät auf Mauern und Türme.
