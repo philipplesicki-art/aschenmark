@@ -10,6 +10,7 @@ MODELS = os.path.join(HERE, '..', '..', 'public', 'models')
 PREV = argv[0] if argv and argv[0] != '-' else None
 ONLY = argv[1] if len(argv) > 1 else None
 SQ = math.pi / 4
+B.SNOW_HEX = 0xb4b6bc  # Schnee der Aschenfelder: grau von Ruß
 
 def mats():
     m = type('M', (), {})()

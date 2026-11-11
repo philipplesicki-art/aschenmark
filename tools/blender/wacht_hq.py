@@ -96,7 +96,8 @@ B.box('halle_putz', (1.74, 2.24, .8), (HXc, HYc, 1.3), plaster, bevel=.01)
 for sx in (-1, 1):
     for sy in (-1, 0, 1): B.box('halle_pfosten', (.12, .12, .82), (HXc + sx * .87, HYc + sy * 1.1, 1.3), timber, bevel=.012)
 for sy in (-1, 1): B.gable_wall('halle_giebel', 1.74, 1.0, (HXc, HYc + sy * 1.1, 1.7), plaster, thick=.1).rotation_euler = (0, 0, math.pi / 2)
-hr = B.gable_roof('halle_dach', 2.2, 1.74, 1.0, (HXc, HYc, 1.72), roof, thick=.1, over=.22); hr.rotation_euler = (0, 0, math.pi / 2)
+hr = B.gable_roof('halle_dach', 2.2, 1.74, 1.0, (HXc, HYc, 1.72), roof, thick=.1, over=.22, snowcap=False); hr.rotation_euler = (0, 0, math.pi / 2)
+B.snow_slab(2.2, 1.74, 1.0, (HXc, HYc, 1.72), .22, thick=.18, rot_z=math.pi / 2, seed=3)
 B.box('halle_schlot', (.36, .36, 1.2), (HXc - .35, HYc + .5, 2.5), stoneD, bevel=.03); B.empty('Rauch1', (HXc - .35, HYc + .5, 3.15))
 for y in (-.6, .1, .8): B.box('halle_fenster', (.04, .26, .32), (HXc + .89, HYc + y, 1.32), warm, bevel=0)
 # Hof: Brunnen, Fässer, Kisten, Holzstapel, Schneewehen

@@ -203,6 +203,8 @@ const BATTLE_GROUND = {
   kueste:  { base: '#b3a57c', dark: 'rgba(84,88,80,.34)', light: 'rgba(238,226,190,.42)', cold: false }
 };
 // Schnee: in kalten Gebieten, auf jedem Schlachtfeld im Hartfrost
+// Liegt hier Schnee auf den Dächern? Im Hartfrost überall, in kalten Gebieten außer in der Tauzeit
+const snowyAt = (x, y) => { const s = seasonAt(G.t).id; return s === 'frost' || (s !== 'thaw' && coldAt(x, y)); };
 const coldAt = (x, y) => (G.battle ? (BATTLE_GROUND[G.battle.biome] || {}).cold || G.season === 'frost' : REGIONS[regionAtCell(Math.floor(x / TS), Math.floor(y / TS))].cold);
 function paintBattle(t, R, P) {
   t.fillStyle = P.base; t.fillRect(0, 0, WW, WH);
@@ -589,6 +591,7 @@ function updateEnts(dt) {
       u.flames && u.flames.forEach(f => { const k = .85 + .25 * Math.sin(t * 9 + f.ph) + .08 * Math.sin(t * 23 + f.ph); f.s.scale.set(1.3 * f.b * (.92 + .08 * k), 1.8 * f.b * k, 1); });
       u.pools && u.pools.forEach((p, i) => { p.material.opacity = built ? (.62 + .18 * Math.sin(t * 6 + i * 2 + e.id)) * MD.GLOW.k : 0; });
       u.flags && u.flags.forEach((f, i) => { f.rotation.y = Math.sin(t * 3 + i + e.id) * .25; });
+      if (u.snowParts) { const sv = snowyAt(e.x, e.y); if (u.snowOn !== sv) { u.snowOn = sv; u.snowParts.forEach(s => { s.visible = sv; }); } }
       u.gears && u.gears.forEach(gr => { gr.rotation.z += dt * 1.4; });
       if (built && u.smoke && Math.random() < dt * (e.fac !== 'asch' ? 1.8 : 1.5) * u.smoke.length) { const s = u.smoke[(Math.random() * u.smoke.length) | 0]; spawnSmoke(X + s[0], Y + s[1], Z + s[2], 1, e.fac !== 'asch'); }
       const dmg = built && e.hp < e.maxhp * .5 && e.type !== 'tower';

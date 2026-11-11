@@ -1255,7 +1255,7 @@ function withScaffold(g) {
 // public/models/index.json nennt die vorhandenen Dateien, Schlüssel Fraktion:Typ, z. B. { "wacht:melee": "wacht_melee.glb" }.
 // Fehlt ein Eintrag, baut der Code das Modell wie bisher. Maßstab: 1 = 1 Spieleinheit (16 Weltpixel), vorne ist +X.
 // Animationen heißen stehen, gehen, angriff, arbeit, tod. In Gebäuden werden leere Objekte namens Rauch…, Feuer…
-// und Teile namens Fahne… zu Rauchquellen, Flammen und wehenden Fahnen.
+// und Teile namens Fahne… zu Rauchquellen, Flammen und wehenden Fahnen. Teile namens Schnee… zeigt das Spiel nur in kalten Gebieten und im Hartfrost.
 const FILES = new Map();
 export function registerModel(key, gltf) {
   const sc = gltf.scene;
@@ -1290,6 +1290,7 @@ function fromFile(key) {
     if (/^Rauch/i.test(n)) g.userData.smoke.push([p.x, p.y, p.z]);
     else if (/^Feuer/i.test(n)) fire(g, p.x, p.y, p.z, o.scale.x || 1);
     else if (/^Fahne/i.test(n) && o.isMesh) (g.userData.flags ||= []).push(o);
+    else if (/^Schnee/i.test(n) && o.isMesh) (g.userData.snowParts ||= []).push(o); // Schneedecke, Zapfen, Wehen: nur bei Schnee sichtbar
   }
   return g;
 }

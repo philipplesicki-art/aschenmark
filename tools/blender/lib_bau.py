@@ -5,7 +5,10 @@ import bpy, bmesh, os, math
 import numpy as np
 from mathutils import Vector, Matrix
 
-SNOW = (.80, .85, .92, 1)
+SNOW = (.80, .85, .92, 1)   # Schnee in den Texturen (linear)
+SNOW_HEX = 0xd5dde8         # Schneedecken und Wehen als Geometrie
+TEX_SNOW = 0.0              # Schnee in den Texturen: 0 = keiner. Das Spiel legt Schnee je nach Jahreszeit selbst auf (Wetter-Shader)
+SNOW_NAMES = ('schneedecke', 'eiszapfen', 'wehe')  # diese Teile werden zu einem losen Objekt 'Schnee', das nur im Winter sichtbar ist
 PARTS = []
 
 def reset():
@@ -24,8 +27,9 @@ def _base(name, rough):
     tc = nt.nodes.new('ShaderNodeTexCoord')
     return m, nt, b, tc
 
-def _snow(nt, color_out, amount):
-    # Schnee auf allem, was nach oben zeigt, von weichem Rauschen aufgebrochen
+def _snow(nt, b, color_out, amount):
+    # Schnee auf allem, was nach oben zeigt, von weichem Rauschen aufgebrochen; verschneite Stellen sind glatter
+    amount *= TEX_SNOW
     if amount <= 0: return color_out
     geo = nt.nodes.new('ShaderNodeNewGeometry'); sep = nt.nodes.new('ShaderNodeSeparateXYZ'); nt.links.new(geo.outputs['Normal'], sep.inputs[0])
     noise = nt.nodes.new('ShaderNodeTexNoise'); noise.inputs['Scale'].default_value = 1.5; noise.inputs['Detail'].default_value = 4
@@ -36,6 +40,8 @@ def _snow(nt, color_out, amount):
     nt.links.new(s.outputs[0], mr.inputs[0])
     mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'; mix.inputs[7].default_value = SNOW
     nt.links.new(mr.outputs[0], mix.inputs[0]); nt.links.new(color_out, mix.inputs[6])
+    rr = nt.nodes.new('ShaderNodeMapRange'); rr.inputs[1].default_value = 0; rr.inputs[2].default_value = 1; rr.inputs[3].default_value = b.inputs['Roughness'].default_value; rr.inputs[4].default_value = .5
+    nt.links.new(mr.outputs[0], rr.inputs[0]); nt.links.new(rr.outputs[0], b.inputs['Roughness'])
     return mix.outputs[2]
 
 def _vary(nt, color_out, scale=1.3, strength=.35):
@@ -45,7 +51,13 @@ def _vary(nt, color_out, scale=1.3, strength=.35):
     nt.links.new(n.outputs[0], r.inputs[0])
     mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 1
     nt.links.new(color_out, mix.inputs[6]); nt.links.new(r.outputs[0], mix.inputs[7])
-    return mix.outputs[2]
+    # Nässe und Schmutz am Fuß: die untersten 60 cm werden dunkler (Koordinaten sind nach dem Verbinden Weltkoordinaten)
+    tc = nt.nodes.new('ShaderNodeTexCoord'); sp = nt.nodes.new('ShaderNodeSeparateXYZ'); nt.links.new(tc.outputs['Object'], sp.inputs[0])
+    g = nt.nodes.new('ShaderNodeMapRange'); g.inputs[1].default_value = 0; g.inputs[2].default_value = .6; g.inputs[3].default_value = .62; g.inputs[4].default_value = 1
+    nt.links.new(sp.outputs[2], g.inputs[0])
+    m2 = nt.nodes.new('ShaderNodeMix'); m2.data_type = 'RGBA'; m2.blend_type = 'MULTIPLY'; m2.inputs[0].default_value = 1
+    nt.links.new(mix.outputs[2], m2.inputs[6]); nt.links.new(g.outputs[0], m2.inputs[7])
+    return m2.outputs[2]
 
 def _bump(nt, b, height_out, strength, dist=.02):
     bp = nt.nodes.new('ShaderNodeBump'); bp.inputs['Strength'].default_value = strength; bp.inputs['Distance'].default_value = dist
@@ -62,7 +74,7 @@ def brick(name, c1, c2, mortar, scale=4.5, snow=.9, rough=.92, squash=1.0, offse
         cb = nt.nodes.new('ShaderNodeCombineXYZ'); nt.links.new(ad.outputs[0], cb.inputs[0]); nt.links.new(sp.outputs[2], cb.inputs[1])
         nt.links.new(cb.outputs[0], t.inputs['Vector'])
     else: nt.links.new(tc.outputs['Object'], t.inputs['Vector'])
-    col = _snow(nt, _vary(nt, t.outputs['Color']), snow)
+    col = _snow(nt, b, _vary(nt, t.outputs['Color']), snow)
     nt.links.new(col, b.inputs['Base Color']); _bump(nt, b, t.outputs['Fac'], -.8)
     return m
 
@@ -74,14 +86,14 @@ def grain(name, c1, c2, stretch=(1, 1, 12), scale=6, snow=.9, rough=.85, bump=.4
     nt.links.new(mp.outputs[0], n.inputs['Vector'])
     ramp = nt.nodes.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].position = .35; ramp.color_ramp.elements[0].color = lin(c1); ramp.color_ramp.elements[1].position = .68; ramp.color_ramp.elements[1].color = lin(c2)
     nt.links.new(n.outputs[0], ramp.inputs[0])
-    col = _snow(nt, _vary(nt, ramp.outputs[0], 1.1, .28), snow)
+    col = _snow(nt, b, _vary(nt, ramp.outputs[0], 1.1, .28), snow)
     nt.links.new(col, b.inputs['Base Color']); _bump(nt, b, n.outputs[0], bump)
     return m
 
 def plain(name, color, rough=.8, metallic=0, snow=0):
     m, nt, b, tc = _base(name, rough); b.inputs['Metallic'].default_value = metallic
     rgb = nt.nodes.new('ShaderNodeRGB'); rgb.outputs[0].default_value = lin(color)
-    nt.links.new(_snow(nt, _vary(nt, rgb.outputs[0], 3, .2), snow), b.inputs['Base Color'])
+    nt.links.new(_snow(nt, b, _vary(nt, rgb.outputs[0], 3, .2), snow), b.inputs['Base Color'])
     return m
 
 def glow(name, color, strength=4):
@@ -108,7 +120,55 @@ def cyl(name, r, h, pos, mat, seg=10, r2=None, rot=(0, 0, 0), smooth=True):
     o = _obj(name, bm, mat, smooth); o.location = pos; o.rotation_euler = rot
     return o
 
-def gable_roof(name, length, width, height, pos, mat, thick=.12, over=.25):
+def _h(i, k=0):
+    v = math.sin(i * 127.1 + k * 311.7) * 43758.5453
+    return v - math.floor(v)
+
+def snow_mat():
+    # Schlichtes Material ohne Knoten, damit es unverändert in die .glb geht (wird nicht gebacken)
+    m = bpy.data.materials.get('Schnee')
+    if not m:
+        m = bpy.data.materials.new('Schnee'); m.use_nodes = True; b = m.node_tree.nodes['Principled BSDF']
+        b.inputs['Base Color'].default_value = lin(SNOW_HEX); b.inputs['Roughness'].default_value = .5
+    return m
+
+def ice_mat():
+    return snow_mat()
+
+def icicles(p0, p1, n=None, long=.45, seed=1):
+    # Eiszapfen entlang einer Kante von p0 nach p1 (hängen nach unten)
+    d = Vector(p1) - Vector(p0); L = d.length; n = n or max(2, int(L / .15))
+    for i in range(n):
+        if _h(i, seed) > .8: continue
+        t = (i + .2 + .6 * _h(i, seed + 5)) / n; ln = .1 + long * _h(i, seed + 9) ** 2; p = Vector(p0) + d * t
+        cyl('eiszapfen', .004, ln, (p.x, p.y, p.z - ln / 2), ice_mat(), seg=4, r2=.022 + .018 * _h(i, seed + 3))
+
+def snow_slab(length, width, height, pos, over=.25, thick=.16, cover=.72, rot_z=0, seed=1):
+    # Dicke, wellige Schneedecke auf einem Satteldach: am First am stärksten, zur Traufe hin unregelmäßig auslaufend
+    L = (length / 2 + over) * .97; W = width / 2 + over; k = height / (width / 2); nx, ny = 30, 6
+    bm = bmesh.new()
+    for s in (-1, 1):
+        rows = []
+        for i in range(nx + 1):
+            u = -L + 2 * L * i / nx
+            e = W * min(.94, cover + .14 * math.sin(u * 2.3 + s * 1.7 + seed) + .07 * math.sin(u * 5.1 + seed * 2))
+            eu = max(0, min(1, (L - abs(u)) / .3)) ** .5
+            row = []
+            for j in range(ny + 1):
+                f = j / ny; ya = f * e
+                t = thick * (1 - f ** 3) * eu * (.8 + .4 * _h(i * 7 + j, seed + s)) + .012
+                row.append(bm.verts.new((u, s * ya, height - ya * k + t)))
+            rows.append(row)
+        for i in range(nx):
+            for j in range(ny):
+                q = (rows[i][j], rows[i + 1][j], rows[i + 1][j + 1], rows[i][j + 1])
+                bm.faces.new(q if s < 0 else q[::-1])
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=.02)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    o = _obj('schneedecke', bm, snow_mat(), True); o.location = pos; o.rotation_euler = (0, 0, rot_z)
+    return o
+
+def gable_roof(name, length, width, height, pos, mat, thick=.12, over=.25, snowcap=True, seed=None):
     # Satteldach, First entlang X; Dachhaut mit Stärke, Überstand an Traufe und Giebel
     L = length / 2 + over; W = width / 2 + over; k = height / (width / 2); zo = -over * k
     v = [(-L, -W, zo), (L, -W, zo), (L, 0, height), (-L, 0, height), (-L, W, zo), (L, W, zo)]
@@ -121,6 +181,10 @@ def gable_roof(name, length, width, height, pos, mat, thick=.12, over=.25):
         except ValueError: pass
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     o = _obj(name, bm, mat); o.location = pos
+    if snowcap:  # Schneedecke und Eiszapfen an beiden Traufen
+        sd = seed if seed is not None else int(abs(pos[0] * 13 + pos[1] * 7 + length * 3)) + 1
+        snow_slab(length, width, height, pos, over, thick=.1 + .05 * min(2, width), seed=sd)
+        for s in (-1, 1): icicles((pos[0] - L + .1, pos[1] + s * W, pos[2] + zo - t), (pos[0] + L - .1, pos[1] + s * W, pos[2] + zo - t), seed=sd + s)
     return o
 
 def gable_wall(name, width, height, pos, mat, thick=.12):
@@ -146,7 +210,16 @@ def empty(name, pos, scale=1):
 # ---------- Backen und Ausgabe ----------
 def finish(out, name, loose=(), size=1024, ao_samples=48, preview=None):
     scene = bpy.context.scene
-    keep = [o for o in PARTS if o not in loose]
+    # Schnee (Decken, Zapfen, Wehen) zu einem eigenen Objekt: das Spiel blendet es je nach Jahreszeit ein
+    snowy = [o for o in PARTS if o.name.split('.')[0] in SNOW_NAMES]
+    if snowy:
+        for o in scene.objects: o.select_set(False)
+        for o in snowy: o.select_set(True)
+        bpy.context.view_layer.objects.active = snowy[0]; bpy.ops.object.join()
+        so = bpy.context.view_layer.objects.active; so.name = 'Schnee'; so.data.materials.clear(); so.data.materials.append(snow_mat())
+        for p in so.data.polygons: p.material_index = 0
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    keep = [o for o in PARTS if o not in loose and o not in snowy]
     for o in bpy.context.scene.objects: o.select_set(False)
     for o in keep: o.select_set(True)
     bpy.context.view_layer.objects.active = keep[0]; bpy.ops.object.join()
@@ -166,16 +239,18 @@ def finish(out, name, loose=(), size=1024, ao_samples=48, preview=None):
     col = target('farbe'); bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'})
     ao = target('schatten', 'Non-Color'); bpy.ops.object.bake(type='AO')
     nrm = target('relief', 'Non-Color'); bpy.ops.object.bake(type='NORMAL')
+    rgh = target('rauheit', 'Non-Color'); bpy.ops.object.bake(type='ROUGHNESS')
     # Farbe mal Schatten: Fugen, Ecken und alles unter dem Dachüberstand werden dunkel
     a = np.array(col.pixels[:], dtype=np.float32).reshape(-1, 4); s = np.array(ao.pixels[:], dtype=np.float32).reshape(-1, 4)
     k = np.clip(.28 + .82 * s[:, :3], 0, 1.08); a[:, :3] *= k; col.pixels.foreach_set(a.ravel()); col.update()
     tmp = os.path.join(bpy.app.tempdir, name + '_')
-    for img, suf in ((col, 'farbe.png'), (nrm, 'relief.png')):
+    for img, suf in ((col, 'farbe.png'), (nrm, 'relief.png'), (rgh, 'rauheit.png')):
         img.filepath_raw = tmp + suf; img.file_format = 'PNG'; img.save()
     # Ein Material mit der gebackenen Textur; leuchtende Flächen behalten ihres
     baked = bpy.data.materials.new(name + '_gebacken'); baked.use_nodes = True; nt = baked.node_tree; b = nt.nodes['Principled BSDF']; b.inputs['Roughness'].default_value = .9
     ti = nt.nodes.new('ShaderNodeTexImage'); ti.image = col; nt.links.new(ti.outputs[0], b.inputs['Base Color'])
     tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = nrm; nm = nt.nodes.new('ShaderNodeNormalMap'); nt.links.new(tn.outputs[0], nm.inputs['Color']); nt.links.new(nm.outputs[0], b.inputs['Normal'])
+    tr = nt.nodes.new('ShaderNodeTexImage'); tr.image = rgh; nt.links.new(tr.outputs[0], b.inputs['Roughness'])
     mats = ob.data.materials; glows = [i for i, m in enumerate(mats) if m.get('glut')]
     gl = mats[glows[0]] if glows else None
     for p in ob.data.polygons: p.material_index = 1 if p.material_index in glows else 0

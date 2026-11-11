@@ -47,6 +47,17 @@ def hull(name, L, W, H, pos, mat, m, keel=True, n=10, k=7, rot=0):
         for j in range(k): bm.faces.new((rows[i][j], rows[i + 1][j], rows[i + 1][j + 1], rows[i][j + 1]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     o = B._obj(name, bm, mat, True); o.location = pos; o.rotation_euler = (0, 0, rot)
+    if keel:  # Schneedecke: die Kuppe des Rumpfes, etwas größer, zum Rand unregelmäßig auslaufend
+        bs = bmesh.new(); rs = []
+        for i in range(n + 1):
+            t = -1 + 2 * i / n; w = max(.04, (1 - abs(t) ** 2.6)) ** .6; rise = (abs(t) ** 2.2) * H * .28
+            lim = .85 + .3 * math.sin(i * 2.1 + L)
+            rs.append([bs.verts.new((t * L / 2 * .97, (W / 2 * w + .05) * math.sin(a), (H * (.25 + .75 * w) + .07) * math.cos(a) + rise)) for a in [(-lim + 2 * lim * j / 6) for j in range(7)]])
+        for i in range(n):
+            for j in range(6): bs.faces.new((rs[i][j], rs[i + 1][j], rs[i + 1][j + 1], rs[i][j + 1]))
+        bmesh.ops.recalc_face_normals(bs, faces=bs.faces[:])
+        sc = B._obj('schneedecke', bs, B.snow_mat(), True); sc.location = pos; sc.rotation_euler = (0, 0, rot)
+        for sy in (-1, 1): B.icicles((pos[0] - L * .3, pos[1] + sy * W * .47, pos[2] + .12), (pos[0] + L * .3, pos[1] + sy * W * .47, pos[2] + .12), seed=int(L * 10) + sy)
     if keel:
         kb = B.box(name + '_kiel', (L * .96, .1, .12), (pos[0], pos[1], pos[2] + H + .03), m.drift, bevel=.02, rot=(0, 0, rot))
     return o
