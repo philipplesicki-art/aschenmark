@@ -1,1 +1,11 @@
-{ "wacht:melee": "wacht_melee.glb", "wacht:barracks": "wacht_barracks.glb", "wacht:tower": "wacht_tower.glb", "wacht:farm": "wacht_farm.glb", "wacht:hq": "wacht_hq.glb" }
+{
+  "wacht:melee": "wacht_melee.glb",
+  "wacht:hq": "wacht_hq.glb",
+  "wacht:barracks": "wacht_barracks.glb",
+  "wacht:tower": "wacht_tower.glb",
+  "wacht:farm": "wacht_farm.glb",
+  "wacht:workshop": "wacht_workshop.glb",
+  "wacht:lumber": "wacht_lumber.glb",
+  "wacht:market": "wacht_market.glb",
+  "wacht:outpost": "wacht_outpost.glb"
+}
