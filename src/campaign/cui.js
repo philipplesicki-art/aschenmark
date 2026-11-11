@@ -8,7 +8,7 @@ import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
 import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES, ITEMS, SLOT_NAME } from './cdata.js';
-import { FACTIONS, WILD, FAC_IDS } from '../factions.js';
+import { FACTIONS, WILD, FAC_IDS, plural } from '../factions.js';
 import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
@@ -243,7 +243,7 @@ function renderSide() {
     h += '<div class="sub">' + empireName(a.owner) + ' · in ' + pinfo(a.at).name + (mine ? ' · Züge ' + movesLeft(a) : '') + ' · Stärke ' + Math.round(armyPower(a.units, a.owner, a.hero)) + '</div>';
     if (a.hero) h += '<div class="sub">Held Stufe ' + C.emp[a.owner].heroLvl + ' von ' + heroCap(a.owner) + ': +' + Math.round(12 * (C.emp[a.owner].heroLvl + 1)) + ' Prozent Stärke' + ((C.emp[a.owner].traits || []).length ? '<br>' + C.emp[a.owner].traits.map(t => '<span title="' + HERO_TRAITS[t].desc + '">' + HERO_TRAITS[t].name + '</span>').join(', ') : '') + '</div>';
     if (a.hero && C.emp[a.owner] && C.emp[a.owner].items) { const its = Object.entries(C.emp[a.owner].items).filter(([, id]) => id); if (its.length) h += '<ul class="items">' + its.map(([sl, id]) => '<li title="' + ITEMS[id].desc + '"><small>' + SLOT_NAME[sl] + '</small> ' + ITEMS[id].name + '<span class="rk">' + '✦'.repeat(ITEMS[id].rank) + '</span></li>').join('') + '</ul>'; }
-    h += '<ul class="units">' + Object.keys(a.units).filter(r => a.units[r]).map(r => '<li><span>' + uName(a.owner, r) + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
+    h += '<ul class="units">' + Object.keys(a.units).filter(r => a.units[r]).map(r => '<li><span>' + plural(uName(a.owner, r), a.units[r]) + '</span><b>' + a.units[r] + '</b></li>').join('') + '</ul>';
     if (mine) {
       h += '<p class="sub">Klick auf eine Provinz schickt das Heer dorthin. Wer feindliches oder wildes Land betritt, greift an.</p>';
       if (a.path.length) h += btn('halt', 'Marsch anhalten', null, 'Das Heer bleibt stehen und vergisst sein Ziel.');
@@ -269,7 +269,7 @@ function renderSide() {
       if (p.lvl < 5) h += btn('settle', 'Siedlung ausbauen: ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1], settleBlock(p), 'Grundertrag plus 35 Prozent, ein Bauplatz mehr, stärkere Bürgerwehr.', costTxt({ ore: SETTLE[p.lvl + 1].cost[0], wood: SETTLE[p.lvl + 1].cost[1] }) + '<i>' + runden(SETTLE[p.lvl + 1].turns) + '</i>');
       if (p.blds.barracks) {
         h += '<h4>Rekrutieren <small>(stoßen nächste Runde zum Heer)</small></h4>';
-        const queued = C.recruits.filter(r => r.prov === p.id); if (queued.length) h += '<div class="queue">' + queued.map(r => r.n + ' ' + FACTIONS[C.player].units[r.role].name).join(', ') + '</div>';
+        const queued = C.recruits.filter(r => r.prov === p.id); if (queued.length) h += '<div class="queue">' + 'Angeworben: ' + queued.map(r => r.n + ' ' + plural(FACTIONS[C.player].units[r.role].name, r.n)).join(', ') + '</div>';
         for (const r of ROLES) h += '<div class="rrow">' + btn('r:' + r, FACTIONS[C.player].units[r].name, recruitBlock(p, r), recruitBlock(p, r) ? '' : FACTIONS[C.player].units[r].desc || ROLE_INFO[r].name, costTxt(recruitCost(C.player, r))) + '<button class="btn x5" type="button" data-a="r5:' + r + '"' + (recruitBlock(p, r, 5) ? ' disabled' : '') + ' title="Fünf Trupps auf einmal">×5</button></div>';
       }
     }
@@ -316,22 +316,29 @@ function openResearch() {
     d => { if (d === 'x') return closeDlg(); startResearch(f, d); openResearch(); render(); });
   $('cCard').classList.add('wide');
 }
+// Handel: je Rohstoff eine Zeile mit Bestand, Tausch in die beiden anderen (100 oder 500 auf einmal)
 function openTrade() {
-  const e = C.emp[C.player], rate = cTradeRate(C.player), names = { ore: 'Erz', wood: 'Holz', food: 'Vorräte' };
-  const pairs = [['ore', 'wood'], ['ore', 'food'], ['wood', 'ore'], ['wood', 'food'], ['food', 'ore'], ['food', 'wood']];
-  dlg('<h2>Handel</h2><p class="sub">Händler der Hauptstadt tauschen zum Kurs ' + Math.round(rate * 100) + ' zu 100. Märkte verbessern ihn.</p><div class="row">'
-    + pairs.map(([a, b]) => '<button class="btn" data-d="' + a + ':' + b + '" type="button"' + (e[a] < 100 ? ' disabled' : '') + '>100 ' + names[a] + ' → ' + Math.floor(100 * rate) + ' ' + names[b] + '</button>').join('') + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
-    d => { if (d === 'x') return closeDlg(); const [a, b] = d.split(':'); cTrade(C.player, a, b, 100); openTrade(); render(); });
+  const e = C.emp[C.player], rate = cTradeRate(C.player), names = { ore: 'Erz', wood: 'Holz', food: 'Vorräte' }, R = ['ore', 'wood', 'food'];
+  const rows = R.map(a => '<div class="trow"><div class="tfrom"><span class="res ' + a + '"><i></i>' + Math.floor(e[a]) + '</span> ' + names[a] + '</div><div class="row">'
+    + R.filter(b => b !== a).map(b => [100, 500].map(n => '<button class="btn" data-d="' + a + ':' + b + ':' + n + '" type="button"' + (e[a] < n ? ' disabled' : '') + '>' + n + ' → <span class="res ' + b + '"><i></i>' + Math.floor(n * rate) + '</span></button>').join('')).join('') + '</div></div>').join('');
+  dlg('<h2>Handel</h2><p class="sub">Die Händler der Hauptstadt geben für 100 Einheiten <b>' + Math.floor(100 * rate) + '</b> zurück. Jede Marktstufe im Reich verbessert den Kurs um 6 Punkte, bis höchstens 90.</p>'
+    + '<div class="trade">' + rows + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
+    d => { if (d === 'x') return closeDlg(); const [a, b, n] = d.split(':'); cTrade(C.player, a, b, +n); openTrade(); render(); });
 }
 function openLog() {
   dlg('<h2>Chronik</h2><div class="clog">' + C.log.slice().reverse().map(l => '<div class="' + l.kind + '"><small>R' + l.turn + '</small> ' + l.text + '</div>').join('') + '</div><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>', () => closeDlg());
 }
 function showBattle(r) {
-  const att = empireName(r.att), def = r.def === 'wild' ? 'Wilde' : empireName(r.def), mine = r.att === C.player || r.def !== C.player ? r.won : !r.won;
-  dlg('<h2>' + (mine ? 'Sieg bei ' : 'Niederlage bei ') + pinfo(r.prov).name + '</h2><p>' + att + ' (Stärke ' + r.atkPow + ') greift ' + def + ' (Stärke ' + r.defPow + ') an.'
-    + (r.fought ? ' Die Schlacht wurde geschlagen.' : ' Der Ausgang wurde berechnet.') + '</p>'
-    + '<p class="sub">Verluste: Angreifer ' + (r.atkLost || 0) + ', Verteidiger ' + (r.defLost || 0) + '. '
-    + (r.won ? 'Die Provinz gehört nun ' + att + '.' : 'Der Angriff ist abgewehrt.') + '</p><div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => afterBattle());
+  const att = empireName(r.att), def = r.def === 'wild' ? 'Wilde' : empireName(r.def), involved = r.att === C.player || r.def === C.player;
+  const mine = r.att === C.player ? r.won : r.def === C.player ? !r.won : r.won, name = pinfo(r.prov).name;
+  const head = !involved ? (r.won ? att + ' erobert ' + name : att + ' scheitert vor ' + name) : (mine ? 'Sieg bei ' : 'Niederlage bei ') + name;
+  const side = (f, label, role, pow, lost, win) => '<div class="vside' + (win ? ' win' : '') + '" style="--fc:' + facColor(f) + '"><h4>' + label + '<small>' + role + '</small></h4><div class="vpow">Stärke ' + pow + '</div>'
+    + '<ul><li><b>' + (lost || 0) + '</b> ' + ((lost || 0) === 1 ? 'Trupp' : 'Trupps') + ' verloren</li><li class="' + (win ? 'hero' : 'ex') + '">' + (win ? 'behauptet das Feld' : 'geschlagen') + '</li></ul></div>';
+  const after = r.won ? (r.att === 'wild' ? name + ' ist verwüstet und fällt an die Wildnis.' : name + ' gehört nun ' + att + '. Die Provinz ist einige Runden unruhig: Ein Heer vor Ort hält sie ruhig.')
+    : 'Der Angriff ist abgewehrt, ' + name + ' hält stand.';
+  dlg('<h2>' + head + '</h2><p class="sub">' + (r.fought ? 'Die Schlacht wurde auf dem Feld geschlagen.' : 'Der Ausgang wurde berechnet.') + '</p>'
+    + '<div class="vs">' + side(r.att, att, 'Angreifer', r.atkPow, r.atkLost, r.won) + '<div class="vmid">gegen</div>' + side(r.def, def, 'Verteidiger', r.defPow, r.defLost, !r.won) + '</div>'
+    + '<p>' + after + '</p><div class="row end"><button class="btn go" data-d="x" type="button">Weiter</button></div>', () => afterBattle());
 }
 // Nächste offene Schlacht anbieten, sonst zurück zur Karte (oder zum Ende)
 function afterBattle() {
@@ -350,20 +357,26 @@ const TERRAIN_HINT = {
   kueste: 'Das Meer deckt eine Flanke.', trocken: 'Offenes Feld mit wenig Deckung.', asch: 'Asche und Glutrisse, kaum Deckung.'
 };
 const uName = (fac, r) => (FACTIONS[fac] && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r);
-const unitList = (fac, u) => Object.entries(u).filter(([, n]) => n > 0).map(([r, n]) => n + ' ' + (fac !== 'wild' && FACTIONS[fac].units[r] ? FACTIONS[fac].units[r].name : fac === 'wild' && WILD[r] ? WILD[r].name : ROLE_INFO[r] ? ROLE_INFO[r].name : r)).join(', ') || 'keine Truppen';
-// Wahl vor der Schlacht: selbst führen oder berechnen lassen
+const unitList = (fac, u) => Object.entries(u).filter(([, n]) => n > 0).map(([r, n]) => n + ' ' + plural(uName(fac, r), n)).join(', ') || 'keine Truppen';
+// Wahl vor der Schlacht: Gegenüberstellung beider Seiten, dann selbst führen oder berechnen lassen
 function choose(pb) {
   const a = pendingArmy(pb), spec = battleSpec(pb); if (!a || !spec) return afterBattle();
-  const pl = spec.player, en = spec.enemy, chance = Math.round(100 * spec.atkPow / Math.max(1, spec.atkPow + spec.defPow));
-  const mineChance = spec.playerAttacks ? chance : 100 - chance;
-  const hero = s => s.hero ? ' und ' + (s.fac !== 'wild' ? FACTIONS[s.fac].units.hero.name : 'Held') + ' (Stufe ' + s.hero + ')' : '';
+  const pl = spec.player, en = spec.enemy, pPow = spec.playerAttacks ? spec.atkPow : spec.defPow, ePow = spec.playerAttacks ? spec.defPow : spec.atkPow;
+  const chance = Math.round(100 * pPow / Math.max(1, pPow + ePow)), share = Math.max(6, Math.min(94, chance));
+  const side = (sd, pow, defends) => {
+    const rows = Object.entries(sd.units).filter(([, n]) => n > 0).map(([r, n]) => '<li><b>' + n + '</b> ' + plural(uName(sd.fac, r), n) + '</li>');
+    if (sd.hero) rows.unshift('<li class="hero"><b>★</b> ' + (sd.fac !== 'wild' ? FACTIONS[sd.fac].units.hero.name : 'Anführer') + ' <small>Stufe ' + sd.hero + '</small></li>');
+    if (defends && spec.militia) rows.push('<li class="ex"><b>' + spec.militia + '</b> Bürgerwehr</li>');
+    if (defends && spec.towers) rows.push('<li class="ex"><b>' + spec.towers + '</b> ' + plural('Turm', spec.towers) + '</li>');
+    if (defends && spec.walls) rows.push('<li class="ex"><b>▮</b> Stadtmauer mit Tor</li>');
+    return '<div class="vside" style="--fc:' + facColor(sd.fac) + '"><h4>' + (sd.fac === 'wild' ? 'Wilde' : empireName(sd.fac)) + '<small>' + (defends ? 'verteidigt' : 'greift an') + '</small></h4><div class="vpow">Stärke ' + pow + '</div><ul>' + (rows.join('') || '<li>keine Truppen</li>') + '</ul></div>';
+  };
   dlg('<h2>' + (spec.playerAttacks ? 'Angriff auf ' : 'Überfall auf ') + spec.name + '</h2>'
-    + '<p>' + (spec.playerAttacks ? 'Dein Heer steht vor ' + spec.name + '.' : empireName(a.owner) + ' greift ' + spec.name + ' an!') + ' ' + BIOMES[spec.biome].name + ', ' + season().name + '.</p>'
-    + '<ul class="help"><li><b>' + empireName(pl.fac) + ':</b> ' + unitList(pl.fac, pl.units) + hero(pl) + (!spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (!spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (!spec.playerAttacks && spec.walls ? ', Stadtmauer' : '') + '</li>'
-    + '<li><b>' + (en.fac === 'wild' ? 'Wilde' : empireName(en.fac)) + ':</b> ' + unitList(en.fac, en.units) + hero(en) + (spec.playerAttacks && spec.militia ? ', ' + spec.militia + ' Bürgerwehr' : '') + (spec.playerAttacks && spec.towers ? ', ' + spec.towers + ' Türme' : '') + (spec.playerAttacks && spec.walls ? ', Stadtmauer mit Tor' : '') + '</li></ul>'
-    + '<p class="sub">Gelände: ' + (TERRAIN_HINT[spec.biome] || '') + (spec.season === 'frost' ? ' Hartfrost: tiefer Schnee bremst alle.' : '') + '</p>'
-    + '<p class="sub">Geschätzte Siegchance beim Berechnen: ' + mineChance + ' %. In der Schlacht zählt nur, wer am Ende noch steht.</p>'
-    + '<div class="row end"><button class="btn" data-d="auto" type="button">Automatisch berechnen</button>'
+    + '<p class="sub">' + BIOMES[spec.biome].name + ', ' + season().name + '. ' + (TERRAIN_HINT[spec.biome] || '') + (spec.season === 'frost' ? ' Tiefer Schnee bremst alle.' : '') + '</p>'
+    + '<div class="vs">' + side(pl, pPow, !spec.playerAttacks) + '<div class="vmid">gegen</div>' + side(en, ePow, spec.playerAttacks) + '</div>'
+    + '<div class="vbar" title="Kräfteverhältnis"><i style="width:' + share + '%;background:' + facColor(pl.fac) + '"></i><i style="width:' + (100 - share) + '%;background:' + facColor(en.fac) + '"></i></div>'
+    + '<p class="sub">Berechnet stehen die Aussichten bei etwa <b>' + chance + ' %</b>. Wer die Schlacht selbst schlägt, kann mit Gelände und Geschick mehr herausholen, aber auch mehr verlieren.</p>'
+    + '<div class="row end"><button class="btn" data-d="auto" type="button">Berechnen lassen</button>'
     + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',
   d => {
     if (d === 'auto') { const r = resolvePending(pb); saveCampaign(); owners = null; render(); if (r) showBattle(r); else afterBattle(); }
@@ -397,7 +410,7 @@ function showEvent(ev) {
 function showOffer(o) {
   const peace = o.kind === 'peace', n = empireName(o.from);
   dlg('<h2>' + (peace ? n + ' bittet um Frieden' : n + ' bietet ein Bündnis an') + '</h2>'
-    + '<p>' + (peace ? 'Der Krieg dauert an. Mit dem Frieden gilt ' + 6 + ' Runden Waffenstillstand, das Land der anderen Seite ist dann gesperrt.' : 'Ein Beistandsbündnis: Wer einen von euch angreift, hat beide zum Feind. Eure Heere dürfen durch das Land des anderen ziehen.') + '</p>'
+    + '<p>' + (peace ? 'Ihre Gesandten kommen mit weißem Banner. Nimmst du an, schweigen die Waffen für mindestens sechs Runden, und keines der Heere darf das Land des anderen betreten.' : 'Sie bieten Beistand an: Wer einen von euch angreift, hat beide zum Feind, und eure Heere dürfen durch das Land des anderen ziehen. Ohne gemeinsamen Feind erlischt das Bündnis nach einiger Zeit.') + '</p>'
     + '<div class="row end"><button class="btn" data-d="no" type="button">Ablehnen</button><button class="btn go" data-d="yes" type="button">Annehmen</button></div>',
   d => {
     C.offers = C.offers.filter(x => x !== o);
@@ -412,7 +425,7 @@ function openDiplomacy(note = '') {
   const b = (d, label, dis, title) => '<button class="btn" data-d="' + d + '" type="button"' + (dis ? ' disabled' : '') + (title ? ' title="' + title + '"' : '') + '>' + label + '</button>';
   const rows = FAC_IDS.filter(g => g !== f && C.emp[g].alive).map(g => {
     const d = dipOf(f, g), op = opinion(g, f), r = might(g) / Math.max(1, my);
-    const st = d.st === 'war' ? 'Krieg seit ' + (C.turn - d.since) + ' Runden' : d.st === 'ally' ? 'Bündnis' : 'Frieden' + (d.truce ? ', Waffenstillstand noch ' + d.truce + ' Runden' : '');
+    const st = d.st === 'war' ? 'Krieg seit ' + runden(C.turn - d.since) : d.st === 'ally' ? 'Bündnis' : 'Frieden' + (d.truce ? ', Waffenstillstand noch ' + runden(d.truce) : '');
     let h = '';
     if (d.st === 'war') h += [0, 200, 500].map(t => b('peace:' + g + ':' + t, t ? 'Frieden gegen ' + t + ' Erz' : 'Frieden anbieten', e.ore < t)).join('');
     else {
@@ -420,17 +433,17 @@ function openDiplomacy(note = '') {
       if (d.st === 'peace') h += b('ally:' + g, 'Bündnis anbieten', false, 'Nur gegen einen gemeinsamen Feind und bei guter Haltung');
       else h += b('unally:' + g, 'Bündnis kündigen');
     }
-    h += b('gift:' + g, 'Geschenk: 150 Erz', e.ore < 150);
+    h += b('gift:' + g, 'Geschenk: 150 Erz', e.ore < 150, 'Verbessert ihre Haltung zu dir um 10');
     return '<div class="dip"><div><b style="color:' + facColor(g) + '">' + empireName(g) + '</b><div class="sub">' + st + ' · Haltung zu dir: ' + opinionWord(op) + ' (' + op + ')' + (r > 9.99 ? ' · Stärke weit über der deinen' : ' · Stärke ' + Math.round(r * 100) + ' Prozent der deinen') + '</div></div><div class="row">' + h + '</div></div>';
   }).join('');
-  dlg('<h2>Diplomatie</h2><p class="sub">Im Frieden ist das Land des anderen gesperrt, nach einem Friedensschluss gilt ein Waffenstillstand. Die Reiche fürchten die Führungsmacht und mögen, wer denselben Feind hat.</p>'
+  dlg('<h2>Diplomatie</h2><p class="sub">Im Frieden ist das Land des anderen für Heere gesperrt, und nach jedem Friedensschluss gilt ein Waffenstillstand. Die Reiche fürchten, wer zu groß wird, schätzen Geschenke und vergessen keinen Wortbruch. Ein gemeinsamer Feind verbindet.</p>'
     + (note ? '<p class="note">' + note + '</p>' : '') + rows + '<div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
   d => {
     if (d === 'x') return closeDlg();
     const [k, g, t] = d.split(':'); let msg = '';
     if (k === 'war') { declareWar(f, g); msg = 'Krieg mit ' + empireName(g) + '.'; }
-    else if (k === 'peace') { if (acceptsPeace(g, f, +t)) { e.ore -= +t; C.emp[g].ore += +t; makePeace(f, g); msg = empireName(g) + ' nimmt den Frieden an.'; } else msg = empireName(g) + ' lehnt ab. Mehr Tribut, eine bessere Kriegslage oder Zeit könnten helfen.'; }
-    else if (k === 'ally') { if (acceptsAlliance(g, f)) { makeAlliance(f, g); msg = 'Bündnis mit ' + empireName(g) + '.'; } else msg = empireName(g) + ' lehnt ab: dafür braucht es einen gemeinsamen Feind, gute Haltung und einige Runden Frieden.'; }
+    else if (k === 'peace') { if (acceptsPeace(g, f, +t)) { e.ore -= +t; C.emp[g].ore += +t; makePeace(f, g); msg = empireName(g) + ' nimmt den Frieden an.'; } else msg = empireName(g) + ' lehnt ab. Sie sehen sich im Vorteil: mehr Tribut, Siege im Feld oder ein langer Krieg können das ändern.'; }
+    else if (k === 'ally') { if (acceptsAlliance(g, f)) { makeAlliance(f, g); msg = 'Bündnis mit ' + empireName(g) + '.'; } else msg = empireName(g) + ' lehnt ab. Ein Bündnis braucht einen gemeinsamen Feind, eine freundliche Haltung und einige Runden Frieden.'; }
     else if (k === 'unally') { breakAlliance(f, g); msg = 'Bündnis gekündigt.'; }
     else if (k === 'gift') { gift(f, g, 150); msg = empireName(g) + ' nimmt das Geschenk an.'; }
     owners = null; render(); openDiplomacy(msg);

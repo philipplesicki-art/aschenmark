@@ -139,6 +139,10 @@ const UNIT_TEXT = {
   }
 };
 for (const [f, t] of Object.entries(UNIT_TEXT)) for (const [k, d] of Object.entries(t)) FACTIONS[f].units[k].desc = d;
+// Mehrzahl, wo sie von der Einzahl abweicht ("8 Bogenschützen")
+const PLURAL = { 'Bogenschütze': 'Bogenschützen', 'Rammbock': 'Rammböcke', 'Schildwache': 'Schildwachen', 'Knecht': 'Knechte', 'Aschetroll': 'Aschetrolle',
+  'Harpunier': 'Harpuniere', 'Gezeitenschleuder': 'Gezeitenschleudern', 'Perlenwache': 'Perlenwachen', 'Hüne': 'Hünen', 'Turm': 'Türme' };
+export const plural = (name, n) => (n === 1 ? name : PLURAL[name] || name);
 export const FAC_IDS = Object.keys(FACTIONS);
 // Gegner, wenn keiner gewählt ist: die nächste Fraktion in der Liste.
 export const otherFac = fac => FAC_IDS[(FAC_IDS.indexOf(fac) + 1) % FAC_IDS.length];
