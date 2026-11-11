@@ -28,6 +28,17 @@ const FOGC = 0x5f6c7a, WU = WW * S, HU = WH * S;
 let renderer = null, scene = null, camera = null, octx = null, mm = null, mctx = null, glc = null, ovc = null;
 let world = null, sun = null, ready = false, dprNow = 1, shakeX = 0, shakeY = 0;
 let mmBg = null, fogC = null, fogCtx = null, fogImg = null, fogBig = null, fogBigCtx = null, fogTex = null;
+// Schnee der Jahreszeit auf Boden und Bäumen: ein gemeinsamer Wert für alle Shader (0 kein Schnee, 1 Hartfrost)
+const SEAS = { value: 0 };
+function treeMat(rough) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uSeas = SEAS;
+    sh.vertexShader = 'varying float vUpS;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vUpS = normal.y;');
+    sh.fragmentShader = 'varying float vUpS; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.84, .88, .94), smoothstep(.1, .65, vUpS) * smoothstep(.2, .9, uSeas) * .85);');
+  };
+  return m;
+}
 let post = null, postOn = true, wk = 0, snowK = 1, seasonK = 0; // seasonK: 0 mild bis 1 Hartfrost, weich nachgeführt
 const FROST_C = new THREE.Color(0x9db8d8);
 let Q = QUALITY.high;
@@ -411,8 +422,8 @@ export function buildTerrain() {
   g.computeVertexNormals();
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .95, metalness: 0 });
   m.onBeforeCompile = sh => {
-    sh.uniforms.detailMap = { value: det };
-    sh.fragmentShader = 'uniform sampler2D detailMap;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
+    sh.uniforms.detailMap = { value: det }; sh.uniforms.uSeas = SEAS;
+    sh.fragmentShader = 'uniform sampler2D detailMap; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n float sLow = texture2D(detailMap, vMapUv * vec2(7., 5.)).r * .6 + texture2D(detailMap, vMapUv * vec2(31., 23.)).g * .4;\n float sAmt = clamp((sLow - (1.05 - uSeas * 1.25)) * 3.5, 0., 1.);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.62, .66, .72), sAmt * .9);\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
   };
   const ground = new THREE.Mesh(g, m); ground.receiveShadow = true; ground.userData.own = true; world.add(ground);
   if (wgrid) { // Wasserspiegel: liegt unter dem Gelände und zeigt sich nur in den Senken
@@ -444,9 +455,9 @@ export function buildTerrain() {
     list.forEach((tr, i) => { const X = tr.x * S, Z = tr.y * S, s = (.7 + tr.s / 24 * .55) * hs * .72; d.position.set(X, hAt(X, Z) - .05, Z); d.rotation.set(0, tr.v * 40, 0); d.scale.set(s, s * (.9 + tr.v * .3), s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); treeInst.set(tr, { im, i }); });
     im.castShadow = true; im.receiveShadow = true; world.add(im); treesMesh.push(im);
   };
-  mk(MD.pineGeometry(), live, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }), 1);
-  for (const k of Object.keys(warm)) mk(MD.pineGeometry(k), warm[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }), 1);
-  mk(MD.deadTreeGeometry(), dead, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), 1.1);
+  mk(MD.pineGeometry(), live, treeMat(.9), 1);
+  for (const k of Object.keys(warm)) mk(MD.pineGeometry(k), warm[k], treeMat(.9), 1);
+  mk(MD.deadTreeGeometry(), dead, treeMat(1), 1.1);
 
   dressGround();
   // Ruinen um die wilden Lager und an Wegmarken der Außengebiete (nur Kulisse)
@@ -805,7 +816,7 @@ export function render(dt, selSet) {
   updateFx(dt); updateFogTex();
   { const rg = REGIONS[regionAt(cam.x + view.w / cam.z / 2, cam.y + view.h / cam.z / 2)], tk = rg && rg.cold ? 1 : Math.max(.06, wk); snowK += (tk - snowK) * Math.min(1, dt * 1.5); snow.material.uniforms.uK.value = snowK; }
   { const tgt = evAt(cam.x + view.w / cam.z / 2, cam.y + view.h / cam.z / 2); wk += (tgt - wk) * Math.min(1, dt * 2); }
-  { const sn = seasonAt(G.t), tk = sn.id === 'frost' ? 1 : sn.id === 'chill' ? .45 : sn.id === 'melt' ? .25 : 0; seasonK += (tk - seasonK) * Math.min(1, dt * .6); }
+  { const sn = seasonAt(G.t), tk = sn.id === 'frost' ? 1 : sn.id === 'chill' ? .45 : sn.id === 'melt' ? .25 : 0; seasonK += (tk - seasonK) * Math.min(1, dt * .6); SEAS.value = seasonK; }
   sync();
   const sh = G.shakeT > 0 ? G.shakeA * (G.shakeT / .35) * .045 : 0;
   if (sh) camera.position.add(new THREE.Vector3((Math.random() - .5) * sh, (Math.random() - .5) * sh, (Math.random() - .5) * sh));
