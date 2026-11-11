@@ -121,10 +121,10 @@ export function refreshUI() {
   $('wood').textContent = Math.floor(G.wood[0]);
   { const fr = foodRates(0), s = seasonAt(G.t), net = fr.net, fe = $('foodNet'), ch = $('seasonChip');
     $('food').textContent = Math.floor(G.food[0]);
-    fe.textContent = (net >= 0 ? '+' : '') + net.toFixed(1); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
+    fe.textContent = (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1).replace('.', ','); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
     $('seasonN').textContent = s.name; $('seasonT').textContent = Math.floor(s.left / 60) + ':' + String(Math.floor(s.left % 60)).padStart(2, '0'); ch.className = 'stat season ' + s.id; }
   $('pop').textContent = G.battle ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length : popUsed(0) + '/' + popCap(0);
-  $('pp').textContent = G.pp[0].toFixed(1);
+  $('pp').textContent = G.pp[0].toFixed(1).replace('.', ',');
   renderQuest();
   { const cx = cam.x + view.w / cam.z / 2, cy = cam.y + view.h / cam.z / 2;
     $('reg').textContent = G.battle ? G.battle.name : REGIONS[regionAt(cx, cy)].name; // in der Schlacht: die Provinz
@@ -138,8 +138,8 @@ export function refreshUI() {
   $('clock').textContent = m + ':' + String(s).padStart(2, '0');
   $('idleN').textContent = G.ents.filter(e => !e.dead && e.team === 0 && e.type === 'worker' && !e.order).length;
   const p = powerOf(0), pb = $('bPower');
-  pb.textContent = p.name + ' (' + p.cost + ')' + (G.ppCd[0] > 0 ? ' ' + Math.ceil(G.ppCd[0]) + 's' : '') + ' R';
-  pb.disabled = !canPower(0); pb.title = p.desc;
+  { const h = p.name + ' <span class="c">' + (G.ppCd[0] > 0 ? Math.ceil(G.ppCd[0]) + ' s' : p.cost + ' Macht') + '</span> <span class="k">R</span>'; if (pb.dataset.h !== h) { pb.innerHTML = h; pb.dataset.h = h; } }
+  pb.classList.toggle('off', !canPower(0)); pb.title = p.desc + ' Kostet ' + p.cost + ' Machtpunkte.';
   buildCmds();
   if (tipFor) { const h = tipHtml(tipFor.d), t = tipEl(); if (t.dataset.h !== h) { t.innerHTML = h; t.dataset.h = h; } }
   for (const { d, b } of btns) {

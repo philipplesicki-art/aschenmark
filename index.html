@@ -8,19 +8,19 @@
 <body>
 <div id="app">
   <div id="top">
-    <div class="stat ore" title="Erz: Truppen und Technik"><span>Erz</span><b id="ore">0</b></div>
-    <div class="stat wood" title="Holz: Bauwerke, Belagerung und Technik. Rechtsklick auf einen Baum mit Arbeitern fällt ihn."><span>Holz</span><b id="wood">0</b></div>
+    <div class="stat ore" title="Erz: bezahlt Truppen und Forschung. Arbeiter schürfen es an den Adern."><span>Erz</span><b id="ore">0</b></div>
+    <div class="stat wood" title="Holz: bezahlt Bauwerke und Gerät. Rechtsklick auf einen Baum lässt Arbeiter fällen."><span>Holz</span><b id="wood">0</b></div>
     <div class="stat food" title="Vorräte (Ernte minus Verbrauch je Sekunde). Höfe und Burg ernten, Truppen essen. Im Hartfrost ist die Ernte fast null; ist das Lager leer, verhungern Truppen."><span>Vorräte</span><b id="food">0</b><i id="foodNet">0</i></div>
-    <div class="stat" title="Truppen"><span>Truppen</span><b id="pop">0/0</b></div>
-    <div class="stat" title="Machtpunkte"><span>Macht</span><b id="pp">0</b></div>
-    <div class="stat"><b id="clock">0:00</b></div>
+    <div class="stat" title="Truppen: belegte und verfügbare Plätze. Höfe und der Ausbau der Burg schaffen mehr."><span>Truppen</span><b id="pop">0/0</b></div>
+    <div class="stat" title="Machtpunkte: wachsen mit der Zeit und mit besiegten Feinden, höchstens sechs. Sie bezahlen die Macht deiner Fraktion (Taste R)."><span>Macht</span><b id="pp">0</b></div>
+    <div class="stat" title="Spielzeit"><b id="clock">0:00</b></div>
     <div class="stat" title="Gebiet unter der Kamera"><span>Gebiet</span><b id="reg">Grenzmark</b></div>
-    <div class="stat season" id="seasonChip" title="Jahreszeit: Im Hartfrost ernten die Höfe fast nichts."><span id="seasonN">Tauzeit</span><b id="seasonT">0:00</b></div>
+    <div class="stat season" id="seasonChip" title="Jahreszeit und Zeit bis zum Wechsel. Im Hartfrost ruht die Ernte fast ganz, und die Truppen essen doppelt."><span id="seasonN">Tauzeit</span><b id="seasonT">0:00</b></div>
     <div class="stat ev" id="evChip" hidden><span id="evN"></span><b id="evP"></b></div>
     <div class="sp"></div>
     <button class="btn" id="bPower" type="button">Macht</button>
-    <button class="btn" id="bIdle" type="button">Arbeiter <b id="idleN">0</b> <span class="k">.</span></button>
-    <button class="btn" id="bArmy" type="button">Heer <span class="k">E</span></button>
+    <button class="btn" id="bIdle" type="button" title="Springt zum nächsten untätigen Arbeiter">Untätig <b id="idleN">0</b> <span class="k">.</span></button>
+    <button class="btn" id="bArmy" type="button" title="Wählt alle Kampftruppen">Heer <span class="k">E</span></button>
     <button class="btn" id="bMenu" type="button">Menü</button>
   </div>
   <div id="stage">
