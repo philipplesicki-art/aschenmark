@@ -34,7 +34,9 @@ const { resizeCanvas, buildTerrain, render, drawMini, burst, floatText, shake } 
 // Grafikstufe: Link (?q=low|medium|high) vor Einstellung; ohne Wahl auf Touch-Geräten Mittel, sonst Hoch.
 const qParam = (location.search.match(/[?&]q=(low|medium|high)/) || [])[1];
 const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-const quality = qParam || (QUALITY[loadSettings().quality] ? loadSettings().quality : coarse ? 'medium' : 'high');
+// Ohne eigene Wahl richtet sich die Stufe nach der Grafikkarte: eingebaute Grafik (Intel, ältere AMD-Chips) startet auf Niedrig.
+const gpu = R.gpuName ? R.gpuName() : '', weakGpu = /Intel|UHD|Iris|Radeon.TM. Graphics|Vega|SwiftShader|Basic Render|llvmpipe/i.test(gpu) && !/Arc/i.test(gpu);
+const quality = qParam || (QUALITY[loadSettings().quality] ? loadSettings().quality : weakGpu ? 'low' : coarse ? 'medium' : 'high');
 if (R.setQuality) R.setQuality(quality);
 
 const quiet = fn => (...a) => { if (!(G && G.demo)) fn(...a); };
@@ -164,7 +166,7 @@ function fpsTick(now, ms) {
   fpsN++; fpsWorst = Math.max(fpsWorst, ms);
   if (now - fpsT < 500) return;
   const on = !!loadSettings().fps; fpsEl.hidden = !on;
-  if (on) fpsEl.textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' B/s · max ' + Math.round(fpsWorst) + ' ms · ' + (QUALITY[loadSettings().quality] || QUALITY[quality]).label;
+  if (on) fpsEl.textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' B/s · max ' + Math.round(fpsWorst) + ' ms · ' + (QUALITY[loadSettings().quality] || QUALITY[quality]).label + (R.renderScale && R.renderScale() < 1 ? ' · Auflösung ' + Math.round(R.renderScale() * 100) + ' %' : '');
   fpsN = 0; fpsT = now; fpsWorst = 0;
 }
 
@@ -172,6 +174,7 @@ let last = performance.now(), lastUI = 0, lastMM = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const ms = now - last, dt = Math.min(.05, ms / 1000); last = now;
+  if (R.adaptFrame) R.adaptFrame(ms);
   fpsTick(now, ms);
   if (!G || campaignOpen()) return; // auf der Weltkarte ruht das Gefecht
   if (G.demo) { step(dt); demoCam(dt); if (demoT > 600) menuScene(menuFac); }

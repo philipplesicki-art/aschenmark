@@ -1,6 +1,6 @@
 {
   "name": "aschenmark",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Aschenmark, ein Echtzeit-Strategiespiel mit drei Fraktionen, Helden und Mächten",
   "private": true,
   "type": "module",
@@ -40,7 +40,8 @@
     "win": {
       "target": [
         "dir",
-        "zip"
+        "zip",
+        "nsis"
       ],
       "signAndEditExecutable": false
     },
@@ -57,6 +58,16 @@
         "AppImage"
       ],
       "category": "Game"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aschenmark",
+      "artifactName": "Aschenmark-Setup-${version}.exe",
+      "language": "1031"
     }
   },
   "dependencies": {

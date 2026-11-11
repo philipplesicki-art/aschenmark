@@ -27,7 +27,8 @@ export function camInput(dt, blocked) {
   if (k.arrowup || k.w) dy--; if (k.arrowdown || k.s) dy++;
   if (m && m.in && !UI.touching) {
     const e = 14;
-    if (m.x < e) dx--; if (m.x > view.w - e) dx++; if (m.y < e) dy--; if (m.y > view.h - e) dy++;
+    if (!dx) { if (m.x < e) dx--; if (m.x > view.w - e) dx++; } // Tasten gehen vor: der Bildschirmrand darf sie nicht aufheben
+    if (!dy) { if (m.y < e) dy--; if (m.y > view.h - e) dy++; }
   }
   if (dx || dy) { cam.x += dx * sp; cam.y += dy * sp; clampCam(); }
 }

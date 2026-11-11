@@ -23,6 +23,10 @@ try {
   if (sw.electronEnableSteamOverlay) sw.electronEnableSteamOverlay();
 } catch (_) { /* ohne Steam weiterspielen */ }
 
+// Auf Rechnern mit zwei Grafikkarten die starke nehmen, und die Sperrliste für Grafiktreiber nicht anwenden.
+app.commandLine.appendSwitch('force_high_performance_gpu');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+
 // Eigenes Protokoll app://: Von file:// darf das Spiel keine Dateien nachladen (Modelle, Listen). app:// liefert
 // alles aus dist/ aus und erlaubt fetch. Muss vor app.ready angemeldet werden.
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);

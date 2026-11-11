@@ -44,7 +44,7 @@ function renderQuest() {
 
 function renderInfo() {
   const s = selEnts(); let h = '';
-  if (!s.length) h = '<div class="hint">' + (G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>A</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
+  if (!s.length) h = '<div class="hint">' + (G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>F</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
   else if (s.length === 1) {
     const e = s[0];
     h = '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
@@ -172,7 +172,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.6.1';
+export const VERSION = '0.6.2';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 
@@ -334,7 +334,7 @@ function chronicleScreen() {
 export const HANDBOOK = {
   steuerung: ['Steuerung', [
     ['Maus', 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Doppelklick wählt alle gleichen Truppen im Bild. Rechtsklick befiehlt: ziehen, angreifen, Erz schürfen, Holz fällen, Baustelle fertigstellen. Das Mausrad zoomt.'],
-    ['Tasten', 'A Angriffsmarsch, S Halt, Q und X Fähigkeiten des Helden, R Macht der Fraktion, E ganzes Heer, Punkt nächster untätiger Arbeiter, Leertaste springt zur Auswahl.'],
+    ['Tasten', 'W, A, S, D oder die Pfeiltasten bewegen die Kamera. F Angriffsmarsch, H Halt, G Stellung halten, Q und X Fähigkeiten des Helden, R Macht der Fraktion, E ganzes Heer, Punkt nächster untätiger Arbeiter, Leertaste springt zur Auswahl.'],
     ['Gruppen', 'Strg und eine Ziffer von 1 bis 5 speichert die Auswahl, die Ziffer allein ruft sie wieder auf.'],
     ['Befehlsleiste', 'Wer mit der Maus über einem Knopf verweilt, sieht Wirkung, Kosten, Dauer und in Rot den Grund, falls er gesperrt ist.'],
     ['Touch', 'Tippen wählt und befiehlt, Wischen verschiebt, zwei Finger zoomen. Bauplätze und Ziele erst antippen, dann bestätigen.'],

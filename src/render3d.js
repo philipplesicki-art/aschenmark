@@ -166,8 +166,19 @@ export function treeFelled(tr) {
   r.im.setMatrixAt(r.i, ZERO); r.im.instanceMatrix.needsUpdate = true; treeInst.delete(tr);
 }
 
+// Mitlaufende Auflösung: dauert ein Bild zu lange, wird gröber gerechnet (bis 55 %), bei Luft wieder feiner.
+let dynScale = 1, dynMs = 16, dynT = 0;
+export function adaptFrame(ms) {
+  if (!renderer || ms > 250) return; // Aussetzer (Laden, Fensterwechsel) zählen nicht
+  dynMs += (ms - dynMs) * .05; dynT += ms; if (dynT < 1500) return;
+  let s = dynScale;
+  if (dynMs > 24 && s > .55) s = Math.max(.55, s * (dynMs > 40 ? .75 : .88)); else if (dynMs < 13 && s < 1) s = Math.min(1, s * 1.08); else return;
+  dynScale = s; dynT = 0; dynMs = 18; resizeCanvas();
+}
+export const renderScale = () => dynScale;
+export function gpuName() { try { const g = renderer.getContext(), e = g.getExtension('WEBGL_debug_renderer_info'); return e ? String(g.getParameter(e.UNMASKED_RENDERER_WEBGL)) : ''; } catch (_) { return ''; } }
 export function resizeCanvas() {
-  const dpr = Math.min(Q.dpr, window.devicePixelRatio || 1), r = ovc.getBoundingClientRect();
+  const dpr = Math.min(Q.dpr, window.devicePixelRatio || 1) * dynScale, r = ovc.getBoundingClientRect();
   dprNow = dpr; view.dpr = dpr; view.w = Math.max(1, r.width); view.h = Math.max(1, r.height);
   ovc.width = Math.round(view.w * dpr); ovc.height = Math.round(view.h * dpr);
   renderer.setPixelRatio(dpr); renderer.setSize(view.w, view.h, false);

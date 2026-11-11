@@ -142,9 +142,9 @@ export function initInput(cv, mm) {
     if (k === 'e') { selectArmy(); return; }
     if (k === '.') { const u = selectIdle(); if (u) centerOn(u.x, u.y); return; }
     if (k === 'r') { usePower(); return; }
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { UI.keys[k] = true; return; } // Kamera: geht immer vor
     const c = hotkeyFor(k);
     if (c) { if (c.en()) c.fn(); return; }
-    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) UI.keys[k] = true;
   });
   addEventListener('keyup', e => { UI.keys[e.key.toLowerCase()] = false; });
   addEventListener('blur', () => { for (const k in UI.keys) UI.keys[k] = false; });

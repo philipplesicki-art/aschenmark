@@ -175,7 +175,7 @@ export function defOf(fac, type) {
 }
 
 // Hotkeys nach Rolle. Sie gelten nur im jeweiligen Kontext (Auswahl), Überschneidungen sind unkritisch.
-export const HK = { worker: 'w', hero: 'g', melee: 'z', ranged: 'x', cav: 'c', siege: 'v', farm: 'f', barracks: 'k', workshop: 'j', tower: 't', outpost: 'o', lumber: 'l', market: 'm', support: 'h', elite: 'y' };
+export const HK = { worker: 'b', hero: 'n', melee: 'z', ranged: 'x', cav: 'c', siege: 'v', farm: 'i', barracks: 'k', workshop: 'j', tower: 't', outpost: 'o', lumber: 'l', market: 'm', support: 'u', elite: 'y' };
 
 // Held: Erfahrung für Stufe 2 bis 5.
 export const XP_STEPS = [80, 200, 380, 620];
