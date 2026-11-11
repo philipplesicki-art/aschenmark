@@ -172,7 +172,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.6.2';
+export const VERSION = '0.6.3';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 

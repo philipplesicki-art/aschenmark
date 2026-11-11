@@ -2,7 +2,7 @@
 // Die Regeln stehen in cstate.js; hier wird nur gezeichnet und weitergereicht.
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
   recruitBlock, recruit, recruitCost, bldCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
-  unitCount, armyPower, defense, endTurn, N, D, A, Nc, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy,
+  unitCount, armyPower, defense, endTurn, N, D, A, Nc, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy, regroup,
   nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE, dipOf } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
@@ -38,6 +38,7 @@ export function openCampaign(exit) {
 }
 export const campaignOpen = () => !!(root && !root.hidden);
 export function closeCampaign() { if (root) root.hidden = true; }
+export function selectArmyUi(id) { sel = { kind: 'army', id }; render(); } // für Tests und Fehlersuche
 
 function build() {
   root = document.createElement('div'); root.id = 'camp'; root.hidden = true;
@@ -248,7 +249,10 @@ function renderSide() {
     if (mine) {
       h += '<p class="sub">Klick auf eine Provinz schickt das Heer dorthin. Wer feindliches oder wildes Land betritt, greift an.</p>';
       if (a.path.length) h += btn('halt', 'Marsch anhalten', null, 'Das Heer bleibt stehen und vergisst sein Ziel.');
-      if (unitCount(a.units) >= 2) h += btn('split', 'Heer teilen', null, 'Die Hälfte jeder Truppenart bildet ein zweites Heer in derselben Provinz.');
+      const others = C.armies.filter(o => o !== a && o.owner === a.owner && o.at === a.at);
+      for (const o of others) h += btn('swap:' + o.id, 'Truppen tauschen: ' + (o.hero ? FACTIONS[o.owner].units.hero.name + 's Heer' : 'Heer') + ' (' + unitCount(o.units) + ')', null, 'Öffnet das Tauschfenster: Truppen und Held zwischen beiden Heeren verschieben oder die Heere ganz zusammenlegen.');
+      if (others.length) h += btn('join', 'Alle Heere hier zusammenlegen', null, 'Vereint alle eigenen Heere dieser Provinz zu einem.');
+      if (unitCount(a.units) >= 2) h += btn('split', 'Heer teilen', null, 'Öffnet das Tauschfenster mit einem neuen, leeren Heer: Truppen frei aufteilen.');
     }
     h += btn('toProv', 'Provinz ' + pinfo(a.at).name + ' zeigen');
   } else if (sel && sel.kind === 'prov') {
@@ -280,7 +284,9 @@ function renderSide() {
 }
 function act(a) {
   if (a === 'halt') { const x = C.armies.find(q => q.id === sel.id); if (x) x.path = []; }
-  else if (a === 'split') { const x = C.armies.find(q => q.id === sel.id), half = {}; for (const r of ROLES) half[r] = Math.floor(x.units[r] / 2); const n = splitArmy(x, half); if (n) sel = { kind: 'army', id: n.id }; }
+  else if (a === 'split') { openSwap(C.armies.find(q => q.id === sel.id), null); return; }
+  else if (a.startsWith('swap:')) { openSwap(C.armies.find(q => q.id === sel.id), C.armies.find(q => q.id === +a.slice(5))); return; }
+  else if (a === 'join') { const x = C.armies.find(q => q.id === sel.id); if (x) for (const o of C.armies.filter(o => o !== x && o.owner === x.owner && o.at === x.at)) { const all = {}, none = {}; for (const r of ROLES) { all[r] = x.units[r] + o.units[r]; none[r] = 0; } regroup(x, o, all, none, false); } }
   else if (a === 'toProv') { const x = C.armies.find(q => q.id === sel.id); if (x) sel = { kind: 'prov', id: x.at }; }
   else if (a === 'settle') startSettle(prov(sel.id));
   else if (a.startsWith('b:')) startBuild(prov(sel.id), a.slice(2));
@@ -299,6 +305,34 @@ function moveTo(id) {
 
 /* ---------- Dialoge: Forschung, Handel, Chronik, Schlacht, Menü, Ende ---------- */
 function dlg(html, onClick) { $('cCard').innerHTML = html; $('cDlg').hidden = false; $('cCard').onclick = ev => { const b = ev.target.closest('[data-d]'); if (b && !b.disabled) onClick(b.dataset.d); }; }
+// Tauschfenster: Truppen und Held zwischen zwei Heeren derselben Provinz verschieben. Ohne zweites Heer entsteht ein neues.
+function openSwap(a, b) {
+  if (!a) return;
+  const L = { ...a.units }, R = {}; for (const r of ROLES) R[r] = b ? b.units[r] : 0;
+  const hero = a.hero || !!(b && b.hero); let heroRight = !!(b && b.hero), msg = '';
+  const nameOf = (x, right) => x ? (x.hero ? FACTIONS[x.owner].units.hero.name + 's Heer' : 'Heer') : right ? 'Neues Heer' : 'Heer';
+  const draw = () => {
+    const roles = ROLES.filter(r => L[r] + R[r] > 0), sum = u => roles.reduce((n, r) => n + u[r], 0);
+    const mv = (dir, r, n, lbl, off) => '<button class="btn sm" type="button" data-d="' + dir + ':' + r + ':' + n + '"' + (off ? ' disabled' : '') + '>' + lbl + '</button>';
+    let h = '<h2>Truppen tauschen</h2><p class="sub">In ' + pinfo(a.at).name + '. Pfeile verschieben einen Trupp, Doppelpfeile alle dieser Art. Ein Heer ohne Truppen löst sich auf.</p>';
+    h += '<table class="swap"><thead><tr><th>' + nameOf(a) + '<small>' + sum(L) + ' Trupps · Stärke ' + Math.round(armyPower(L, a.owner, hero && !heroRight)) + '</small></th><th></th><th>' + nameOf(b, true) + '<small>' + sum(R) + ' Trupps · Stärke ' + Math.round(armyPower(R, a.owner, hero && heroRight)) + '</small></th></tr></thead><tbody>';
+    if (hero) h += '<tr class="hero"><td>' + (heroRight ? '' : '★ ' + FACTIONS[a.owner].units.hero.name) + '</td><td class="mv"><button class="btn sm" type="button" data-d="hero">' + (heroRight ? '◀ Held' : 'Held ▶') + '</button></td><td>' + (heroRight ? '★ ' + FACTIONS[a.owner].units.hero.name : '') + '</td></tr>';
+    for (const r of roles) h += '<tr><td><b>' + L[r] + '</b> ' + plural(uName(a.owner, r), L[r]) + '</td><td class="mv">' + mv('l', r, 9999, '◀◀', !R[r]) + mv('l', r, 1, '◀', !R[r]) + mv('r', r, 1, '▶', !L[r]) + mv('r', r, 9999, '▶▶', !L[r]) + '</td><td><b>' + R[r] + '</b> ' + plural(uName(a.owner, r), R[r]) + '</td></tr>';
+    h += '</tbody></table>' + (msg ? '<p class="sub bad">' + msg + '</p>' : '');
+    h += '<div class="row end"><button class="btn" data-d="half" type="button">Gleich aufteilen</button><button class="btn" data-d="allL" type="button">◀ Alles zusammenlegen</button><button class="btn" data-d="x" type="button">Abbrechen</button><button class="btn go" data-d="ok" type="button">Übernehmen</button></div>';
+    dlg(h, d => {
+      msg = '';
+      if (d === 'x') return closeDlg();
+      if (d === 'ok') { const err = regroup(a, b, L, R, heroRight); if (err) { msg = err; return draw(); } if (!C.armies.includes(a)) { const o = C.armies.find(q => q.owner === C.player && q.at === a.at); sel = o ? { kind: 'army', id: o.id } : null; } return closeDlg(); }
+      if (d === 'hero') heroRight = !heroRight;
+      else if (d === 'half') for (const r of ROLES) { const t = L[r] + R[r]; L[r] = Math.ceil(t / 2); R[r] = t - L[r]; }
+      else if (d === 'allL') { for (const r of ROLES) { L[r] += R[r]; R[r] = 0; } heroRight = false; }
+      else { const [dir, r, n] = d.split(':'), from = dir === 'r' ? L : R, to = dir === 'r' ? R : L, k = Math.min(+n, from[r]); from[r] -= k; to[r] += k; }
+      draw();
+    });
+  };
+  draw();
+}
 function closeDlg() { $('cDlg').hidden = true; $('cCard').classList.remove('wide'); render(); }
 // Forschungsbaum: vier Spalten (Zeitalter), jede Forschung als Karte: erforscht, in Arbeit, verfügbar oder gesperrt
 function openResearch() {

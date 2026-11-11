@@ -283,6 +283,22 @@ export function mergeAt(a) {
   same.hero = same.hero || a.hero; same.moved = Math.max(same.moved, a.moved);
   C.armies = C.armies.filter(o => o !== a);
 }
+// Truppen zwischen zwei eigenen Heeren derselben Provinz neu verteilen. b darf fehlen: dann entsteht ein neues Heer.
+// left/right: gewünschte Truppen je Seite (Summe muss stimmen), heroRight: der Held steht danach rechts.
+// Ein Heer ohne Truppen löst sich auf; der Held braucht Truppen um sich. Gibt null zurück oder den Grund als Text.
+export function regroup(a, b, left, right, heroRight) {
+  if (b && (b.owner !== a.owner || b.at !== a.at || b === a)) return 'Die Heere stehen nicht in derselben Provinz.';
+  for (const r of ROLES) { const l = left[r] || 0, rt = right[r] || 0; if (l < 0 || rt < 0 || l + rt !== a.units[r] + (b ? b.units[r] : 0)) return 'Die Verteilung geht nicht auf.'; }
+  const hero = a.hero || !!(b && b.hero), nl = unitCount(left), nr = unitCount(right);
+  if (hero && (heroRight ? nr : nl) === 0) return 'Der Held braucht Truppen um sich.';
+  if (!b && nr > 0) { b = mkArmy(a.owner, a.at, {}); b.moved = a.moved; }
+  const mv = Math.max(a.moved, b ? b.moved : 0);
+  for (const r of ROLES) { a.units[r] = left[r] || 0; if (b) b.units[r] = right[r] || 0; }
+  a.hero = hero && !heroRight; if (b) { b.hero = hero && !!heroRight; a.moved = b.moved = mv; }
+  if (b && nr === 0) C.armies = C.armies.filter(o => o !== b);
+  if (nl === 0) C.armies = C.armies.filter(o => o !== a);
+  return null;
+}
 export function splitArmy(a, units) {
   for (const r of ROLES) if ((units[r] || 0) > a.units[r]) return null;
   for (const r of ROLES) a.units[r] -= units[r] || 0;

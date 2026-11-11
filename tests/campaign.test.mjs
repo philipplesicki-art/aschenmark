@@ -242,4 +242,15 @@ import { GW } from '../src/config.js';
   assert.ok(h.maxhp > h0.maxhp * 1.5 && h.dmgMul > h0.dmgMul * 1.4, 'Held mit Ausrüstung stärker in der Schlacht');
   console.log('Gegenstände ok: ' + Object.values(e.items).join(', '));
 }
+{ // Heere tauschen, teilen, zusammenlegen
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 31 });
+  const C = CS.C, a = C.armies.find(x => x.owner === 'wacht'); a.units.melee = 10; a.units.ranged = 6; a.hero = true;
+  const n0 = C.armies.length, z = () => ({ melee: 0, ranged: 0, cav: 0, siege: 0, support: 0, elite: 0 });
+  assert.equal(CS.regroup(a, null, { ...a.units, melee: 4 }, { ...z(), melee: 6 }, false), null); assert.equal(C.armies.length, n0 + 1, 'neues Heer entsteht');
+  const b = C.armies[C.armies.length - 1]; assert.equal(b.units.melee, 6); assert.equal(a.units.melee, 4); assert.ok(a.hero && !b.hero);
+  assert.ok(CS.regroup(a, b, { ...a.units, melee: 5 }, { ...b.units }, false), 'falsche Summe wird abgelehnt');
+  assert.ok(CS.regroup(a, b, z(), { ...z(), melee: 10, ranged: 6 }, false), 'Held ohne Truppen wird abgelehnt');
+  assert.equal(CS.regroup(a, b, z(), { ...z(), melee: 10, ranged: 6 }, true), null); assert.equal(C.armies.length, n0, 'leeres Heer löst sich auf'); assert.ok(b.hero && b.units.melee === 10 && !C.armies.includes(a));
+  console.log('Heere tauschen ok');
+}
 console.log('Kampagnentests bestanden');
