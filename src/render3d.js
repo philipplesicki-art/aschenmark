@@ -362,10 +362,10 @@ function dressGround() {
     const L = lists[kind]; if (!L.length) continue;
     const im = new THREE.InstancedMesh(g[kind], mats[kind], L.length);
     L.forEach(([x, y, a, b, D], i) => {
-      const X = x * S, Z = y * S, sc = kind === 'tuft' ? 1.3 + a * 1.3 : kind === 'bush' ? .5 + a * .7 : .3 + a * a * 1.2;
+      const X = x * S, Z = y * S, sc = kind === 'tuft' ? .9 + a * .9 : kind === 'bush' ? .5 + a * .7 : .3 + a * a * 1.2;
       d.position.set(X, hAt(X, Z) - .03, Z); d.rotation.set(0, b * 6.28, 0); d.scale.set(sc, sc * (kind === 'rock' ? .7 + b * .5 : .8 + b * .5), sc); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
       // Farbe: Büschel und Sträucher nach Gebiet; mit Schneekappe heller, Brocken grau
-      if (kind === 'tuft') col.setHex(D[3]).multiplyScalar(1.1 + b * .7);
+      if (kind === 'tuft') col.setHex(D[3]).multiplyScalar(.7 + b * .45);
       else if (kind === 'bush') { col.setHex(D[4]).multiplyScalar(1.7 + b * .6); if (D[5]) col.lerp(white, .12 + a * .18); }
       else { col.setHex(D[5] ? 0x9aa0a8 : G.battle && G.battle.biome === 'asch' ? 0x3a3432 : 0x8a7f72); col.multiplyScalar(.8 + b * .4); }
       im.setColorAt(i, col);
