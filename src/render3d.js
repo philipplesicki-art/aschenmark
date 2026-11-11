@@ -323,6 +323,57 @@ function paintGround() {
   return c;
 }
 
+/* ---------- Bodenbewuchs: Büschel, Sträucher, Brocken (nur Kulisse, drei Instanzgruppen) ---------- */
+// Je Gebiet: [Büschel je 1000 Felder, Sträucher, Brocken, Farbe Büschel, Farbe Strauch, Schneekappe]
+const DRESS = {
+  grenz: [260, 70, 50, 0x7d7a5c, 0x3c4a3a, 1], wald: [420, 150, 40, 0x5f6e4c, 0x2e4032, 1], berg: [120, 30, 260, 0x7d7a6c, 0x44483e, 1],
+  asch: [60, 60, 150, 0x4a4038, 0x2a2420, 0], trocken: [330, 60, 130, 0xb39a5e, 0x6c5a34, 0], sumpf: [620, 130, 30, 0x66783e, 0x33442a, 0], kueste: [300, 50, 90, 0xa9a070, 0x5b6a44, 0]
+};
+let dressGeo = null;
+function dressGeos() {
+  if (dressGeo) return dressGeo;
+  // Büschel: sieben schmale Halme als Dreiecke, fächerförmig
+  const bp = [], R = rng(4711);
+  for (let i = 0; i < 7; i++) { const a = i * .9 + R() * .5, r = .05 + R() * .12, h = .28 + R() * .3, w = .035, lx = Math.cos(a), lz = Math.sin(a), tx = lx * (r + h * .35), tz = lz * (r + h * .35);
+    bp.push(lx * r - lz * w, 0, lz * r + lx * w, lx * r + lz * w, 0, lz * r - lx * w, tx, h, tz); }
+  const tuft = new THREE.BufferGeometry(); tuft.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); tuft.computeVertexNormals();
+  // Strauch und Brocken: oben hell (Schnee über die Instanzfarbe abschaltbar ist es nicht, daher zwei Farbkanäle: Eckenfarbe mal Instanzfarbe)
+  const cap = (g, snowY) => { const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = p.getY(i) > snowY ? 1 : .42; c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
+  // Strauch: kantiger Körper mit ausgefransten Ecken, nur die Kuppe trägt Schnee
+  const bg = new THREE.IcosahedronGeometry(.5, 0); { const p = bg.attributes.position; for (let i = 0; i < p.count; i++) { const k = .75 + (Math.abs(Math.sin(p.getX(i) * 12.9 + p.getY(i) * 78.2 + p.getZ(i) * 37.7) * 43758.5) % 1) * .6; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * .7, p.getZ(i) * k); } bg.computeVertexNormals(); }
+  const bush = cap(bg.translate(0, .22, 0), .4);
+  const rock = cap(MD.rockGeo(77, .5).clone().translate(0, .12, 0), .3);
+  return (dressGeo = { tuft, bush, rock });
+}
+function dressGround() {
+  const R = rng((G.seed ^ 0x77aa11) >>> 0), g = dressGeos(), cells = GW * GH, lists = { tuft: [], bush: [], rock: [] };
+  const biomeAt = (cx, cy) => (G.battle ? G.battle.biome : regionAtCell(cx, cy));
+  const tries = Math.round(cells * 1.1);
+  for (let i = 0; i < tries; i++) {
+    const x = R() * WW, y = R() * WH, cx = Math.floor(x / TS), cy = Math.floor(y / TS), k = R();
+    if (G.blk[cy * GW + cx] || (G.water && G.water[cy * GW + cx])) continue;
+    const D = DRESS[biomeAt(cx, cy)] || DRESS.grenz, tot = 1100;
+    const kind = k * tot < D[0] ? 'tuft' : k * tot < D[0] + D[1] ? 'bush' : k * tot < D[0] + D[1] + D[2] ? 'rock' : null;
+    if (kind) lists[kind].push([x, y, R(), R(), D]);
+  }
+  const mats = { tuft: new THREE.MeshStandardMaterial({ roughness: 1, side: THREE.DoubleSide }), bush: new THREE.MeshStandardMaterial({ roughness: 1, vertexColors: true, flatShading: true }), rock: new THREE.MeshStandardMaterial({ roughness: .95, vertexColors: true, flatShading: true }) };
+  const col = new THREE.Color(), white = new THREE.Color(0xdfe6ee), d = new THREE.Object3D();
+  for (const kind of ['tuft', 'bush', 'rock']) {
+    const L = lists[kind]; if (!L.length) continue;
+    const im = new THREE.InstancedMesh(g[kind], mats[kind], L.length);
+    L.forEach(([x, y, a, b, D], i) => {
+      const X = x * S, Z = y * S, sc = kind === 'tuft' ? 1.3 + a * 1.3 : kind === 'bush' ? .5 + a * .7 : .3 + a * a * 1.2;
+      d.position.set(X, hAt(X, Z) - .03, Z); d.rotation.set(0, b * 6.28, 0); d.scale.set(sc, sc * (kind === 'rock' ? .7 + b * .5 : .8 + b * .5), sc); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+      // Farbe: Büschel und Sträucher nach Gebiet; mit Schneekappe heller, Brocken grau
+      if (kind === 'tuft') col.setHex(D[3]).multiplyScalar(1.1 + b * .7);
+      else if (kind === 'bush') { col.setHex(D[4]).multiplyScalar(1.7 + b * .6); if (D[5]) col.lerp(white, .12 + a * .18); }
+      else { col.setHex(D[5] ? 0x9aa0a8 : G.battle && G.battle.biome === 'asch' ? 0x3a3432 : 0x8a7f72); col.multiplyScalar(.8 + b * .4); }
+      im.setColorAt(i, col);
+    });
+    im.castShadow = kind !== 'tuft'; im.receiveShadow = true; im.instanceColor.needsUpdate = true; world.add(im);
+  }
+}
+
 function detailTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), R = rng(99);
   x.fillStyle = '#808080'; x.fillRect(0, 0, 256, 256);
@@ -392,6 +443,7 @@ export function buildTerrain() {
   for (const k of Object.keys(warm)) mk(MD.pineGeometry(k), warm[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }), 1);
   mk(MD.deadTreeGeometry(), dead, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), 1.1);
 
+  dressGround();
   // Ruinen um die wilden Lager und an Wegmarken der Außengebiete (nur Kulisse)
   if (!G.battle) [[95, 14], [104, 40], [10, 70], [28, 76], [55, 72], [100, 70]].forEach(([mx, my], i) => {
     for (const [dx, dy, sd] of [[-5.5, 3.5, 1], [6.5, -2.5, 2]]) {

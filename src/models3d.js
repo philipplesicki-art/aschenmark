@@ -139,7 +139,12 @@ function weather(m, snow = .85, soot = .55, thr = .62) {
       #else
       float nz = .55;
       #endif
+      // Schnee liegt in Wehen: weiches Rauschen in Weltkoordinaten bricht die Decke auf, an steilen Flächen rutscht er ab
+      vec2 sp = vWxz * .55; vec2 si = floor(sp), sf = fract(sp); sf = sf * sf * (3. - 2. * sf);
+      float h00 = fract(sin(dot(si, vec2(127.1, 311.7))) * 43758.5), h10 = fract(sin(dot(si + vec2(1., 0.), vec2(127.1, 311.7))) * 43758.5), h01 = fract(sin(dot(si + vec2(0., 1.), vec2(127.1, 311.7))) * 43758.5), h11 = fract(sin(dot(si + vec2(1., 1.), vec2(127.1, 311.7))) * 43758.5);
+      float drift = mix(mix(h00, h10, sf.x), mix(h01, h11, sf.x), sf.y);
       float up = smoothstep(uThr, uThr + .2, vWn.y + (nz - .55) * .45) * uSnowAmt;
+      up *= smoothstep(.28, .62, drift * .75 + (vWn.y - .72) * 1.5 + (nz - .5) * .5 + .32);
       diffuseColor.rgb *= mix(1. - uSoot, 1., smoothstep(-.2, 1.5, vWy));
       // Verwitterung: senkrechte Schmutz- und Feuchtespuren an Wänden, unregelmäßig lang
       float wcol = floor((vWxz.x + vWxz.y) * 7.), wrs = fract(sin(wcol * 91.7) * 437.58), wlen = fract(sin(wcol * 12.3) * 91.7);
@@ -147,7 +152,7 @@ function weather(m, snow = .85, soot = .55, thr = .62) {
       diffuseColor.rgb *= 1. - streak * .28;
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.78, .83, .9), up);`);
   };
-  m.customProgramCacheKey = () => 'wx' + snow + '_' + soot + '_' + thr;
+  m.customProgramCacheKey = () => 'wx2' + snow + '_' + soot + '_' + thr;
   return m;
 }
 const NSTR = { fur: 2.4, stone: 3.2, planks: 1.6, shingles: 1.5, plates: 1.4, snow: .5, rough: 1.1 }; // Tiefe der Normal-Maps
