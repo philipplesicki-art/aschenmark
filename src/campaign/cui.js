@@ -9,6 +9,7 @@ import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
 import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES, ITEMS, SLOT_NAME } from './cdata.js';
 import { FACTIONS, WILD, FAC_IDS, plural } from '../factions.js';
+import { HANDBOOK } from '../ui.js';
 import { CTECH, ERAS, ctechName } from './ctech.js';
 import { might, opinion, opinionWord, warBlock, declareWar, makePeace, acceptsPeace, acceptsAlliance, makeAlliance, breakAlliance, gift } from './cdip.js';
 import { CEVENTS, resolveEvent, eventText, optOk } from './cevents.js';
@@ -466,8 +467,14 @@ function fight(pb, spec) {
   });
 }
 function menu() {
-  dlg('<h2>Kampagne</h2><div class="mlist compact"><button class="mbtn" data-d="resume" type="button"><span>Weiterspielen</span></button><button class="mbtn" data-d="save" type="button"><span>Speichern</span></button><button class="mbtn" data-d="exit" type="button"><span>Speichern und zum Hauptmenü</span></button></div>',
-    d => { if (d === 'resume') closeDlg(); else if (d === 'save') { saveCampaign(); closeDlg(); } else { saveCampaign(); $('cDlg').hidden = true; closeCampaign(); onExit(); } });
+  dlg('<h2>Kampagne</h2><div class="mlist compact"><button class="mbtn" data-d="resume" type="button"><span>Weiterspielen</span></button><button class="mbtn" data-d="help" type="button"><span>Handbuch</span></button><button class="mbtn" data-d="save" type="button"><span>Speichern</span></button><button class="mbtn" data-d="exit" type="button"><span>Speichern und zum Hauptmenü</span></button></div>',
+    d => { if (d === 'resume') closeDlg(); else if (d === 'help') openHandbook(); else if (d === 'save') { saveCampaign(); closeDlg(); } else { saveCampaign(); $('cDlg').hidden = true; closeCampaign(); onExit(); } });
+}
+function openHandbook(tab = 'kampagne') {
+  dlg('<h2>Handbuch</h2><div class="row tabs">' + Object.entries(HANDBOOK).map(([k, [n]]) => '<button class="btn pick sm' + (k === tab ? ' sel' : '') + '" data-d="' + k + '" type="button"><b>' + n + '</b></button>').join('') + '</div>'
+    + '<dl class="hb">' + HANDBOOK[tab][1].map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl><div class="row end"><button class="btn" data-d="x" type="button">Schließen</button></div>',
+    d => { if (d === 'x') closeDlg(); else openHandbook(d); });
+  $('cCard').classList.add('wide');
 }
 export function nextTurn() {
   if (C.over) return showOver();

@@ -213,3 +213,13 @@ body{font:500 16px/1.3 var(--ui);letter-spacing:.005em;font-feature-settings:'ln
 .trow{display:flex;align-items:center;gap:14px;padding:7px 10px;background:linear-gradient(180deg,rgba(255,240,215,.035),rgba(0,0,0,.12));border:1px solid #2e2a25;border-left:2px solid #4a4032}
 .trow .tfrom{flex:0 0 150px;font-family:var(--sc);letter-spacing:.04em} .trow .tfrom .res{font-size:17px;margin-right:4px}
 .trow .row{margin:0;flex-wrap:wrap;gap:6px} .trow .btn{min-height:32px;padding:3px 9px;font-family:var(--ui);font-weight:700;gap:5px}
+
+/* Handbuch */
+.card.wide{max-width:min(860px,96vw)} .card.menu.wide{max-width:min(760px,96vw)}
+.hb{display:grid;grid-template-columns:minmax(110px,150px) 1fr;gap:7px 16px;margin:4px 0 14px;max-height:56vh;overflow:auto;padding-right:6px}
+.hb dt{font-family:var(--sc);font-weight:700;letter-spacing:.05em;color:var(--brass2)}
+.hb dd{margin:0;font-family:var(--ui);font-size:15.5px;line-height:1.4;color:#ded5c4}
+.card .row.tabs{margin-bottom:12px}
+@media (max-width:560px){.hb{grid-template-columns:1fr;gap:2px 0}.hb dd{margin-bottom:8px}}
+#cCard.wide .hb{max-height:60vh}
+#cCard .row.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}

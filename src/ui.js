@@ -174,6 +174,7 @@ function setMenuLook(on) { // Hauptmenü: Spielfläche ohne Leisten, Karte links
 }
 function show(html, onAct, back, focusSel) {
   const card = $('card');
+  if (card.classList) card.classList.remove('wide');
   card.innerHTML = html; $('ov').hidden = false; screen = { back };
   card.onclick = e => {
     const a = e.target.closest && e.target.closest('[data-act]'); if (!a || a.disabled) return;
@@ -214,7 +215,7 @@ function mainMenu() {
     mbtn('new', 'Neues Gefecht', 'Fraktion, Gegner und Schwierigkeit wählen'),
     mbtn('settings', 'Einstellungen', 'Ton, Grafik und Anzeige'),
     mbtn('chronicle', 'Chronik', 'Siege, Handlungsfäden und Erfolge'),
-    mbtn('help', 'Steuerung', 'Maus, Tasten, Touch und Taktik'),
+    mbtn('help', 'Handbuch', 'Steuerung, Wirtschaft, Kampf und Kampagne'),
     mbtn('credits', 'Mitwirkende'),
     platform.canQuit && mbtn('quit', 'Beenden')
   ].filter(Boolean).join('');
@@ -322,18 +323,52 @@ function chronicleScreen() {
     + backRow(), act => { if (act === 'back') mainMenu(); }, mainMenu);
 }
 
-function helpScreen(back) {
-  show('<h2>Steuerung</h2><ul class="help">'
-    + '<li><b>Maus</b> Linksklick wählt, Rahmen ziehen wählt mehrere, Rechtsklick befiehlt, Mausrad zoomt, Doppelklick wählt alle gleichen Truppen</li>'
-    + '<li><b>Touch</b> Tippen wählt und befiehlt, Wischen verschiebt, zwei Finger zoomen. Bauplatz und Ziele erst antippen, dann erneut bestätigen</li>'
-    + '<li><b>Tasten</b> A Angriffsmarsch, S Halt, Q und X Heldenfähigkeiten, R Macht, E Heer, Punkt untätiger Arbeiter, Strg+1 bis 5 Gruppen, Leertaste zur Auswahl, Escape Menü, F11 Vollbild</li>'
-    + '<li><b>Held</b> sammelt Erfahrung durch Kämpfe, steigt bis Stufe 5 auf und schaltet auf Stufe 2 die zweite Fähigkeit frei</li>'
-    + '<li><b>Macht</b> Machtpunkte wachsen mit der Zeit und mit besiegten Feinden. Mit R wählst du ein Zielgebiet</li>'
-    + '<li><b>Taktik</b> Speere schlagen Reiter, Reiter schlagen Fernkämpfer, Fernkämpfer schlagen Speere. Belagerung zerstört Gebäude, ist aber gegen Truppen schwach</li>'
-    + '<li><b>Gelände</b> Am Waldrand mindert Deckung den Fernkampfschaden um ein Drittel, Schlamm an Tümpeln und tiefer Schnee im Hartfrost bremsen</li>'
-    + '<li><b>Weltkarte</b> Linksklick wählt, Rechtsklick schickt das gewählte Heer, Ziehen oder Pfeiltasten verschieben, Mausrad und Plus/Minus zoomen, Pos1 zeigt alles, Enter beendet die Runde</li>'
-    + '<li><b>Fraktionen</b> Die Grenzwacht hält stand, die Aschenhorde kommt in Massen, der Salzbund kämpft auf Abstand und heilt</li></ul>'
-    + backRow(), act => { if (act === 'back') back(); }, back);
+// Handbuch: vier Abschnitte, jeder als Liste aus Stichwort und Erklärung
+export const HANDBOOK = {
+  steuerung: ['Steuerung', [
+    ['Maus', 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Doppelklick wählt alle gleichen Truppen im Bild. Rechtsklick befiehlt: ziehen, angreifen, Erz schürfen, Holz fällen, Baustelle fertigstellen. Das Mausrad zoomt.'],
+    ['Tasten', 'A Angriffsmarsch, S Halt, Q und X Fähigkeiten des Helden, R Macht der Fraktion, E ganzes Heer, Punkt nächster untätiger Arbeiter, Leertaste springt zur Auswahl.'],
+    ['Gruppen', 'Strg und eine Ziffer von 1 bis 5 speichert die Auswahl, die Ziffer allein ruft sie wieder auf.'],
+    ['Befehlsleiste', 'Wer mit der Maus über einem Knopf verweilt, sieht Wirkung, Kosten, Dauer und in Rot den Grund, falls er gesperrt ist.'],
+    ['Touch', 'Tippen wählt und befiehlt, Wischen verschiebt, zwei Finger zoomen. Bauplätze und Ziele erst antippen, dann bestätigen.'],
+    ['Sonstiges', 'Escape öffnet das Menü, F11 schaltet das Vollbild.']
+  ]],
+  wirtschaft: ['Wirtschaft', [
+    ['Erz', 'Bezahlt Truppen und Forschung. Arbeiter schürfen es an den Adern und tragen es zur Burg oder zu einem Vorposten.'],
+    ['Holz', 'Bezahlt Bauwerke und Gerät. Rechtsklick auf einen Baum lässt Arbeiter fällen. Ein Holzlager am Waldrand spart lange Wege.'],
+    ['Vorräte', 'Truppen essen. Höfe und die Burg ernten, das Lager fasst nur eine begrenzte Menge. Ist es leer, verlieren die Truppen Leben.'],
+    ['Jahreszeiten', 'Ein Jahr dauert neun Minuten. Im Frühfrost sinkt die Ernte, im Hartfrost ruht sie fast ganz und die Truppen essen doppelt. Vor dem Winter Vorräte anlegen.'],
+    ['Burgstufen', 'Der Ausbau der Burg schaltet Reiter, Werkstatt, Markt, Helfer und Elite frei, dazu die höheren Forschungen.'],
+    ['Forschung', 'In Burg, Kaserne, Werkstatt und Markt. Jede Forschung wirkt sofort und dauerhaft.'],
+    ['Handel', 'Der Markt tauscht Erz, Holz und Vorräte gegeneinander, anfangs zu einem schlechten Kurs.']
+  ]],
+  kampf: ['Kampf', [
+    ['Stärken', 'Speere schlagen Reiter, Reiter schlagen Fernkämpfer, Fernkämpfer schlagen Speere. Belagerungsgerät zerstört Gebäude, ist gegen Truppen aber schwach.'],
+    ['Helfer und Elite', 'Helfer kämpfen kaum, stärken aber alle in ihrer Nähe. Elitetruppen haben je eine besondere Eigenschaft.'],
+    ['Held', 'Sammelt Erfahrung im Kampf und steigt bis Stufe 5 auf. Ab Stufe 2 kommt die zweite Fähigkeit dazu. Jede Fraktion hat nur einen.'],
+    ['Macht', 'Machtpunkte wachsen mit der Zeit und mit besiegten Feinden. Mit R wählst du das Zielgebiet.'],
+    ['Gelände', 'Am Waldrand mindert Deckung den Schaden durch Fernkampf um ein Drittel. Schlamm an Tümpeln und tiefer Schnee im Hartfrost bremsen.'],
+    ['Wetter', 'Schneesturm, Ascheregen, Staubsturm, Flut und Salznebel kündigen sich an, nehmen Sicht und Tempo und treffen die Fraktionen verschieden hart.'],
+    ['Fraktionen', 'Die Grenzwacht hält stand und heilt. Die Aschenhorde kommt billig, schnell und in Massen. Der Salzbund ist teuer, zäh und kämpft auf Abstand.']
+  ]],
+  kampagne: ['Kampagne', [
+    ['Weltkarte', 'Linksklick wählt Provinz oder Heer. Mit gewähltem Heer schickt ein Klick oder Rechtsklick es los. Ziehen, Pfeiltasten und Mausrad bewegen die Karte, Pos1 zeigt alles, Enter beendet die Runde.'],
+    ['Runden', 'Eine Runde ist eine Jahreszeit. Im Hartfrost ruht die Ernte fast ganz, und Heere kommen nur halb so weit.'],
+    ['Provinzen', 'Jede Provinz bringt Erz, Holz und Vorräte nach ihrem Gelände. Gebäude und der Ausbau der Siedlung steigern den Ertrag. Die Bauplätze sind knapp.'],
+    ['Unruhe', 'Eroberte Provinzen sind einige Runden unruhig und bringen wenig. Ein Heer von mindestens drei Trupps hält sie ruhig, sonst droht ein Aufstand.'],
+    ['Verwaltung', 'Ab der siebten Provinz kostet jede weitere einen Teil des Ertrags im ganzen Reich. Forschung mildert das.'],
+    ['Schlachten', 'Wer feindliches Land betritt, greift an. Du kannst jede Schlacht selbst schlagen oder berechnen lassen. Hauptstädte und Mauern müssen erst eine Runde belagert werden.'],
+    ['Diplomatie', 'Frieden sperrt das Land des anderen. Die Reiche fürchten den Größten, schätzen Geschenke und vergessen keinen Wortbruch.'],
+    ['Held', 'Jeder Aufstieg bringt einen Zug im Werdegang. Nach Siegen findet der Held zuweilen Waffen, Rüstungen und Talismane.'],
+    ['Das Erwachen', 'Fünf Kapitel führen durch die Kampagne. Was unter den Bergen schläft, bleibt nicht ewig still.']
+  ]]
+};
+function helpScreen(back, tab = 'steuerung') {
+  const [, rows] = HANDBOOK[tab];
+  show('<h2>Handbuch</h2><div class="row tabs">' + Object.entries(HANDBOOK).map(([k, [n]]) => '<button class="btn pick sm' + (k === tab ? ' sel' : '') + '" data-act="tab" data-v="' + k + '" type="button"><b>' + n + '</b></button>').join('') + '</div>'
+    + '<dl class="hb">' + rows.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl>'
+    + backRow(), (act, el) => { if (act === 'back') back(); else if (act === 'tab') helpScreen(back, el.dataset.v); }, back, '[data-act=tab].sel');
+  const c = $('card'); if (c && c.classList) c.classList.add('wide');
 }
 
 function creditsScreen() {
@@ -353,7 +388,7 @@ export function openMenu() {
   if (G.battle) return battleMenu();
   show('<h2>Pause</h2><nav class="mlist compact">'
     + mbtn('resume', 'Weiterspielen') + mbtn('save', 'Speichern') + (hasSave() ? mbtn('load', 'Letzten Spielstand laden') : '')
-    + mbtn('settings', 'Einstellungen') + mbtn('help', 'Steuerung') + mbtn('menu', 'Hauptmenü') + (platform.canQuit ? mbtn('quit', 'Beenden') : '') + '</nav>',
+    + mbtn('settings', 'Einstellungen') + mbtn('help', 'Handbuch') + mbtn('menu', 'Hauptmenü') + (platform.canQuit ? mbtn('quit', 'Beenden') : '') + '</nav>',
   act => {
     if (act === 'resume') closeMenu();
     else if (act === 'save') { const ok = saveGame(); toast(ok ? 'Spielstand gespeichert' : 'Speichern nicht möglich', ok ? 'good' : 'bad'); }
@@ -368,7 +403,7 @@ export function openMenu() {
 function battleMenu() {
   show('<h2>Schlacht bei ' + G.battle.name + '</h2><nav class="mlist compact">'
     + mbtn('resume', 'Weiterkämpfen') + mbtn('retreat', 'Rückzug', 'Die Schlacht ist verloren, ein Teil der Truppen entkommt')
-    + mbtn('settings', 'Einstellungen') + mbtn('help', 'Steuerung') + '</nav>',
+    + mbtn('settings', 'Einstellungen') + mbtn('help', 'Handbuch') + '</nav>',
   act => {
     if (act === 'resume') closeMenu();
     else if (act === 'retreat') confirmScreen('Rückzug antreten?', 'Die Schlacht gilt als verloren. Wer noch steht, zieht sich zurück, ein Fünftel geht dabei verloren.', () => { closeOverlay(); G.paused = false; finishBattle(false, true); }, battleMenu);

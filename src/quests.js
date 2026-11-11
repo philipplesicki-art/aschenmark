@@ -50,8 +50,8 @@ export const CHAINS = {
   asch: [
     { id: 'a1', title: 'Glut im Winter', text: 'Die Feuer müssen brennen, sonst stirbt der Stamm. Baut die Halle, füllt die Pferche.',
       goals: [{ type: 'build', t: 'barracks', n: 1, label: 'Kriegshalle bauen' }, { type: 'build', t: 'farm', n: 2, label: 'Zwei Pferche bauen' }, { type: 'troops', n: 12, label: 'Zwölf Krieger unter Waffen' }] },
-    { id: 'a2', title: 'Der Aschenregen', text: 'Die Berge husten wieder. Für die anderen ist es das Ende, für uns ist es Heimat. Haltet die Feste.',
-      onStart: () => startEvent('ash'), goals: [{ type: 'event', label: 'Den Aschenregen überstehen' }] },
+    { id: 'a2', title: 'Der Ascheregen', text: 'Die Berge husten wieder. Für die anderen ist es das Ende, für uns ist es Heimat. Haltet die Feste.',
+      onStart: () => startEvent('ash'), goals: [{ type: 'event', label: 'Den Ascheregen überstehen' }] },
     { id: 'a3', title: 'Der Kamm', text: 'Im Westen liegt, was einmal unser war. Schickt Späher, bevor die Ersten dorthin gehen.',
       goals: [{ type: 'reach', x: 1100, y: 1000, r: 140, label: 'Die Westhänge erreichen' }] },
     { id: 'a4', title: 'Fremde Fahnen', text: 'Fremde Fahnen auf unserem Grund. Zeigt ihnen, was die Asche lehrt.',
