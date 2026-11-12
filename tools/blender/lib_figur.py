@@ -16,9 +16,9 @@ def RXa(a): return Matrix.Rotation(a, 4, 'X')
 
 # Farbsätze der Fraktionen (sRGB). Kräftiger als früher: die Figuren sollen aus der Schrägsicht sofort zuzuordnen sein.
 PAL = {
-    'wacht': dict(skin=0xd2a487, tunic=0x2e5d94, tunic_d=0x1f3f66, trouser=0x3a3d44, leather=0x5a4334, wood=0x7a5a3c, fur=0xcfd3d6, steel=0xaab0b8, steel_d=0x6f7279, trim=0xd2a64a, cloth=0xc9c2ae),
-    'asch': dict(skin=0xa98e80, tunic=0x8a2a1a, tunic_d=0x52160e, trouser=0x2a2624, leather=0x3a2c26, wood=0x4a3a30, fur=0x3b3432, steel=0x66646a, steel_d=0x38363e, trim=0xe8823c, cloth=0x8a7f72),
-    'salz': dict(skin=0xc9a184, tunic=0x2f8078, tunic_d=0x1d544f, trouser=0x4a4a52, leather=0x6a5a48, wood=0x8a7250, fur=0xe6e2d6, steel=0xb9c2c4, steel_d=0x7c8a8c, trim=0xe8dcc0, cloth=0xe6e0cf),
+    'wacht': dict(skin=0xb98f76, tunic=0x27425f, tunic_d=0x18293d, trouser=0x2b2d33, leather=0x3d2c22, wood=0x5a4230, fur=0x9a968c, steel=0x6c7279, steel_d=0x3a3e44, trim=0x8a6a2e, cloth=0x8d8672),
+    'asch': dict(skin=0x8f7a70, tunic=0x6a1c14, tunic_d=0x3a100c, trouser=0x1f1c1b, leather=0x2a201c, wood=0x3a2c24, fur=0x2c2725, steel=0x3e3c42, steel_d=0x1f1e23, trim=0xa4521f, cloth=0x6a6058),
+    'salz': dict(skin=0xb08c74, tunic=0x275f5a, tunic_d=0x163c39, trouser=0x33343a, leather=0x4a3e32, wood=0x6a563c, fur=0xb8b3a4, steel=0x737c7e, steel_d=0x424c4e, trim=0x9a8f72, cloth=0xa9a392),
 }
 HAND_R, HAND_L = (.06, -.38, .95), (.07, .38, .93)
 ST = {}
@@ -142,6 +142,72 @@ def koecher():
     cone('chest', 'leather', MATTE, .055, .045, .5, T(-.19, -.1, 1.45) @ RXa(.35), seg=8)
     for dx in (-.02, .02): box('chest', 'cloth', MATTE, T(-.19 + dx, -.19, 1.73) @ S(.012, .012, .1))
 
+# ---------- Geschichtete Rüstung: viele überlappende Teile statt einer glatten Fläche ----------
+def halsberge():
+    cone('chest', 'steel_d', METAL, .175, .115, .1, T(.005, 0, 1.7) @ S(.9, 1.15, 1), seg=10)
+    cone('chest', 'trim', METAL, .18, .18, .018, T(.005, 0, 1.655) @ S(.9, 1.15, 1), seg=10, caps=False, smooth=False)
+def schulterplatten(col='steel', rand='trim'):  # drei Platten je Schulter, nach unten kleiner, mit Randleiste
+    for sg, s_ in ((1, 'L'), (-1, 'R')):
+        for i, (y, z, r) in enumerate(((.3, 1.64, .135), (.335, 1.555, .118), (.355, 1.47, .1))):
+            ball('upperarm.' + s_, col if i != 1 else 'steel_d', METAL, r, T(0, y * sg, z) @ S(1.05, .95, .62))
+            cone('upperarm.' + s_, rand, METAL, r * 1.04, r * 1.04, .014, T(0, y * sg, z - r * .3) @ S(1.05, .95, 1), seg=10, caps=False, smooth=False)
+def kuerass(col='steel'):  # Brust- und Rückenplatte mit Grat, darunter Bauchreifen
+    ball('chest', col, METAL, .175, T(.055, 0, 1.46) @ S(.6, 1.08, 1.15))
+    ball('chest', 'steel_d', METAL, .17, T(-.05, 0, 1.46) @ S(.55, 1.05, 1.12))
+    box('chest', 'trim', METAL, T(.158, 0, 1.47) @ S(.014, .022, .3))
+    for z, r in ((1.27, .2), (1.2, .205), (1.14, .21)):
+        cone('spine', 'steel_d' if z != 1.2 else col, METAL, r, r * .96, .075, T(0, 0, z) @ S(.82, 1, 1), seg=12, caps=False)
+    for sg in (1, -1):  # Riemen und Schnallen an den Seiten
+        box('chest', 'leather', MATTE, T(0, .19 * sg, 1.42) @ S(.2, .02, .035)); box('chest', 'trim', METAL, T(.06, .2 * sg, 1.42) @ S(.03, .012, .045))
+def beintaschen(col='steel'):  # hängende Platten rund um die Hüfte
+    for a in (-.75, -.25, .25, .75, 2.0, -2.0, 3.14):
+        x, y = .21 * math.cos(a) * .84, .21 * math.sin(a)
+        box('hips', col if abs(a) < 1 else 'steel_d', METAL, T(x, y, .93) @ Matrix.Rotation(a, 4, 'Z') @ RY(-.16) @ S(.022, .13, .26))
+        box('hips', 'trim', METAL, T(x * 1.02, y * 1.02, .81) @ Matrix.Rotation(a, 4, 'Z') @ S(.026, .135, .02))
+def kettenrock():
+    cone('hips', 'steel_d', METAL, .255, .19, .3, T(0, 0, .93) @ S(.83, 1, 1), caps=False)
+def armschienen(col='steel', leder=False):
+    for sg, s_ in ((1, 'L'), (-1, 'R')):
+        cone('forearm.' + s_, 'leather' if leder else col, MATTE if leder else METAL, .06, .072, .22, T(.025, .37 * sg, 1.14) @ RY(-.17), seg=8, caps=False)
+        if not leder: cone('forearm.' + s_, 'trim', METAL, .075, .075, .016, T(.01, .365 * sg, 1.24), seg=8, caps=False, smooth=False)
+        ball('forearm.' + s_, 'leather' if leder else 'steel_d', MATTE if leder else METAL, .064, T(.068, .38 * sg, .925) @ S(1, .85, 1.1))
+def beinschienen(col='steel'):
+    for sg, s_ in ((1, 'L'), (-1, 'R')):
+        cone('shin.' + s_, col, METAL, .078, .092, .36, T(.012, .12 * sg, .33), seg=8, caps=False)
+        ball('shin.' + s_, 'steel_d', METAL, .082, T(.05, .12 * sg, .55) @ S(.8, 1, 1))
+        box('shin.' + s_, 'trim', METAL, T(.085, .12 * sg, .33) @ S(.012, .02, .3))
+        box('shin.' + s_, 'steel_d', METAL, T(.1, .12 * sg, .065) @ S(.24, .13, .08))
+def stiefelstulpen():
+    for sg, s_ in ((1, 'L'), (-1, 'R')):
+        cone('shin.' + s_, 'leather', MATTE, .082, .092, .07, T(.015, .12 * sg, .43), seg=8, caps=False, smooth=False)
+        box('shin.' + s_, 'trim', METAL, T(.09, .12 * sg, .25) @ S(.012, .03, .03))
+def taschen():  # Gürteltaschen, Dolch, Schnalle
+    box('hips', 'leather', MATTE, T(.06, .2, 1.02) @ S(.1, .06, .12)); box('hips', 'trim', METAL, T(.06, .235, 1.04) @ S(.03, .01, .03))
+    box('hips', 'leather', MATTE, T(-.1, -.19, 1.0) @ S(.09, .05, .1))
+    cone('hips', 'leather', MATTE, .022, .012, .3, T(.1, -.2, .95) @ RY(.35), seg=6)
+    box('hips', 'trim', METAL, T(.13, -.2, 1.1) @ S(.03, .06, .02))
+def wappenrock(col='tunic', zeichen='trim'):  # Stoffbahn über der Rüstung, vorn und hinten, mit Zeichen
+    box('hips', col, MATTE, T(.205, 0, .97) @ S(.014, .2, .62)); box('hips', col, MATTE, T(-.2, 0, .97) @ S(.014, .2, .58))
+    box('hips', zeichen, MATTE, T(.214, 0, 1.0) @ S(.008, .09, .13)); box('hips', zeichen, MATTE, T(.214, 0, .69) @ S(.008, .2, .025))
+def gurte():  # gekreuzte Lederriemen über dem Rumpf
+    for sg in (1, -1):
+        box('chest', 'leather', MATTE, T(.14, 0, 1.43) @ RXa(.6 * sg) @ S(.02, .04, .5))
+        box('chest', 'leather', MATTE, T(-.135, 0, 1.43) @ RXa(.6 * sg) @ S(.02, .04, .5))
+    box('chest', 'trim', METAL, T(.155, 0, 1.43) @ S(.014, .05, .05))
+def steppwams():  # gesteppte Nähte auf dem Wams
+    for z in (1.3, 1.42, 1.54):
+        r = .192 if z < 1.5 else .2
+        cone('chest' if z > 1.35 else 'spine', 'tunic_d', MATTE, r, r, .012, T(0, 0, z) @ S(.72, 1, 1), seg=12, caps=False, smooth=False)
+def helm_schaller(plume=None):  # tief gezogener Helm mit Sehschlitz, Nackenschirm und Kamm
+    ball('head', 'steel', METAL, .162, T(.012, 0, 1.99) @ S(1.08, 1.02, .86))
+    cone('head', 'steel_d', METAL, .17, .15, .1, T(.02, 0, 1.9) @ S(1.08, 1.02, 1), seg=12, caps=False)
+    box('head', 'tunic_d', MATTE, T(.172, 0, 1.935) @ S(.03, .2, .022))
+    box('head', 'steel_d', METAL, T(-.14, 0, 1.9) @ RY(.5) @ S(.16, .22, .02))
+    box('head', 'trim', METAL, T(.01, 0, 2.115) @ S(.26, .02, .04))
+    cone('head', 'trim', METAL, .176, .176, .016, T(.02, 0, 1.955) @ S(1.08, 1.02, 1), seg=12, caps=False, smooth=False)
+    if plume:
+        for i in range(4): cone('head', plume, MATTE, .03, .05, .22, T(-.03 - i * .045, 0, 2.2 + i * .012) @ RY(-.5 - i * .25) @ S(1, .5, 1), seg=6)
+
 # ---------- Schilde (am linken Unterarm) ----------
 def _shield_base():
     ST['base'].update({'upperarm.L': [('Y', -.25), ('Z', -.2)], 'forearm.L': [('Y', -1.0)]})
@@ -205,6 +271,91 @@ def bogen():  # liegt im Ruhezustand waagrecht an der linken Hand; beim Zielen (
     box('forearm.L', 'cloth', MATTE, T(hx, hy + .03, hz) @ S(1.12, .006, .006))
     ST['kind'] = 'schuss'; ST['base'].update({'forearm.L': [('Y', -.45)], 'upperarm.L': [('Y', -.1)], 'forearm.R': [('Y', -.25)]})
 
+# ---------- Abnutzung als Textur ----------
+def _worn(nm, metal):
+    # Grundfarbe aus den Eckenfarben, dann: Flecken, Schmutz von unten her, im Metall Kratzer und Rost. Dazu Relief und wechselnde Rauheit.
+    m = bpy.data.materials.new(nm); m.use_nodes = True; nt = m.node_tree; N = nt.nodes; L = nt.links; b = N['Principled BSDF']
+    vc = N.new('ShaderNodeVertexColor'); vc.layer_name = 'Col'
+    geo = N.new('ShaderNodeNewGeometry'); sep = N.new('ShaderNodeSeparateXYZ'); L.new(geo.outputs['Position'], sep.inputs[0])
+    def noise(scale, detail=4, rough=.6, stretch=None):
+        n = N.new('ShaderNodeTexNoise'); n.inputs['Scale'].default_value = scale; n.inputs['Detail'].default_value = detail; n.inputs['Roughness'].default_value = rough
+        if stretch:
+            mp = N.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = stretch; L.new(geo.outputs['Position'], mp.inputs['Vector']); L.new(mp.outputs[0], n.inputs['Vector'])
+        else: L.new(geo.outputs['Position'], n.inputs['Vector'])
+        return n.outputs['Fac']
+    def ramp(src, lo, hi):
+        r = N.new('ShaderNodeMapRange'); r.inputs['From Min'].default_value = lo; r.inputs['From Max'].default_value = hi; r.clamp = True; L.new(src, r.inputs['Value']); return r.outputs['Result']
+    def mixc(fac, a, bcol, mode='MIX'):
+        x = N.new('ShaderNodeMix'); x.data_type = 'RGBA'; x.blend_type = mode
+        if isinstance(fac, float): x.inputs['Factor'].default_value = fac
+        else: L.new(fac, x.inputs['Factor'])
+        L.new(a, x.inputs['A'])
+        if isinstance(bcol, tuple): x.inputs['B'].default_value = bcol
+        else: L.new(bcol, x.inputs['B'])
+        return x.outputs['Result']
+    def mul(a, k):
+        x = N.new('ShaderNodeMath'); x.operation = 'MULTIPLY'; L.new(a, x.inputs[0])
+        if isinstance(k, float): x.inputs[1].default_value = k
+        else: L.new(k, x.inputs[1])
+        return x.outputs[0]
+    col = vc.outputs['Color']
+    blotch = ramp(noise(9, 5, .65), .3, .7)                                   # große Flecken: heller und dunkler
+    col = mixc(mul(blotch, .7), col, (.02, .018, .016, 1), 'MULTIPLY')
+    fine = ramp(noise(70 if not metal else 120, 2, .5), .35, .75)             # feine Körnung: Gewebe oder Hammerschlag
+    col = mixc(mul(fine, .3), col, (.5, .48, .45, 1), 'OVERLAY')
+    low = N.new('ShaderNodeMapRange'); low.inputs['From Min'].default_value = .95; low.inputs['From Max'].default_value = .05; low.clamp = True; L.new(sep.outputs['Z'], low.inputs['Value'])
+    mud = mul(low.outputs['Result'], ramp(noise(14, 4, .7), .35, .65))       # Schmutz: unten stark, nach oben auslaufend
+    col = mixc(mul(mud, .8), col, (.07, .055, .04, 1))
+    rgh = ramp(noise(30, 3, .6), 0, 1)
+    if metal:
+        scr = ramp(noise(26, 2, .5, stretch=(1.5, 1.5, 60)), .62, .74)        # Kratzer: lang gezogene helle Striche
+        col = mixc(mul(scr, .28), col, (.6, .61, .63, 1))
+        rust = ramp(noise(11, 5, .75), .58, .72)                             # Rostnester
+        col = mixc(mul(rust, .75), col, (.2, .09, .04, 1))
+        mt = N.new('ShaderNodeMapRange'); mt.inputs['From Min'].default_value = 0; mt.inputs['From Max'].default_value = 1; mt.inputs['To Min'].default_value = .38; mt.inputs['To Max'].default_value = .72; L.new(rgh, mt.inputs['Value'])
+        L.new(mt.outputs['Result'], b.inputs['Roughness'])
+    else:
+        mt = N.new('ShaderNodeMapRange'); mt.inputs['To Min'].default_value = .78; mt.inputs['To Max'].default_value = .98; L.new(rgh, mt.inputs['Value'])
+        L.new(mt.outputs['Result'], b.inputs['Roughness'])
+    L.new(col, b.inputs['Base Color'])
+    bump = N.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = .5 if metal else .35; bump.inputs['Distance'].default_value = .012
+    L.new(noise(55 if metal else 90, 3, .6), bump.inputs['Height']); L.new(bump.outputs[0], b.inputs['Normal'])
+    b.inputs['Metallic'].default_value = 0   # beim Backen der Farbe aus; das fertige Material setzt den Wert
+    return m
+
+def _bake(obj, name, size=512):
+    import numpy as np
+    scene = ST['scene']; me = obj.data
+    me.materials.clear(); me.materials.append(_worn('matt_roh', False)); me.materials.append(_worn('metall_roh', True))
+    for o in scene.objects: o.select_set(False)
+    obj.select_set(True); bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=.01)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.samples = 24; scene.render.bake.margin = 4
+    def target(nm, cs='sRGB'):
+        img = bpy.data.images.new(nm, size, size, alpha=False); img.colorspace_settings.name = cs
+        for m in me.materials:
+            nt = m.node_tree; n = nt.nodes.get('BAKE') or nt.nodes.new('ShaderNodeTexImage'); n.name = 'BAKE'; n.image = img; nt.nodes.active = n
+        return img
+    col = target('farbe'); bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'})
+    ao = target('schatten', 'Non-Color'); bpy.ops.object.bake(type='AO')
+    nrm = target('relief', 'Non-Color'); bpy.ops.object.bake(type='NORMAL')
+    rgh = target('rauheit', 'Non-Color'); bpy.ops.object.bake(type='ROUGHNESS')
+    a = np.array(col.pixels[:], dtype=np.float32).reshape(-1, 4); s_ = np.array(ao.pixels[:], dtype=np.float32).reshape(-1, 4)
+    a[:, :3] *= np.clip(.22 + .9 * s_[:, :3] ** 1.4, 0, 1.06); col.pixels.foreach_set(a.ravel()); col.update()   # Schatten in Fugen und unter Platten
+    tmp = os.path.join(bpy.app.tempdir, name + '_')
+    for img, suf in ((col, 'farbe.png'), (nrm, 'relief.png'), (rgh, 'rauheit.png')):
+        img.filepath_raw = tmp + suf; img.file_format = 'PNG'; img.save()
+    def baked(nm, metallic):
+        m = bpy.data.materials.new(nm); m.use_nodes = True; m.use_backface_culling = False; nt = m.node_tree; b = nt.nodes['Principled BSDF']
+        ti = nt.nodes.new('ShaderNodeTexImage'); ti.image = col; nt.links.new(ti.outputs[0], b.inputs['Base Color'])
+        tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = nrm; nm_ = nt.nodes.new('ShaderNodeNormalMap'); nt.links.new(tn.outputs[0], nm_.inputs['Color']); nt.links.new(nm_.outputs[0], b.inputs['Normal'])
+        tr = nt.nodes.new('ShaderNodeTexImage'); tr.image = rgh; nt.links.new(tr.outputs[0], b.inputs['Roughness'])
+        b.inputs['Metallic'].default_value = metallic
+        return m
+    me.materials.clear(); me.materials.append(baked(name + '_matt', 0)); me.materials.append(baked(name + '_metall', .8))
+
 # ---------- Fertigstellen: Netz, Skelett, Gewichte, Bewegungen, Ausgabe ----------
 def finish(out, preview=None):
     bm, scene, BONES, name = ST['bm'], ST['scene'], ST['BONES'], ST['name']
@@ -220,6 +371,7 @@ def finish(out, preview=None):
         return m
     mesh.materials.append(material('matt', 0, .85)); mesh.materials.append(material('metall', .85, .42))
     obj = bpy.data.objects.new(name, mesh); scene.collection.objects.link(obj)
+    if ST.get('bake', True): _bake(obj, name)
     arm_d = bpy.data.armatures.new('skelett'); arm = bpy.data.objects.new('skelett', arm_d); scene.collection.objects.link(arm)
     bpy.context.view_layer.objects.active = arm; bpy.ops.object.mode_set(mode='EDIT')
     for n, h, t, p in BONES:
@@ -301,7 +453,7 @@ def finish(out, preview=None):
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out), export_format='GLB', export_animation_mode='NLA_TRACKS', export_yup=True, export_skins=True,
-                              export_vertex_color='MATERIAL', export_anim_single_armature=True, export_force_sampling=True, export_optimize_animation_size=True)
+                              export_vertex_color='NONE', export_image_format='JPEG', export_jpeg_quality=88, export_anim_single_armature=True, export_force_sampling=True, export_optimize_animation_size=True)
     print('GLB:', os.path.abspath(out), os.path.getsize(os.path.abspath(out)), 'Bytes,', len(mesh.polygons), 'Dreiecke')
     if preview:  # zwei Ansichten: Grundhaltung von vorn, Angriff von der Seite
         cam_d = bpy.data.cameras.new('cam'); cam_d.lens = 70; cam = bpy.data.objects.new('cam', cam_d); scene.collection.objects.link(cam); scene.camera = cam
