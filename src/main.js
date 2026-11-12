@@ -9,7 +9,8 @@ import * as R2 from './render.js';
 import * as R3 from './render3d.js';
 import { initInput } from './input.js';
 import { wireHooks, wireTopBar, showStart, showChainEnd, showBattleEnd, closeMenu, refreshUI, ovOpen, cb, toast } from './ui.js';
-import { initAudio, sfx, startMusic, stopMusic, setIntensity, setVolumes, setWeather, audioReady } from './audio.js';
+import { initAudio, sfx, startMusic, stopMusic, setIntensity, setVolumes, setWeather, setAmbience, audioReady } from './audio.js';
+import { seasonAt } from './economy.js';
 import { evAt } from './events.js';
 import { loadSettings } from './settings.js';
 import { loadGame } from './save.js';
@@ -181,6 +182,7 @@ function frame(now) {
   else { if (!G.paused && !G.over) step(dt); camInput(dt, ovOpen()); }
   render(dt, new Set(G.sel));
   setIntensity(G.over || G.demo ? 0 : G.combat / 8);
+  setAmbience(seasonAt(G.t).id, !G.paused && !G.over);
   setWeather(G.ev && G.ev.id, G.over || G.paused ? 0 : evAt(cam.x + view.w / cam.z / 2, cam.y + view.h / cam.z / 2));
   if (G.demo) return;
   if (now - lastUI > 250) { lastUI = now; refreshUI(); }
