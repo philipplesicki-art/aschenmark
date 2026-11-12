@@ -59,3 +59,11 @@ Ziel: realistischere Figuren und Gebäude als Blender-Modelle (.glb), per Python
 - Gebäude aus Blender (Stand 11.11.2026): alle 24 Gebäude der drei Fraktionen. `tools/blender/lib_bau.py` (Bausteine box/cyl/gable_roof/mound, prozedurale Baustoffe mit Schnee, `finish()` wickelt ab und backt Farbe, Eckenschatten und Relief mit Cycles in EINE Textur). Skripte: `wacht_hq.py`, `wacht_barracks.py`, `wacht_tower.py`, `wacht_farm.py`, `wacht_rest.py`, `asch_all.py`, `salz_all.py` (die beiden letzten nehmen `-- <Vorschauordner oder -> [nur ein Gebäude]`). Vorderseite zeigt nach -Y; leere Objekte `Rauch…`/`Feuer…` und lose Teile `Fahne…` wertet das Spiel aus. Flache Dächer bekommen wenig Schnee, sonst sind sie von oben nur weiße Platten
 - Welt: Bodenbewuchs je Gebiet in `dressGround()` (render3d.js, drei Instanzgruppen, weicht Bauplätzen über `clearDress`), Schnee in Wehen im Wetter-Shader (`weather` in models3d.js)
 - Oberfläche: Befehlsleiste mit Gruppen (`grp`), Kostenobjekt (`co`), Sperrgrund (`why`) und Hinweisfeld `#tip` (ui.js); Handbuch `HANDBOOK` (ui.js, auch im Kampagnenmenü); Reichsnamen mit Artikel über `N/D/A/Nc` (cstate.js), Mehrzahl über `plural` (factions.js)
+
+## Blender-Skripte (Stand 12.11.2026, v0.10.3)
+Alle Modelle des Spiels kommen aus Skripten unter `tools/blender/`; Aufruf jeweils `blender --background --python tools/blender/<skript>.py -- <Vorschauordner oder -> [Teil des Namens]`.
+- `figuren.py` (18 Fußtruppen) und `lib_figur.py` (Skelett, Rüstteile, Waffen, Backen, Bewegungen)
+- `reiter.py` (Pferd mit eigenem Skelett, Reiter starr im Sattel), `geraet.py` (Rammbock, Troll, Schleuder)
+- `natur.py`: Bäume (Fichte, Laub, tot; nur Eckenfarben, 200 bis 950 Dreiecke, als Instanzen gezeichnet), Felsen `fels1..4`, `kiesel` (Bodenbewuchs) und `erzader` mit gebackener Textur. Schlüssel in `public/models/index.json` beginnen mit `natur:`; `MD.fileGeo(key)` liefert Netz und Material für Instanzen, `snowPatch()` in render3d.js legt den Schnee auf.
+- Backen ist langsam (Fels 512 px rund 2 Minuten); mit dem Namensteil nur das Nötige neu bauen.
+- Python gibt es nur in Blender: `C:\Program Files\Blender Foundation\Blender 5.3\5.3\python\bin\python.exe`.

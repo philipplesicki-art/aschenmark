@@ -30,15 +30,17 @@ let world = null, sun = null, ready = false, dprNow = 1, shakeX = 0, shakeY = 0;
 let mmBg = null, fogC = null, fogCtx = null, fogImg = null, fogBig = null, fogBigCtx = null, fogTex = null;
 // Schnee der Jahreszeit auf Boden und Bäumen: ein gemeinsamer Wert für alle Shader (0 kein Schnee, 1 Hartfrost)
 const SEAS = { value: 0 };
-function treeMat(rough) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough });
+// Schnee auf allem, was nach oben zeigt; least = Mindestschnee (kalte Gebiete sind auch in der milden Zeit bestäubt)
+function snowPatch(m, least = 0) {
+  const lo = { value: least };
   m.onBeforeCompile = sh => {
-    sh.uniforms.uSeas = SEAS;
+    sh.uniforms.uSeas = SEAS; sh.uniforms.uLeast = lo;
     sh.vertexShader = 'varying float vUpS;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vUpS = normal.y;');
-    sh.fragmentShader = 'varying float vUpS; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.84, .88, .94), smoothstep(.1, .65, vUpS) * smoothstep(.2, .9, uSeas) * .85);');
+    sh.fragmentShader = 'varying float vUpS; uniform float uSeas; uniform float uLeast;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.84, .88, .94), smoothstep(.1, .65, vUpS) * smoothstep(.2, .9, max(uSeas, uLeast)) * .85);');
   };
   return m;
 }
+const treeMat = (rough, least) => snowPatch(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough }), least);
 let post = null, postOn = true, wk = 0, snowK = 1, seasonK = 0; // seasonK: 0 mild bis 1 Hartfrost, weich nachgeführt
 const FROST_C = new THREE.Color(0x9db8d8);
 // Lichtstimmung: [Sonne, Stärke, Himmel, Boden, Himmelslicht, Nebel, Belichtung] für milde Zeit und Hartfrost; dazwischen wird gemischt
@@ -397,16 +399,19 @@ function dressGround() {
     if (kind) lists[kind].push([x, y, R(), R(), D]);
   }
   const mats = { tuft: new THREE.MeshStandardMaterial({ roughness: 1, side: THREE.DoubleSide }), bush: new THREE.MeshStandardMaterial({ roughness: 1, vertexColors: true, flatShading: true }), rock: new THREE.MeshStandardMaterial({ roughness: .95, vertexColors: true, flatShading: true }) };
+  const kf = MD.fileGeo('natur:kiesel'); // Brocken aus Blender mit Textur, sonst der kantige Ersatz
+  if (kf) { kf.small ||= kf.geo.clone().scale(.9, .9, .9); mats.rock = snowPatch(kf.mat.clone()); }
   const col = new THREE.Color(), white = new THREE.Color(0xdfe6ee), d = new THREE.Object3D();
   for (const kind of ['tuft', 'bush', 'rock']) {
     const L = lists[kind]; if (!L.length) continue;
-    const im = new THREE.InstancedMesh(g[kind], mats[kind], L.length);
+    const im = new THREE.InstancedMesh(kind === 'rock' && kf ? kf.small : g[kind], mats[kind], L.length);
     L.forEach(([x, y, a, b, D], i) => {
       const X = x * S, Z = y * S, sc = kind === 'tuft' ? .9 + a * .9 : kind === 'bush' ? .5 + a * .7 : .3 + a * a * 1.2;
       d.position.set(X, hAt(X, Z) - .03, Z); d.rotation.set(0, b * 6.28, 0); d.scale.set(sc, sc * (kind === 'rock' ? .7 + b * .5 : .8 + b * .5), sc); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
       // Farbe: Büschel und Sträucher nach Gebiet; mit Schneekappe heller, Brocken grau
       if (kind === 'tuft') col.setHex(D[3]).multiplyScalar(.7 + b * .45);
       else if (kind === 'bush') { col.setHex(D[4]).multiplyScalar(1.7 + b * .6); if (D[5]) col.lerp(white, .12 + a * .18); }
+      else if (kf) { const v = .8 + b * .4; if (D[5]) col.setRGB(v, v, v * 1.04); else if (D === DRESS.asch) col.setRGB(v * .5, v * .45, v * .45); else col.setRGB(v * 1.08, v * .98, v * .86); }
       else { col.setHex(D[5] ? 0x9aa0a8 : G.battle && G.battle.biome === 'asch' ? 0x3a3432 : 0x8a7f72); col.multiplyScalar(.8 + b * .4); }
       im.setColorAt(i, col); dressList.push({ im, i, x, y });
     });
@@ -455,11 +460,13 @@ export function buildTerrain() {
     const wp = new THREE.Mesh(new THREE.PlaneGeometry(WU, HU), wm); wp.rotation.x = -Math.PI / 2; wp.position.set(WU / 2, -.55, HU / 2); wp.userData.own = true; world.add(wp);
   }
   if (G.battle && G.rocks && G.rocks.length) { // Felsen als Instanzen aus wenigen Grundformen
-    const RM = new THREE.MeshStandardMaterial({ color: G.battle.biome === 'asch' ? 0x2c2828 : G.battle.biome === 'trocken' ? 0x6e5a44 : 0x4a4b50, roughness: .96, flatShading: true });
+    const bb = G.battle.biome, RM = new THREE.MeshStandardMaterial({ color: bb === 'asch' ? 0x2c2828 : bb === 'trocken' ? 0x6e5a44 : 0x4a4b50, roughness: .96, flatShading: true });
     for (let k = 0; k < 4; k++) {
       const list = G.rocks.filter((r, i) => i % 4 === k); if (!list.length) continue;
-      const im = new THREE.InstancedMesh(MD.rockGeo(k + 21, 1), RM, list.length), d = new THREE.Object3D();
-      list.forEach((r, i) => { const X = r.x * S, Z = r.y * S; d.position.set(X, hAt(X, Z) + .2, Z); d.rotation.set(0, r.v * 9, 0); d.scale.set(1.3 * r.s, 1.1 * r.s + .3, 1.2 * r.s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+      const fg = MD.fileGeo('natur:fels' + (k + 1)); let fm = null; // Fels aus Blender: Textur mit Rissen und Flechten, je Gebiet eingefärbt
+      if (fg) { fm = snowPatch(fg.mat.clone(), (BATTLE_GROUND[bb] || {}).cold ? .5 : 0); fm.userData.own = true; if (bb === 'asch') fm.color.setRGB(.5, .44, .44); else if (bb === 'trocken') fm.color.setRGB(1.25, 1.02, .78); else if (bb === 'sumpf') fm.color.setRGB(.8, .9, .72); }
+      const im = new THREE.InstancedMesh(fg ? fg.geo : MD.rockGeo(k + 21, 1), fm || RM, list.length), d = new THREE.Object3D();
+      list.forEach((r, i) => { const X = r.x * S, Z = r.y * S; d.position.set(X, hAt(X, Z) + (fg ? -.08 : .2), Z); d.rotation.set(0, r.v * 9, 0); d.scale.set(1.3 * r.s, 1.1 * r.s + .3, 1.2 * r.s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
       im.castShadow = true; im.receiveShadow = true; world.add(im);
     }
   }
@@ -479,9 +486,14 @@ export function buildTerrain() {
     list.forEach((tr, i) => { const X = tr.x * S, Z = tr.y * S, s = (.7 + tr.s / 24 * .55) * hs * .72; d.position.set(X, hAt(X, Z) - .05, Z); d.rotation.set(0, tr.v * 40, 0); d.scale.set(s, s * (.9 + tr.v * .3), s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); treeInst.set(tr, { im, i }); });
     im.castShadow = true; im.receiveShadow = true; world.add(im); treesMesh.push(im);
   };
-  mk(MD.pineGeometry(), live, treeMat(.9), 1);
-  for (const k of Object.keys(warm)) mk(MD.pineGeometry(k), warm[k], treeMat(.9), 1);
-  mk(MD.deadTreeGeometry(), dead, treeMat(1), 1.1);
+  // Formen aus Blender, je Liste auf mehrere Spielarten verteilt; fehlen die Dateien, baut der Code die alten Bäume
+  const kinds = (list, keys, matl, hs) => {
+    const gs = keys.map(k => MD.fileGeo('natur:' + k)); if (gs.some(g => !g)) return false;
+    keys.forEach((k, j) => mk(gs[j].geo, list.filter(tr => Math.floor(tr.v * 977) % keys.length === j), matl, hs)); return true;
+  };
+  if (!kinds(live, ['fichte1', 'fichte2', 'fichte3', 'fichte1'], treeMat(.95, .3), 1)) mk(MD.pineGeometry(), live, treeMat(.9), 1);
+  for (const k of Object.keys(warm)) if (!kinds(warm[k], [k + '1', k + '2'], treeMat(.95), 1.12)) mk(MD.pineGeometry(k), warm[k], treeMat(.9), 1);
+  if (!kinds(dead, ['tot1', 'tot2'], treeMat(1), 1.05)) mk(MD.deadTreeGeometry(), dead, treeMat(1), 1.1);
 
   dressGround();
   // Ruinen um die wilden Lager und an Wegmarken der Außengebiete (nur Kulisse)
@@ -905,7 +917,7 @@ export function drawMini() {
 // Modelle aus public/models laden; vorhandene Objekte neu aufbauen, damit sie die Dateien verwenden.
 export async function loadFileModels() {
   const n = await MD.loadModels();
-  if (n) { for (const o of objs.values()) scene.remove(o.g); objs.clear(); }
+  if (n) { if (world && G && G.trees) buildTerrain(); else { for (const o of objs.values()) scene.remove(o.g); objs.clear(); } } // Welt schon gebaut: mit den Dateimodellen neu aufbauen
   return n;
 }
 export function stats() { const i = renderer.info.render, by = {}; const cnt = (k, g) => g.traverse(o => { if ((o.isMesh || o.isSprite || o.isPoints) && o.visible) by[k] = (by[k] || 0) + 1; }); for (const o of objs.values()) if (o.g.visible) cnt(o.e.kind + ':' + o.e.type, o.g); by.smoke = smokes.filter(s => s.visible).length; by.corpse = corpseObjs.size; by.world = 0; if (world) cnt('world', world); return { by, calls: i.calls, tris: i.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, progs: (renderer.info.programs || []).length }; }

@@ -46,5 +46,22 @@
   "salz:cav": "salz_cav.glb",
   "wacht:siege": "wacht_siege.glb",
   "asch:siege": "asch_siege.glb",
-  "salz:siege": "salz_siege.glb"
+  "salz:siege": "salz_siege.glb",
+  "natur:fichte1": "baum_fichte1.glb",
+  "natur:fichte2": "baum_fichte2.glb",
+  "natur:fichte3": "baum_fichte3.glb",
+  "natur:tot1": "baum_tot1.glb",
+  "natur:tot2": "baum_tot2.glb",
+  "natur:sumpf1": "baum_sumpf1.glb",
+  "natur:sumpf2": "baum_sumpf2.glb",
+  "natur:kueste1": "baum_kueste1.glb",
+  "natur:kueste2": "baum_kueste2.glb",
+  "natur:trocken1": "baum_trocken1.glb",
+  "natur:trocken2": "baum_trocken2.glb",
+  "natur:fels1": "fels1.glb",
+  "natur:fels2": "fels2.glb",
+  "natur:fels3": "fels3.glb",
+  "natur:fels4": "fels4.glb",
+  "natur:dep": "erzader.glb",
+  "natur:kiesel": "kiesel.glb"
 }

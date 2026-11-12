@@ -1274,6 +1274,17 @@ export async function loadModels(base = 'models/') {
   }));
   return n;
 }
+// Netz und Material eines Dateimodells für Instanzen (Bäume, Felsen): alle Teile zu einem Netz verbunden
+export function fileGeo(key) {
+  const f = FILES.get(key); if (!f) return null;
+  if (!f.geo) {
+    f.scene.updateMatrixWorld(true); const gs = []; let mat = null;
+    f.scene.traverse(o => { if (o.isMesh) { gs.push(o.geometry.clone().applyMatrix4(o.matrixWorld)); mat ||= o.material; } });
+    if (!gs.length) return null;
+    f.geo = gs.length > 1 ? mergeGeometries(gs) : gs[0]; f.mat = mat;
+  }
+  return f;
+}
 function fromFile(key) {
   const f = FILES.get(key); if (!f) return null;
   const g = new THREE.Group(), m = skeletonClone(f.scene); g.add(m);
@@ -1325,6 +1336,7 @@ export const rockGeo = (seed, r) => geo('rock' + seed + ',' + r, () => {
 const ROCK = surf(0x5a5b60, 'rough', { roughness: .92 }, .45, .3, .7);
 export function buildDep() {
   initTextures();
+  const file = fromFile('natur:dep'); if (file) { pool(file, 0, 0, 2.6, .1); return file; }
   const g = new THREE.Group(), cr = mat(0xd8a436, { emissive: 0xc07a14, emissiveIntensity: .9, roughness: .3, metalness: .4 });
   // Felsbrocken, aus denen das Erz bricht
   for (const [x, z, r, s] of [[0, 0, 1.25, 1], [1.0, .55, .8, 2], [-1.0, .45, .75, 3], [.35, -1.0, .85, 4], [-.6, -.8, .55, 5], [1.3, -.5, .45, 6]]) {
