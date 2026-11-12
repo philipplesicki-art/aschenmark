@@ -43,5 +43,8 @@
   "salz:support": "salz_support.glb",
   "wacht:cav": "wacht_cav.glb",
   "asch:cav": "asch_cav.glb",
-  "salz:cav": "salz_cav.glb"
+  "salz:cav": "salz_cav.glb",
+  "wacht:siege": "wacht_siege.glb",
+  "asch:siege": "asch_siege.glb",
+  "salz:siege": "salz_siege.glb"
 }

@@ -253,6 +253,13 @@ def hacke():
     box('weapon', 'steel_d', METAL, T(x, y, z + .76) @ S(.46, .04, .05))
     cone('weapon', 'steel', METAL, .03, 0, .14, T(x + .29, y, z + .74) @ RY(math.pi / 2) @ S(1, .6, 1), seg=4, smooth=False)
     _w('hieb', {'forearm.R': [('Y', -1.6)], 'upperarm.R': [('Y', .1)], 'weapon': [('Y', .9)]})
+def keule():  # Trollkeule: Stamm mit Eisenbändern und Dornen
+    x, y, z = HAND_R
+    cone('weapon', 'wood', MATTE, .03, .075, 1.25, T(x, y, z + .45), seg=7, smooth=False)
+    for dz in (.75, .95): cone('weapon', 'steel_d', METAL, .082, .082, .05, T(x, y, z + dz), seg=7, caps=False, smooth=False)
+    for i in range(6):
+        a = i * 1.05; cone('weapon', 'steel', METAL, .025, 0, .12, T(x + .08 * math.cos(a), y + .08 * math.sin(a), z + .8 + (i % 2) * .15) @ Matrix.Rotation(a, 4, 'Z') @ RY(math.pi / 2), seg=4, smooth=False)
+    _w('hieb', {'forearm.R': [('Y', -.4)], 'weapon': [('Y', 1.3)]})
 def stab(orb='trim', banner=None):
     x, y, z = HAND_R
     cone('weapon', 'wood', MATTE, .022, .022, 2.1, T(x, y, z + .3), seg=6, smooth=False)
@@ -453,6 +460,7 @@ def finish(out, preview=None):
     haction('tod', [(1,), (4, mix(torso(-.25, .2), {'head': [('Y', -.3)]}), (-.08, 0, -.02)), (10, *fall(.5, -.14, .15)), (17, *fall(1.42, -.7, .25)), (20, *fall(1.56, -.82, .25)), (23, *fall(1.5, -.79, .25)), (30, *fall(1.52, -.8, .25))])
     for pb in arm.pose.bones: pb.rotation_quaternion = q(pb.name, *BASE.get(pb.name, [])); pb.location = (0, 0, 0)
 
+    if ST.get('scale'): arm.scale = (ST['scale'],) * 3   # Riesen: das ganze Modell größer
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out), export_format='GLB', export_animation_mode='NLA_TRACKS', export_yup=True, export_skins=True,
                               export_vertex_color='NONE', export_image_format='JPEG', export_jpeg_quality=88, export_anim_single_armature=True, export_force_sampling=True, export_optimize_animation_size=True)
