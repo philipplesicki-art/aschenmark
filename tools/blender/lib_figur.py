@@ -380,7 +380,7 @@ def finish(out, preview=None):
     bpy.ops.object.mode_set(mode='OBJECT')
     def seg_dist(p, a, b):
         ab = b - a; t = max(0, min(1, (p - a).dot(ab) / ab.length_squared)); return (p - (a + ab * t)).length
-    segs = [(n, Vector(h), Vector(t)) for n, h, t, _p in BONES if n != 'weapon']
+    segs = [(n, Vector(h), Vector(t)) for n, h, t, _p in BONES if n not in ST.get('nosk', ('weapon',))]
     groups = {n: obj.vertex_groups.new(name=n) for n, *_r in BONES}
     for i, co in enumerate(coords):
         if rigid[i]: groups[BONES[rigid[i] - 1][0]].add([i], 1, 'REPLACE'); continue
@@ -397,7 +397,7 @@ def finish(out, preview=None):
     for pb in arm.pose.bones: pb.rotation_mode = 'QUATERNION'
     REST = {b.name: b.matrix_local.to_3x3() for b in arm_d.bones}
     AX = {'X': Vector((1, 0, 0)), 'Y': Vector((0, 1, 0)), 'Z': Vector((0, 0, 1))}
-    BASE = ST['base']
+    BASE = ST['base']; ROOT = ST.get('root', 'hips')
     def q(bone, *rots):
         o = Quaternion()
         for ax, ang in rots: o = Quaternion(REST[bone].inverted() @ AX[ax], ang) @ o
@@ -407,7 +407,7 @@ def finish(out, preview=None):
         for pb in arm.pose.bones:
             r = BASE.get(pb.name, []) + rots.get(pb.name, []) if pb.name not in (rots.get('_replace') or ()) else rots.get(pb.name, [])
             pb.rotation_quaternion = q(pb.name, *r); pb.keyframe_insert('rotation_quaternion', frame=frame)
-        hb = arm.pose.bones['hips']; hb.location = REST['hips'].inverted() @ Vector(hips); hb.keyframe_insert('location', frame=frame)
+        hb = arm.pose.bones[ROOT]; hb.location = REST[ROOT].inverted() @ Vector(hips); hb.keyframe_insert('location', frame=frame)
     def action(nm, keys):
         act = bpy.data.actions.new(nm); arm.animation_data.action = act
         for k in keys: pose(*k)
@@ -428,11 +428,13 @@ def finish(out, preview=None):
         return {'thigh.L': [('Y', -a)], 'thigh.R': [('Y', a)], 'shin.L': [('Y', lift_l)], 'shin.R': [('Y', lift_r)],
                 'upperarm.L': [('Y', a * .38 * sway)], 'upperarm.R': [('Y', -a * .22 * sway)], 'spine': [('Z', -a * .14), ('Y', .06)], 'chest': [('Z', -a * .12)], 'head': [('Z', a * .2)]}
 
+    haction = action if not ST.get('anim') else (lambda *a_, **k_: None)   # eigenes Skelett: eigene Bewegungen statt der menschlichen
+    if ST.get('anim'): ST['anim'](action, mix)
     # Stehen: Gewicht wandert von einem Bein aufs andere, der Kopf sieht sich um
-    action('stehen', [(1,), (17, mix(torso(.03, .05), {'upperarm.L': [('Y', .04)], 'thigh.L': [('Y', -.03)]}), (0, .012, -.01)),
+    haction('stehen', [(1,), (17, mix(torso(.03, .05), {'upperarm.L': [('Y', .04)], 'thigh.L': [('Y', -.03)]}), (0, .012, -.01)),
                       (33, mix(torso(.015, -.02), {'head': [('Z', .35)]}), (0, -.008, -.004)), (49, mix(torso(.03, -.06), {'thigh.R': [('Y', -.03)]}), (0, -.014, -.01)), (65,)])
     # Gehen: acht Stützpunkte, Auf und Ab der Hüfte, Fuß rollt ab
-    action('gehen', [(1, step(.55, .1, .3), (0, 0, -.035)), (4, step(.3, .05, .7), (0, .012, -.01)), (7, step(0, .1, .95), (0, .016, .02)), (10, step(-.3, .2, .45), (0, .008, -.005)),
+    haction('gehen', [(1, step(.55, .1, .3), (0, 0, -.035)), (4, step(.3, .05, .7), (0, .012, -.01)), (7, step(0, .1, .95), (0, .016, .02)), (10, step(-.3, .2, .45), (0, .008, -.005)),
                      (13, step(-.55, .3, .1), (0, 0, -.035)), (16, step(-.3, .7, .05), (0, -.012, -.01)), (19, step(0, .95, .1), (0, -.016, .02)), (22, step(.3, .45, .2), (0, -.008, -.005)), (25, step(.55, .1, .3), (0, 0, -.035))])
     kind = ST['kind']
     if kind == 'stoss':  # ausholen, zustoßen mit Ausfallschritt, nachfedern, zurück
@@ -445,10 +447,10 @@ def finish(out, preview=None):
     else:  # Hieb: über die Schulter ausholen, mit dem ganzen Körper durchziehen
         atk = [(1,), (5, mix(warm(-.5, -1.9, -.9), torso(-.14, -.4), legs(-.08)), (-.07, 0, 0)), (8, mix(warm(-2.3, -.6, -.5), torso(-.16, -.3), legs(.05)), (-.03, 0, .02)),
                (11, mix(warm(-1.05, -.35, 1.85), torso(.34, .36), legs(.5)), (.17, 0, -.09)), (14, mix(warm(-.8, -.3, 2.05), torso(.36, .4), legs(.5)), (.17, 0, -.1)), (19, mix(warm(-.2, -.9, 1.3), torso(.1, .1), legs(.15)), (.04, 0, -.03)), (24,)]
-    action('angriff', atk)
-    action('arbeit', [(1,), (7, mix(warm(-2.3, -.6, -.5), torso(-.14, -.2)), (-.02, 0, .02)), (11, mix(warm(-.9, -.4, 1.9), torso(.4, .2), legs(.25)), (.08, 0, -.1)), (14, mix(warm(-.8, -.4, 2.0), torso(.4, .2), legs(.25)), (.08, 0, -.1)), (21,)])
+    haction('angriff', atk)
+    haction('arbeit', [(1,), (7, mix(warm(-2.3, -.6, -.5), torso(-.14, -.2)), (-.02, 0, .02)), (11, mix(warm(-.9, -.4, 1.9), torso(.4, .2), legs(.25)), (.08, 0, -.1)), (14, mix(warm(-.8, -.4, 2.0), torso(.4, .2), legs(.25)), (.08, 0, -.1)), (21,)])
     def fall(a, dz, tw=0): return ({'hips': [('Y', a), ('Z', tw)], 'head': [('Y', a * .2)], 'upperarm.L': [('Y', -a * .7)], 'upperarm.R': [('Y', -a * .4)], 'thigh.L': [('Y', -a * .3)], 'shin.R': [('Y', a * .5)], 'shin.L': [('Y', a * .2)]}, (a * .25, 0, dz))
-    action('tod', [(1,), (4, mix(torso(-.25, .2), {'head': [('Y', -.3)]}), (-.08, 0, -.02)), (10, *fall(.5, -.14, .15)), (17, *fall(1.42, -.7, .25)), (20, *fall(1.56, -.82, .25)), (23, *fall(1.5, -.79, .25)), (30, *fall(1.52, -.8, .25))])
+    haction('tod', [(1,), (4, mix(torso(-.25, .2), {'head': [('Y', -.3)]}), (-.08, 0, -.02)), (10, *fall(.5, -.14, .15)), (17, *fall(1.42, -.7, .25)), (20, *fall(1.56, -.82, .25)), (23, *fall(1.5, -.79, .25)), (30, *fall(1.52, -.8, .25))])
     for pb in arm.pose.bones: pb.rotation_quaternion = q(pb.name, *BASE.get(pb.name, [])); pb.location = (0, 0, 0)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
@@ -464,9 +466,9 @@ def finish(out, preview=None):
             try: scene.render.engine = eng; break
             except TypeError: pass
         tracks = {t.name: t for t in arm.animation_data.nla_tracks}
-        hit = 14 if kind == 'schuss' else 11 if kind == 'hieb' else 10
+        hit = ST.get('hit') or (14 if kind == 'schuss' else 11 if kind == 'hieb' else 10)
         for tag, anim, frame, cx, cy in (('a', 'stehen', 1, 5.4, -3.6), ('b', 'angriff', hit, 2.5, -6.2), ('c', 'gehen', 4, 5.8, -2.4)):
             for t in tracks.values(): t.mute = t.name != anim
             scene.frame_set(frame)
-            cam.location = (cx, cy, 2.0); d = Vector((.2, 0, 1.2)) - cam.location; cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
+            k_ = ST.get('camk', 1); cam.location = (cx * k_, cy * k_, 2.0 * k_); d = Vector((.2, 0, 1.2 * k_)) - cam.location; cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
             scene.render.filepath = preview.replace('.png', '_' + tag + '.png'); bpy.ops.render.render(write_still=True)

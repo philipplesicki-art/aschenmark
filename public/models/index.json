@@ -40,5 +40,8 @@
   "salz:worker": "salz_worker.glb",
   "salz:hero": "salz_hero.glb",
   "salz:elite": "salz_elite.glb",
-  "salz:support": "salz_support.glb"
+  "salz:support": "salz_support.glb",
+  "wacht:cav": "wacht_cav.glb",
+  "asch:cav": "asch_cav.glb",
+  "salz:cav": "salz_cav.glb"
 }
