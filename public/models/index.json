@@ -23,5 +23,22 @@
   "salz:workshop": "salz_workshop.glb",
   "salz:lumber": "salz_lumber.glb",
   "salz:market": "salz_market.glb",
-  "salz:outpost": "salz_outpost.glb"
+  "salz:outpost": "salz_outpost.glb",
+  "wacht:ranged": "wacht_ranged.glb",
+  "wacht:worker": "wacht_worker.glb",
+  "wacht:hero": "wacht_hero.glb",
+  "wacht:elite": "wacht_elite.glb",
+  "wacht:support": "wacht_support.glb",
+  "asch:melee": "asch_melee.glb",
+  "asch:ranged": "asch_ranged.glb",
+  "asch:worker": "asch_worker.glb",
+  "asch:hero": "asch_hero.glb",
+  "asch:elite": "asch_elite.glb",
+  "asch:support": "asch_support.glb",
+  "salz:melee": "salz_melee.glb",
+  "salz:ranged": "salz_ranged.glb",
+  "salz:worker": "salz_worker.glb",
+  "salz:hero": "salz_hero.glb",
+  "salz:elite": "salz_elite.glb",
+  "salz:support": "salz_support.glb"
 }
