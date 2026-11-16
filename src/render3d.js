@@ -182,13 +182,13 @@ export function treeFelled(tr) {
   r.im.setMatrixAt(r.i, ZERO); r.im.instanceMatrix.needsUpdate = true; treeInst.delete(tr);
 }
 
-// Mitlaufende Auflösung: dauert ein Bild zu lange, wird gröber gerechnet (bis 55 %), bei Luft wieder feiner.
+// Mitlaufende Auflösung: dauert ein Bild zu lange, wird gröber gerechnet (bis 72 %), bei Luft wieder feiner.
 let dynScale = 1, dynMs = 16, dynT = 0;
 export function adaptFrame(ms) {
   if (!renderer || ms > 250) return; // Aussetzer (Laden, Fensterwechsel) zählen nicht
   dynMs += (ms - dynMs) * .05; dynT += ms; if (dynT < 1500) return;
   let s = dynScale;
-  if (dynMs > 24 && s > .55) s = Math.max(.55, s * (dynMs > 40 ? .75 : .88)); else if (dynMs < 13 && s < 1) s = Math.min(1, s * 1.08); else return;
+  if (dynMs > 26 && s > .72) s = Math.max(.72, s * (dynMs > 45 ? .8 : .9)); else if (dynMs < 13 && s < 1) s = Math.min(1, s * 1.08); else return;
   dynScale = s; dynT = 0; dynMs = 18; resizeCanvas();
 }
 export const renderScale = () => dynScale;
@@ -199,7 +199,7 @@ export function resizeCanvas() {
   ovc.width = Math.round(view.w * dpr); ovc.height = Math.round(view.h * dpr);
   renderer.setPixelRatio(dpr); renderer.setSize(view.w, view.h, false);
   camera.aspect = view.w / view.h; camera.updateProjectionMatrix();
-  if (post) post.setSize(view.w, view.h, dpr);
+  if (post) { post.setSize(view.w, view.h, dpr); post.grade.uniforms.uSharp.value = .5 + (1 - dynScale) * 1.4; } // gröber gerechnet: stärker nachschärfen
   const u = renderer.getDrawingBufferSize(new THREE.Vector2()).y / (2 * Math.tan(FOV * Math.PI / 360));
   pts.material.uniforms.uScale.value = u; snow.material.uniforms.uScale.value = u;
   if (G) sync();
@@ -438,6 +438,20 @@ function detailTexture() {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
 }
 
+// Feine Körnung für den Boden aus der Nähe: Rauschen je Bildpunkt, kurze Halme und Steinchen. Kachelt alle gut zwei Einheiten.
+let fineTex = null;
+function fineTexture() {
+  if (fineTex) return fineTex;
+  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), R = rng(4711), im = x.createImageData(N, N), d = im.data;
+  for (let y = 0; y < N; y += 2) for (let x2 = 0; x2 < N; x2 += 2) { const v = 128 + (R() - .5) * 70; for (const o of [0, 1, N, N + 1]) { const i = (y * N + x2 + o) * 4, w = v + (R() - .5) * 36; d[i] = d[i + 1] = d[i + 2] = w; d[i + 3] = 255; } }
+  x.putImageData(im, 0, 0); x.lineCap = 'round';
+  const wrap = fn => { for (const ox of [0, -N, N]) for (const oy of [0, -N, N]) { x.save(); x.translate(ox, oy); fn(); x.restore(); } }; // über die Ränder gezeichnet, damit nichts abreißt
+  for (let i = 0; i < 2600; i++) { const px = R() * N, py = R() * N, r = 2 + R() * 5, col = R() < .5 ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,.24)'; wrap(() => { x.fillStyle = col; x.beginPath(); x.arc(px, py, r, 0, 6.3); x.fill(); }); }
+  for (let i = 0; i < 2400; i++) { const px = R() * N, py = R() * N, a = -Math.PI / 2 + (R() - .5) * 1.3, l = 8 + R() * 20, col = R() < .45 ? 'rgba(255,255,255,.42)' : 'rgba(0,0,0,.5)', lw = 1.2 + R() * 1.6; wrap(() => { x.strokeStyle = col; x.lineWidth = lw; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); x.stroke(); }); }
+  for (let i = 0; i < 500; i++) { const px = R() * N, py = R() * N, r = 1.5 + R() * 3, lite = R() < .5; wrap(() => { x.fillStyle = lite ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.6)'; x.beginPath(); x.ellipse(px, py, r, r * .7, R() * 3, 0, 6.3); x.fill(); }); }
+  fineTex = new THREE.CanvasTexture(c); fineTex.wrapS = fineTex.wrapT = THREE.RepeatWrapping; fineTex.anisotropy = 8; return fineTex;
+}
+
 function clearWorld() {
   if (world) { scene.remove(world); world.traverse(o => { if (o.isMesh && o.userData.own) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   for (const o of objs.values()) scene.remove(o.g);
@@ -464,8 +478,8 @@ export function buildTerrain() {
   g.computeVertexNormals();
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .95, metalness: 0 });
   m.onBeforeCompile = sh => {
-    sh.uniforms.detailMap = { value: det }; sh.uniforms.uSeas = SEAS;
-    sh.fragmentShader = 'uniform sampler2D detailMap; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n float sLow = texture2D(detailMap, vMapUv * vec2(7., 5.)).r * .6 + texture2D(detailMap, vMapUv * vec2(31., 23.)).g * .4;\n float sAmt = clamp((sLow - (1.05 - uSeas * 1.25)) * 3.5, 0., 1.);\n float thawK = 1. - clamp(uSeas * 1.6, 0., 1.);\n float moss = smoothstep(.38, .62, texture2D(detailMap, vMapUv * vec2(11., 8.)).g * .55 + texture2D(detailMap, vMapUv * vec2(3.7, 2.9)).r * .45);\n diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.18, 1.04, .78) + vec3(.012, .01, 0.), thawK * .85);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.25, .36, .13) * (.7 + dot(diffuseColor.rgb, vec3(.7))), moss * thawK * .78);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.62, .66, .72), sAmt * .9);\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;');
+    sh.uniforms.detailMap = { value: det }; sh.uniforms.uSeas = SEAS; sh.uniforms.fineMap = { value: fineTexture() };
+    sh.fragmentShader = 'uniform sampler2D detailMap, fineMap; uniform float uSeas;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n float sLow = texture2D(detailMap, vMapUv * vec2(7., 5.)).r * .6 + texture2D(detailMap, vMapUv * vec2(31., 23.)).g * .4;\n float sAmt = clamp((sLow - (1.05 - uSeas * 1.25)) * 3.5, 0., 1.);\n float thawK = 1. - clamp(uSeas * 1.6, 0., 1.);\n float moss = smoothstep(.38, .62, texture2D(detailMap, vMapUv * vec2(11., 8.)).g * .55 + texture2D(detailMap, vMapUv * vec2(3.7, 2.9)).r * .45);\n diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.18, 1.04, .78) + vec3(.012, .01, 0.), thawK * .85);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.25, .36, .13) * (.7 + dot(diffuseColor.rgb, vec3(.7))), moss * thawK * .78);\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.62, .66, .72), sAmt * .9);\n diffuseColor.rgb *= texture2D(detailMap, vMapUv * vec2(' + (52 * WW / 2560).toFixed(1) + ', ' + (40 * WH / 1792).toFixed(1) + ')).rgb * 1.5 + .25;\n diffuseColor.rgb += step(.93, texture2D(detailMap, vMapUv * vec2(210., 150.)).g) * .14;\n diffuseColor.rgb *= mix(1., .5 + 1. * texture2D(fineMap, vMapUv * vec2(' + (PW / 7).toFixed(1) + ', ' + (PD / 7).toFixed(1) + ')).r, 1. - sAmt * .6);');
   };
   const ground = new THREE.Mesh(g, m); ground.receiveShadow = true; ground.userData.own = true; world.add(ground);
   if (wgrid) { // Wasserspiegel: liegt unter dem Gelände und zeigt sich nur in den Senken
@@ -608,12 +622,15 @@ function stageMats(root, e, H) {
             float bHole = 0., bThr = 2.;
             if (uDmg > .01) { bHole = bN(vBp * 1.15) * .75 + bN(vBp * 3.1) * .25 + (vBp.y / uBh - .5) * .22 + (bH(floor(vBp * vec3(3., 7., 3.))) - .5) * .1; bThr = 1.02 - uDmg * .5; if (bHole > bThr) discard; }`)
           .replace('#include <color_fragment>', `#include <color_fragment>
+            // feine Körnung aus der Nähe: Stein, Holz und Putz bleiben griffig, wenn die gebackene Textur an ihre Grenze kommt
+            float bFw = length(fwidth(vBp)); float bDk = clamp(1. - bFw * 14., 0., 1.);
+            if (bDk > .01) diffuseColor.rgb *= 1. + ((bN(vBp * 11.) * .55 + bN(vBp * 27.) * .45) - .5) * .5 * bDk;
             if (uDmg > .01) diffuseColor.rgb *= mix(1., .1, smoothstep(bThr - .07 - .2 * uDmg, bThr - .04, bHole)) * (1. - uDmg * .25);
             if (!gl_FrontFacing) diffuseColor.rgb *= .42;`)
           .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
             totalEmissiveRadiance += vec3(.9, .2, .03) * smoothstep(bThr - .018, bThr, bHole) * step(.01, uDmg) * .55;`);
       };
-      m.customProgramCacheKey = () => 'stage4';
+      m.customProgramCacheKey = () => 'stage5';
       done.set(src, m);
     }
     o.material = m;

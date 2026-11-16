@@ -1259,7 +1259,8 @@ function withScaffold(g) {
 const FILES = new Map();
 export function registerModel(key, gltf) {
   const sc = gltf.scene;
-  sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  // Texturen aus Dateien auch im flachen Blickwinkel scharf halten (anisotrope Filterung; die Karte begrenzt selbst auf ihr Höchstmaß)
+  sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; const m = o.material; if (m) for (const k of ['map', 'normalMap', 'roughnessMap', 'emissiveMap']) if (m[k]) { m[k].anisotropy = 8; m[k].needsUpdate = true; } } });
   FILES.set(key, { scene: sc, clips: gltf.animations || [] });
 }
 export const hasModel = key => FILES.has(key);

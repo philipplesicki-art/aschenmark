@@ -219,6 +219,7 @@ def finish(out, name, loose=(), size=1024, ao_samples=48, preview=None):
         so = bpy.context.view_layer.objects.active; so.name = 'Schnee'; so.data.materials.clear(); so.data.materials.append(snow_mat())
         for p in so.data.polygons: p.material_index = 0
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        so.hide_render = True   # der Schnee liegt nur im Winter: er darf beim Backen keinen Schatten auf Dach und Boden werfen
     keep = [o for o in PARTS if o not in loose and o not in snowy]
     for o in bpy.context.scene.objects: o.select_set(False)
     for o in keep: o.select_set(True)
@@ -257,6 +258,7 @@ def finish(out, name, loose=(), size=1024, ao_samples=48, preview=None):
     mats.clear(); mats.append(baked)
     if gl: mats.append(gl)
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
+    if snowy: so.hide_render = False
     if preview: _preview(preview)
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out), export_format='GLB', export_yup=True, export_image_format='JPEG', export_jpeg_quality=88, export_apply=True)
