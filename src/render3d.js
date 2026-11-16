@@ -567,6 +567,103 @@ function updateLights() {
     l.color.setHex(LCOL[o.e.fac] || 0xffa25a);
   }
 }
+/* ---------- Bau- und Schadenszustände der Gebäude ---------- */
+// Jedes Gebäude bekommt eigene Materialkopien mit drei Werten: Bauhöhe (darüber wird nichts gezeichnet, die Kante ist
+// ausgefranst wie eine halb gemauerte Wand), Schaden (Ruß, Löcher mit glimmenden Rändern) und Ursprung des Gebäudes.
+const STAGE_HEAD = `uniform float uCut, uDmg, uSd, uBh; varying vec3 vBp;
+float bH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7)) + uSd) * 43758.5453); }
+float bN(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(mix(bH(i), bH(i + vec3(1., 0., 0.)), f.x), mix(bH(i + vec3(0., 1., 0.)), bH(i + vec3(1., 1., 0.)), f.x), f.y),
+             mix(mix(bH(i + vec3(0., 0., 1.)), bH(i + vec3(1., 0., 1.)), f.x), mix(bH(i + vec3(0., 1., 1.)), bH(i + vec3(1., 1., 1.)), f.x), f.y), f.z); }
+`;
+function stageMats(root, e, H) {
+  const U = { cut: { value: 999 }, dmg: { value: 0 }, org: { value: new THREE.Vector3() }, sd: { value: (e.id * 7.31) % 40 }, bh: { value: H } };
+  const done = new Map();
+  root.traverse(o => {
+    if (!o.isMesh) return; const src = o.material;
+    if (!src || !src.isMeshStandardMaterial || src.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return;
+    let m = done.get(src);
+    if (!m) {
+      m = src.clone(); m.shadowSide = THREE.BackSide;
+      m.onBeforeCompile = sh => {
+        sh.uniforms.uCut = U.cut; sh.uniforms.uDmg = U.dmg; sh.uniforms.uOrg = U.org; sh.uniforms.uSd = U.sd; sh.uniforms.uBh = U.bh;
+        sh.vertexShader = 'varying vec3 vBp; uniform vec3 uOrg;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBp = (modelMatrix * vec4(transformed, 1.)).xyz - uOrg;');
+        sh.fragmentShader = STAGE_HEAD + sh.fragmentShader
+          .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+            float bRag = bH(vec3(floor(vBp.xz * 2.3), 1.)) * .7 + bH(vec3(floor(vBp.xz * 6.), 2.)) * .25;
+            if (vBp.y > floor((uCut + bRag) * 5.) / 5.) discard;
+            float bHole = 0., bThr = 2.;
+            if (uDmg > .01) { bHole = bN(vBp * 1.15) * .75 + bN(vBp * 3.1) * .25 + (vBp.y / uBh - .5) * .22 + (bH(floor(vBp * vec3(3., 7., 3.))) - .5) * .1; bThr = 1.02 - uDmg * .5; if (bHole > bThr) discard; }`)
+          .replace('#include <color_fragment>', `#include <color_fragment>
+            if (uDmg > .01) diffuseColor.rgb *= mix(1., .1, smoothstep(bThr - .07 - .2 * uDmg, bThr - .04, bHole)) * (1. - uDmg * .25);
+            if (!gl_FrontFacing) diffuseColor.rgb *= .42;`)
+          .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+            totalEmissiveRadiance += vec3(.9, .2, .03) * smoothstep(bThr - .018, bThr, bHole) * step(.01, uDmg) * .55;`);
+      };
+      m.customProgramCacheKey = () => 'stage4';
+      done.set(src, m);
+    }
+    o.material = m;
+  });
+  return done.size ? { U, mats: [...done.values()], open: false } : null;
+}
+const BLD_BOX = new Map(), TINT = { wacht: [1, 1, 1], asch: [.5, .45, .45], salz: [1.22, 1.15, 1] }, tintMats = new Map();
+function bldHeight(m, e) {
+  const k = e.fac + ':' + e.type; let h = BLD_BOX.get(k);
+  if (h === undefined) { const b = new THREE.Box3(); m.updateMatrixWorld(true); m.traverse(o => { if (o.isMesh && o.geometry) { o.geometry.boundingBox || o.geometry.computeBoundingBox(); b.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); } }); h = b.isEmpty() ? (MD.BLD_H[e.fac] && MD.BLD_H[e.fac][e.type]) || 3 : b.max.y; BLD_BOX.set(k, h); }
+  return h;
+}
+// Teil aus einer Baustellen-Datei (Gerüst, Lager, Trümmer, Ruine), auf Wunsch in der Steinfarbe der Fraktion
+function sitePart(key, fac) {
+  const f = MD.fileGeo('bau:' + key); if (!f) return null;
+  let mat = f.mat;
+  if (fac) { const k = key + fac; mat = tintMats.get(k); if (!mat) { mat = f.mat.clone(); const t = TINT[fac] || TINT.wacht; mat.color.setRGB(t[0], t[1], t[2]); tintMats.set(k, mat); } }
+  const m = new THREE.Mesh(f.geo, mat); m.castShadow = true; m.receiveShadow = true; return m;
+}
+let siteFloor = null;
+const FIRE_AT = [[0, .6, 0, 1], [-.55, .34, .6, .75], [.6, .45, -.35, .85]], RUB_AT = [[-.75, .95, .6, 1], [.9, -.55, 2.4, .85], [.2, 1.1, 4.1, .7]];
+function stageBld(o, e, X, Y, Z, t, dt) {
+  const st = o.st, built = e.built, H = st.H, sz = e.size;
+  if (st.sm) {
+    st.sm.U.org.value.set(X, Y, Z);
+    st.sm.U.cut.value = built ? 999 : (H + 1) * e.prog - .9;
+    const dmg = built ? Math.max(0, Math.min(1, (1 - e.hp / e.maxhp - .15) / .85)) : 0; st.sm.U.dmg.value = dmg;
+    const open = !built || dmg > .3; // nur dann auch Innenseiten zeichnen
+    if (open !== st.sm.open) { st.sm.open = open; for (const m of st.sm.mats) { m.side = open ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; } }
+    o.g.scale.y = 1;
+  } else o.g.scale.y = built ? 1 : .18 + .82 * e.prog;
+  // Baustelle: Gerüst wächst mit, daneben das Baustofflager
+  if (!built) {
+    if (!st.site) {
+      st.site = new THREE.Group(); const gr = sitePart('geruest'), lg = sitePart('lager');
+      if (gr) { gr.scale.set((sz + .12) / 2.12, H * .92 / 4, (sz + .12) / 2.12); st.site.add(gr); st.ger = gr; }
+      if (st.sm) { const fl = new THREE.Mesh(new THREE.PlaneGeometry(sz * 1.9, sz * 1.9), siteFloor ||= new THREE.MeshStandardMaterial({ color: 0x4a3c2e, roughness: 1 })); fl.rotation.x = -Math.PI / 2; fl.position.y = .07; fl.receiveShadow = true; st.site.add(fl); } // gestampfter Boden im Rohbau
+      if (lg) { lg.position.set(sz * .25, 0, sz + 1.5); lg.rotation.y = (e.id % 5) * .3 - .6; st.site.add(lg); }
+      o.g.add(st.site);
+    }
+    st.site.visible = true; if (st.ger) st.ger.scale.y = H * .92 / 4 * Math.min(1, .3 + e.prog * 1.6);
+    if (Math.random() < dt * 1.2) spawnSmoke(X + (Math.random() - .5) * sz * 2, Y + .3 + Math.random() * H * e.prog, Z + sz + .3, .45, true); // Staub
+  } else if (st.site) { o.g.remove(st.site); st.site = null; st.ger = null; }
+  const u = o.m.userData;
+  if (u.scaffold) u.scaffold.visible = !built && !st.ger;
+  if (u.flames && st.flOn !== built) { st.flOn = built; u.flames.forEach(f => { f.s.visible = built; }); }
+  // Schaden: Trümmer am Fuß, Brände, Rauch
+  const fr = built ? e.hp / e.maxhp : 1, lvl = fr < .25 ? 3 : fr < .5 ? 2 : fr < .72 ? 1 : 0;
+  if (lvl !== st.lvl) {
+    st.lvl = lvl;
+    const nr = lvl, nf = lvl >= 3 ? 3 : lvl >= 2 ? 1 : 0;
+    while (st.rub.length < nr) { const a = RUB_AT[st.rub.length], r = sitePart('truemmer', e.fac); if (!r) break; r.position.set(a[0] * (sz + .2), -.05, a[1] * (sz + .2)); r.rotation.y = a[2] + e.id; r.scale.setScalar(a[3] * (.75 + sz * .2)); o.g.add(r); st.rub.push(r); }
+    st.rub.forEach((r, i) => { r.visible = i < nr; });
+    while (st.fires.length < nf) { const a = FIRE_AT[st.fires.length], f = new THREE.Sprite(new THREE.SpriteMaterial({ map: MD.TEX.fire, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); f.position.set(a[0] * sz, H * a[1], a[2] * sz); f.userData.b = a[3] * (.5 + sz * .5); o.g.add(f); st.fires.push(f); }
+    st.fires.forEach((f, i) => { f.visible = i < nf; });
+  }
+  for (let i = 0; i < st.fires.length; i++) {
+    const f = st.fires[i]; if (!f.visible) continue;
+    const k = .85 + .25 * Math.sin(t * 9 + e.id + i * 2.1) + .08 * Math.sin(t * 23 + i), b = f.userData.b; f.scale.set(1.5 * b * (.92 + .08 * k), 2.1 * b * k, 1);
+    if (Math.random() < dt * 3) spawnSmoke(X + f.position.x, Y + f.position.y + b, Z + f.position.z, 1.1 + b * .4);
+  }
+  if (lvl === 1 && Math.random() < dt * .8) spawnSmoke(X + (Math.random() - .5) * sz, Y + H * .7, Z + (Math.random() - .5) * sz, .8);
+}
 function makeObj(e) {
   const g = new THREE.Group(); let o;
   if (e.kind === 'unit') {
@@ -578,7 +675,8 @@ function makeObj(e) {
     const m = MD.buildBld(e.fac, e.type, e.id); g.add(m); clearDress(e);
     if (e.type === 'wall' && e.rot !== undefined) m.rotation.y = -(e.rot + Math.PI / 2); // Mauerstück quer zur Angriffsrichtung
     g.add(meltDecal(e));
-    o = { g, e, m, built: e.built, fireSp: null };
+    const H = bldHeight(m, e);
+    o = { g, e, m, built: e.built, st: { H, sm: e.type === 'wall' ? null : stageMats(m, e, H), site: null, ger: null, rub: [], fires: [], lvl: 0, flOn: null } };
   } else {
     const m = MD.buildDep(); g.add(m); clearDress(e); o = { g, e, m };
   }
@@ -651,8 +749,7 @@ function updateEnts(dt) {
       const hp = 1 + Math.min(.08, e.hit || 0); o.m.scale.y = (o.m.userData.sy || (o.m.userData.sy = o.m.scale.y)) * hp;
     } else if (e.kind === 'bld') {
       o.g.position.set(X, Y, Z);
-      const sc = o.m.userData.scaffold, built = e.built;
-      if (!built) { o.g.scale.y = .18 + .82 * e.prog; if (sc) sc.visible = true; } else { o.g.scale.y = 1; if (sc) sc.visible = false; }
+      const built = e.built; stageBld(o, e, X, Y, Z, t, dt);
       const u = o.m.userData;
       u.flames && u.flames.forEach(f => { const k = .85 + .25 * Math.sin(t * 9 + f.ph) + .08 * Math.sin(t * 23 + f.ph); f.s.scale.set(1.3 * f.b * (.92 + .08 * k), 1.8 * f.b * k, 1); });
       u.pools && u.pools.forEach((p, i) => { p.material.opacity = built ? (.62 + .18 * Math.sin(t * 6 + i * 2 + e.id)) * MD.GLOW.k : 0; });
@@ -660,12 +757,6 @@ function updateEnts(dt) {
       if (u.snowParts) { const sv = snowyAt(e.x, e.y); if (u.snowOn !== sv) { u.snowOn = sv; u.snowParts.forEach(s => { s.visible = sv; }); } }
       u.gears && u.gears.forEach(gr => { gr.rotation.z += dt * 1.4; });
       if (built && u.smoke && Math.random() < dt * (e.fac !== 'asch' ? 1.8 : 1.5) * u.smoke.length) { const s = u.smoke[(Math.random() * u.smoke.length) | 0]; spawnSmoke(X + s[0], Y + s[1], Z + s[2], 1, e.fac !== 'asch'); }
-      const dmg = built && e.hp < e.maxhp * .5 && e.type !== 'tower';
-      if (dmg && !o.fireSp) {
-        o.fireSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: MD.TEX.fire, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-        o.fireSp.position.set(0, (MD.BLD_H[e.fac][e.type] || 3) * .6, 0); o.fireSp.scale.set(e.size * 1.3, e.size * 1.8, 1); o.g.add(o.fireSp);
-      }
-      if (o.fireSp) { o.fireSp.visible = dmg; if (dmg) { const k = .85 + .25 * Math.sin(t * 9 + e.id); o.fireSp.scale.set(e.size * 1.3 * k, e.size * 1.9 * k, 1); if (Math.random() < dt * 4) spawnSmoke(X, Y + 4, Z, 1.4); } }
     } else {
       o.g.position.set(X, Y, Z);
       const k = .5 + .5 * Math.sqrt(Math.max(0, e.amt) / e.max); o.m.scale.setScalar(k);
@@ -687,7 +778,9 @@ function updateCorpses(dt) {
       m = new THREE.Group(); const b = blob(); b.scale.setScalar(c.kind === 'ruin' ? c.size * 2.4 : c.r * S * 3.2); b.position.y = .05; m.add(b);
       if (c.kind === 'ruin') {
         const R = rng((c.x * 13 + c.y * 7) | 0), rm = MD.mat(c.fac === 'asch' ? 0x2b2624 : c.fac === 'salz' ? 0xa9a69c : 0x6d7078, { roughness: 1 });
-        for (let i = 0; i < 9; i++) { const r = new THREE.Mesh(new THREE.BoxGeometry(.5 + R() * 1.1, .3 + R() * .8, .5 + R() * 1.1), rm); r.position.set((R() - .5) * c.size * 1.8, .2, (R() - .5) * c.size * 1.8); r.rotation.set(R() * .5, R() * 6, R() * .5); r.castShadow = true; m.add(r); }
+        const ru = sitePart('ruine', c.fac);
+        if (ru) { ru.scale.setScalar(c.size / 2); ru.rotation.y = (((c.x * 3 + c.y * 5) | 0) % 4) * Math.PI / 2; m.add(ru); m.userData.ruin = true; }
+        else for (let i = 0; i < 9; i++) { const r = new THREE.Mesh(new THREE.BoxGeometry(.5 + R() * 1.1, .3 + R() * .8, .5 + R() * 1.1), rm); r.position.set((R() - .5) * c.size * 1.8, .2, (R() - .5) * c.size * 1.8); r.rotation.set(R() * .5, R() * 6, R() * .5); r.castShadow = true; m.add(r); }
       } else {
         let um = null;
         if (corpseObjs.size < 36) try { um = MD.buildUnit(c.fac, c.type); um.scale.multiplyScalar(UF[c.type] || 1); } catch (_) { um = null; }
@@ -704,7 +797,7 @@ function updateCorpses(dt) {
       if (m.userData.tod) MD.playAnim(um.userData.anim, 'tod', dt);
       else { const u = Math.min(1, c.t / .5), f = u < .8 ? (u / .8) * (u / .8) : 1 - Math.sin((u - .8) / .2 * Math.PI) * .06; um.rotation.z = f * 1.5; um.rotation.x = f * .25 * m.userData.side; um.position.y = f * .16; }
       m.position.y -= (1 - Math.min(1, k * 4)) * .7;
-    } else m.scale.y = Math.min(1, k * 3); 
+    } else { m.scale.y = Math.min(1, k * 3); if (m.userData.ruin && c.t < 28 && Math.random() < dt * (c.t < 8 ? 5 : 1.6)) spawnSmoke(X + (Math.random() - .5) * c.size * 1.6, m.position.y + .5, Z + (Math.random() - .5) * c.size * 1.6, c.t < 8 ? 1.5 : 1); }
   }
   for (const [c, m] of corpseObjs) if (!alive.has(c)) { scene.remove(m); corpseObjs.delete(c); }
 }
