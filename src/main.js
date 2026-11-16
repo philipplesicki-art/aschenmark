@@ -118,8 +118,15 @@ function menuScene(fac) {
   G.sel = []; cam.z = view.w < 640 ? 1.1 : 1.5; demoCam(0);
   if (audioReady()) { stopMusic(); startMusic(fac); }
 }
+let cineK = 0; // 0 = Titelbild (Festung in der Mitte, weit und tief), 1 = Hauptmenü (näher, Festung rechts)
 function demoCam(dt) {
   demoT += dt;
+  if (R3.setCine) {
+    const hq = G.ents.find(e => e.type === 'hq' && e.team === 0) || { x: 600, y: 1250 };
+    const want = cb.stage === 'title' ? 0 : 1; cineK += (want - cineK) * Math.min(1, dt * 1.1); const k = cineK * cineK * (3 - 2 * cineK);
+    const wide = view.w > 700, yaw = .62 + Math.sin(demoT * .05) * .22 + k * .18, dist = (44 - 6 * k) * (wide ? 1 : 1.25), side = wide ? k * dist * .3 : 0;
+    R3.setCine({ x: hq.x - Math.cos(yaw) * side * 16, y: hq.y + Math.sin(yaw) * side * 16, yaw, pitch: .27 + .1 * k + Math.sin(demoT * .037) * .02, dist, h: 9.5 - k * 6.5 });
+  }
   const hq = G.ents.find(e => e.type === 'hq' && e.team === 0) || { x: 600, y: 1250 };
   const off = view.w > 700 ? view.w / cam.z * .2 : 0; // Festung rechts neben dem Menü
   // ohne Kartenbegrenzung: die Festung liegt am Westrand, links davon zeigt der Bergrand

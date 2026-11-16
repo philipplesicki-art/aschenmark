@@ -77,6 +77,7 @@ for (const [f0, f1] of [['wacht', 'asch'], ['asch', 'wacht'], ['salz', 'asch'], 
   const click = (act, v) => els.card.onclick({ target: { closest: () => ({ dataset: { act, v }, disabled: false }) } });
   let started = null; UIm.cb.start = (...a) => { started = a; }; UIm.cb.menuScene = () => {}; UIm.cb.restart = () => UIm.showStart();
   UIm.showStart();
+  click('enter'); // Titelbild: einmal je Programmstart, eine Taste führt ins Hauptmenü
   click('new'); click('fac', 'salz'); click('opp', 'asch'); click('diff', 'hard'); click('quests'); click('start');
   assert.equal(started[0], 'salz'); assert.equal(started[1], 'hard'); assert.equal(started[3], 'asch');
   UIm.showStart(); click('new'); click('fac', 'asch'); click('opp', 'random'); click('start');

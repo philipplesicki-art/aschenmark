@@ -175,7 +175,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.10.5';
+export const VERSION = '0.10.6';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 
@@ -200,6 +200,7 @@ const backRow = (extra = '') => '<div class="row end"><button class="btn" data-a
 
 // Tastatur im Menü: Escape zurück, Pfeiltasten wandern durch die Knöpfe.
 export function menuKey(k, e) {
+  if (screen && screen.any) { if (k !== 'f11' && k !== 'f12') { if (e && e.preventDefault) e.preventDefault(); sfx('click'); screen.any(); } return true; }
   if (k === 'escape') { if (screen && screen.back) { sfx('click'); screen.back(); } return true; }
   if (k !== 'arrowdown' && k !== 'arrowup') return false;
   const card = $('card'); if (!card.querySelectorAll) return true;
@@ -211,14 +212,27 @@ export function menuKey(k, e) {
   return true;
 }
 
+const EMBLEM = '<svg class="emblem" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dfae"/><stop offset=".55" stop-color="#d2a05a"/><stop offset="1" stop-color="#8a5a2a"/></linearGradient></defs><path d="M60 6 114 60 60 114 6 60Z" fill="rgba(8,9,11,.55)" stroke="url(#eg)" stroke-width="2"/><path d="M60 15 105 60 60 105 15 60Z" fill="none" stroke="url(#eg)" stroke-width=".8" opacity=".6"/><path fill="url(#eg)" d="M36 84V58h-3v-8h4v4h4v-4h4v4h4v-4h3v8h-2v8h6V44h-3v-9h4v4h4v-4h4v4h4v-4h4v9h-3v22h6v-8h-2v-8h3v4h4v-4h4v4h4v-4h4v8h-3v26Z"/><path fill="#0b0c0e" d="M55 84V72a5 5 0 0 1 10 0v12Z"/><path fill="#e2733c" d="M60 12c5 6 7 9 7 13a7 7 0 0 1-14 0c0-3 2-5 3-8 1 3 2 4 3 4 1-2 1-5 1-9Z"/></svg>';
+let titleSeen = false;
 export function showStart() {
   setMenuLook(true);
   cb.menuScene(loadSettings().fac);
-  mainMenu();
+  if (titleSeen) mainMenu(); else titleScreen();
+}
+// Titelbild beim Programmstart: Wappen, Schriftzug, eine Taste führt ins Hauptmenü. Dahinter kreist die Kamera um die Festung.
+function titleScreen() {
+  cb.stage = 'title'; setMenuLook(true);
+  const ov = $('ov'); if (ov.classList) ov.classList.add('titled');
+  const go = () => { titleSeen = true; if (ov.classList) ov.classList.remove('titled'); mainMenu(); };
+  show('<button class="tscreen" type="button" data-act="enter">' + EMBLEM
+    + '<span class="wordmark">Aschenmark</span><span class="tline"><i></i><em>Echtzeit-Strategie aus Orsa</em><i></i></span>'
+    + '<span class="press">Beliebige Taste drücken</span></button>'
+    + '<div class="tfoot"><span>Testversion ' + VERSION + '</span><span>© 2026 Aschenmark</span></div>', go, null, '.tscreen');
+  screen.any = go;
 }
 
 function mainMenu() {
-  setMenuLook(true);
+  cb.stage = 'menu'; setMenuLook(true);
   const items = [
     hasSave() && mbtn('continue', 'Fortsetzen', 'Den gespeicherten Spielstand laden'),
     mbtn('campaign', 'Kampagne', 'Orsa erobern: Weltkarte, Provinzen, Heere, viele Jahre'),
@@ -229,9 +243,9 @@ function mainMenu() {
     mbtn('credits', 'Mitwirkende'),
     platform.canQuit && mbtn('quit', 'Beenden')
   ].filter(Boolean).join('');
-  show('<div class="title"><h1>Aschenmark</h1><div class="tag">Ein Echtzeit-Strategiespiel aus Orsa</div></div>'
+  show('<div class="title">' + EMBLEM + '<div><h1>Aschenmark</h1><div class="tag">Echtzeit-Strategie aus Orsa</div></div></div>'
     + '<nav class="mlist">' + items + '</nav>'
-    + '<div class="foot">Version ' + VERSION + ' · Welt, Grafik und Musik entstehen im Code</div>',
+    + '<div class="foot">Testversion ' + VERSION + '</div>',
   act => {
     if (act === 'continue') { closeOverlay(); cb.load(); }
     else if (act === 'new') setupScreen();

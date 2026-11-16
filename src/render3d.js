@@ -206,12 +206,23 @@ export function resizeCanvas() {
 }
 
 /* ---------- Kamera: cam.x/y/z bleiben der sichtbare Ausschnitt in Weltpixeln ---------- */
+// Kamerafahrt hinter Titelbild und Hauptmenü: Ziel in Weltpixeln, Drehung, Neigung, Abstand, Blickhöhe. null = Spielkamera.
+let cine = null;
+export function setCine(c) { cine = c; }
 function sync() {
-  const cx = (cam.x + view.w / cam.z / 2) * S, cz = (cam.y + view.h / cam.z / 2) * S;
-  const hg = view.h / cam.z * S * .95, D = hg * Math.sin(PITCH) / (2 * Math.tan(FOV * Math.PI / 360));
-  camera.position.set(cx, D * Math.sin(PITCH), cz + D * Math.cos(PITCH));
-  camera.lookAt(cx, 0, cz); camera.updateMatrixWorld(true);
-  camera.userData = { cx, cz, D };
+  let cx = (cam.x + view.w / cam.z / 2) * S, cz = (cam.y + view.h / cam.z / 2) * S;
+  const hg = view.h / cam.z * S * .95; let D = hg * Math.sin(PITCH) / (2 * Math.tan(FOV * Math.PI / 360));
+  if (cine && G && G.demo) {
+    cx = cine.x * S; cz = cine.y * S; D = cine.dist; const ty = hAt(cx, cz) + cine.h, cp = Math.cos(cine.pitch);
+    const px = cx + Math.sin(cine.yaw) * cp * D, pz = cz + Math.cos(cine.yaw) * cp * D;
+    camera.position.set(px, Math.max(ty + Math.sin(cine.pitch) * D, hAt(px, pz) + 2.5), pz);
+    camera.lookAt(cx, ty, cz); camera.updateMatrixWorld(true);
+    camera.userData = { cx, cz, D: D * 2.6 }; D *= 1.25;
+  } else {
+    camera.position.set(cx, D * Math.sin(PITCH), cz + D * Math.cos(PITCH));
+    camera.lookAt(cx, 0, cz); camera.updateMatrixWorld(true);
+    camera.userData = { cx, cz, D };
+  }
   const ev = G && G.ev, ek = ev && ev.id ? wk : 0;
   const W = ev && ev.id && WEATHER[ev.id];
   scene.fog.density = .5 / D * (1 + ek * (W ? W.dens : 0)) * (.62 + .68 * seasonK); // milde Zeit: klare Luft

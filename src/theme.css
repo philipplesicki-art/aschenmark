@@ -290,3 +290,31 @@ table.swap tr.hero td{color:var(--brass2)}
 @media (min-width:900px){#top{flex-wrap:nowrap}#top .stat,#top .btn{white-space:nowrap;flex:none}#top .sp{min-width:4px}}
 @media (min-width:900px) and (max-width:1500px){#top{gap:5px;padding:6px 10px}#top .btn .k{display:none}#top .stat:has(#clock) span,#top .stat:has(#reg) span{display:none}}
 @media (min-width:900px) and (max-width:1320px){#top .stat span{display:none}#top .stat.season span{display:inline}#top .stat,#top .btn{padding:3px 7px}}
+
+/* ---------- Titelbild ---------- */
+#ov.menu.titled{background:radial-gradient(ellipse 75% 60% at 50% 46%,rgba(5,6,8,.18) 0%,rgba(5,6,8,.5) 60%,rgba(3,4,5,.94) 100%),linear-gradient(180deg,rgba(3,4,5,.8) 0%,rgba(3,4,5,0) 20%,rgba(3,4,5,0) 62%,rgba(3,4,5,.9) 100%);animation:tfade 2.6s ease-out both}
+#ov.menu.titled::before,#ov.menu.titled::after{content:'';position:absolute;left:0;right:0;height:7vh;background:#030405;pointer-events:none}
+#ov.menu.titled::before{top:0;box-shadow:0 1px 0 rgba(210,160,90,.25)} #ov.menu.titled::after{bottom:0;box-shadow:0 -1px 0 rgba(210,160,90,.25)}
+#ov.menu.titled .card.menu{max-width:none;width:100%;padding:0;align-items:center;justify-content:center;position:relative}
+@keyframes tfade{0%{background-color:#030405}55%{background-color:#030405}100%{background-color:rgba(3,4,5,0)}}
+.tscreen{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:clamp(8px,1.6vh,18px);width:100%;height:100vh;padding:11vh 16px 14vh;text-align:center}
+.tscreen .emblem{width:clamp(72px,13vh,150px);height:auto;filter:drop-shadow(0 4px 22px rgba(0,0,0,.8)) drop-shadow(0 0 26px rgba(226,115,60,.28));animation:trise 2.4s .9s cubic-bezier(.2,.7,.2,1) both}
+.wordmark{font-family:var(--display);font-weight:700;font-size:clamp(40px,9.2vw,138px);line-height:1;letter-spacing:.14em;margin-right:-.14em;
+  background:linear-gradient(180deg,#fbeccb 0%,#e9c588 34%,#b9802f 62%,#7a4a22 84%,#c8582a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 2px rgba(0,0,0,.85)) drop-shadow(0 0 34px rgba(226,115,60,.3));animation:trise 2.6s 1.2s cubic-bezier(.2,.7,.2,1) both}
+.tline{display:flex;align-items:center;gap:16px;width:min(760px,86vw);animation:trise 2.4s 1.9s ease-out both}
+.tline i{flex:1;height:1px;background:linear-gradient(90deg,rgba(210,160,90,0),var(--brass))} .tline i:last-child{transform:scaleX(-1)}
+.tline em{font-family:var(--sc);font-style:normal;font-weight:500;font-size:clamp(14px,1.9vw,24px);letter-spacing:.34em;margin-right:-.34em;color:#d9ccb4;text-shadow:0 2px 10px #000;white-space:nowrap}
+.press{margin-top:auto;font-family:var(--sc);font-size:clamp(15px,1.5vw,20px);letter-spacing:.3em;color:var(--brass2);text-shadow:0 2px 12px #000;animation:tpulse 2.4s 3.4s ease-in-out infinite both}
+.tscreen:focus-visible{outline:none}
+.tfoot{position:absolute;left:0;right:0;bottom:calc(7vh + 12px);display:flex;justify-content:space-between;padding:0 clamp(16px,4vw,56px);font-family:var(--sc);font-size:13px;letter-spacing:.14em;color:#8f8676;pointer-events:none;animation:trise 2s 3s ease-out both}
+@keyframes trise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}
+@keyframes tpulse{0%{opacity:0}18%,60%{opacity:1}100%{opacity:.25}}
+/* Hauptmenü: Wappen neben dem Schriftzug, Einträge blenden nacheinander ein */
+.card.menu .title{display:flex;align-items:center;gap:18px}
+.card.menu .title .emblem{width:clamp(54px,6vw,84px);height:auto;flex:none;filter:drop-shadow(0 3px 14px rgba(0,0,0,.7))}
+.card.menu h1{background:linear-gradient(180deg,#fbeccb 0%,#e0b572 45%,#a56f2c 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 2px rgba(0,0,0,.8))}
+.mlist .mbtn{animation:trise .5s ease-out both}
+.mlist .mbtn:nth-child(2){animation-delay:.05s}.mlist .mbtn:nth-child(3){animation-delay:.1s}.mlist .mbtn:nth-child(4){animation-delay:.15s}.mlist .mbtn:nth-child(5){animation-delay:.2s}.mlist .mbtn:nth-child(6){animation-delay:.25s}.mlist .mbtn:nth-child(7){animation-delay:.3s}.mlist .mbtn:nth-child(8){animation-delay:.35s}
+@media (prefers-reduced-motion:reduce){#ov.menu.titled,.tscreen .emblem,.wordmark,.tline,.press,.tfoot,.mlist .mbtn{animation:none}}
+.card.menu h1{font-size:clamp(28px,3.4vw,52px)} .card.menu .title>div{min-width:0}
