@@ -1,6 +1,7 @@
 // 3D-Darstellung mit Three.js. Die Simulation bleibt flach (2D-Koordinaten); hier wird sie in eine geneigte Kamera,
 // Gelände mit Schneedünen, Dunst und Fackellicht übersetzt. Ringe, Balken und Auswahl liegen als 2D-Ebene darüber.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TS, GW, GH, WW, WH, QUALITY } from './config.js';
 import { REGIONS, regionAtCell, regionAt } from './regions.js';
 import { evAt } from './events.js';
@@ -432,6 +433,7 @@ function clearWorld() {
   for (const o of corpseObjs.values()) scene.remove(o);
   objs.clear(); corpseObjs.clear(); treesMesh = [];
   for (const s of smokes) { s.visible = false; s.userData.life = 0; }
+  resetFx3();
 }
 
 export function buildTerrain() {
@@ -746,6 +748,8 @@ function updateEnts(dt) {
       const lamp = o.m.userData.lamp;
       if (lamp) { lamp.position.y = 2.05 + Math.sin(t * 2 + e.id) * .04; lamp.rotation.y += dt * .8; }
       o.m.userData.flags && o.m.userData.flags.forEach((f, i) => { f.rotation.y = Math.sin(t * 4 + i) * .3; });
+      if ((e.hit || 0) > (o.ph || 0) + .05 && e.type !== 'siege') { spawnFlash(X + (Math.random() - .5) * .5, Y + 1 + Math.random() * .5, Z + (Math.random() - .5) * .5, .55, .1, 0xfff0c8, 1.8); for (let i = 0; i < 3; i++) G.parts.push({ x: e.x, y: e.y - 4, vx: (Math.random() - .5) * 50, vy: (Math.random() - .5) * 40, t: 0, life: .45 + Math.random() * .3, col: '#6a1410', sz: 1.5 + Math.random(), hv: .6 + Math.random() }); }
+      o.ph = e.hit || 0;
       const hp = 1 + Math.min(.08, e.hit || 0); o.m.scale.y = (o.m.userData.sy || (o.m.userData.sy = o.m.scale.y)) * hp;
     } else if (e.kind === 'bld') {
       o.g.position.set(X, Y, Z);
@@ -852,22 +856,100 @@ function updateSmoke(dt) {
   }
 }
 
-const stones = [];
-function updateArrows() {
-  let n = 0, m = 0;
-  for (const p of G.projs) {
-    const X = p.x * S, Z = (p.y + (p.sy !== undefined ? 6 : 0)) * S;
-    if (p.big) { // Wurfgeschoss im Bogen: Höhe aus dem Anteil der zurückgelegten Strecke
-      let s = stones[m]; if (!s) { s = new THREE.Mesh(new THREE.SphereGeometry(.32, 10, 8), MD.mat(0xa9d8ee, { roughness: .2, emissive: 0x2a6a88, emissiveIntensity: .8 })); s.castShadow = true; scene.add(s); stones.push(s); }
-      const tg = G.map.get(p.t), tot = tg ? Math.hypot(tg.x - p.sx, tg.y - p.sy) + 1 : 1, k = tg ? 1 - Math.hypot(tg.x - p.x, tg.y - p.y) / tot : .5;
-      s.position.set(X, hAt(X, Z) + 1.6 + Math.sin(Math.max(0, Math.min(1, k)) * Math.PI) * tot * S * .35, Z); s.visible = true; m++; continue;
-    }
-    let a = arrows[n]; if (!a) { a = new THREE.Mesh(new THREE.BoxGeometry(1.1, .06, .06), MD.mat(0xd9d3c0)); scene.add(a); arrows.push(a); }
-    a.material = p.fire ? MD.mat(0xff8a2a, { emissive: 0xff6a10, emissiveIntensity: 2.4 }) : MD.mat(0xd9d3c0);
-    a.position.set(X, hAt(X, Z) + 1.9, Z); a.rotation.y = -Math.atan2(p.vy || 0, p.vx || 1); a.visible = true; n++;
+/* ---------- Kampfeffekte: Pfeile im Bogen, Wurfsteine, Einschläge, Funken, Brandflecken ---------- */
+const ARROW_N = 160, STUCK_N = 90, FLASH_N = 28, SCORCH_N = 18;
+let fx3 = null;
+const prevProj = new Map(), M4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler(0, 0, 0, 'YZX'), V4 = new THREE.Vector3(), SC1 = new THREE.Vector3(1, 1, 1), CW = new THREE.Color();
+function tinted(g, hex) { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g.toNonIndexed(); }
+function arrowGeo() { // Pfeil entlang +X: Schaft, Eisenspitze, zwei gekreuzte Federn
+  const sh = new THREE.CylinderGeometry(.016, .016, 1.05, 5); sh.rotateZ(-Math.PI / 2);
+  const hd = new THREE.ConeGeometry(.045, .16, 4); hd.rotateZ(-Math.PI / 2); hd.translate(.6, 0, 0);
+  const f1 = new THREE.BoxGeometry(.24, .11, .008); f1.translate(-.4, 0, 0); const f2 = new THREE.BoxGeometry(.24, .008, .11); f2.translate(-.4, 0, 0);
+  return mergeGeometries([tinted(sh, 0x6b5236), tinted(hd, 0x8e9098), tinted(f1, 0xcfc8b4), tinted(f2, 0xcfc8b4)]);
+}
+function initFx3() {
+  const ag = arrowGeo(), am = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8 });
+  const fly = new THREE.InstancedMesh(ag, am, ARROW_N), stuck = new THREE.InstancedMesh(ag, am, STUCK_N);
+  for (const im of [fly, stuck]) { im.count = 0; im.frustumCulled = false; im.castShadow = true; scene.add(im); }
+  stuck.count = STUCK_N; for (let i = 0; i < STUCK_N; i++) stuck.setMatrixAt(i, ZERO_M);
+  const flashes = [], scorch = [];
+  for (let i = 0; i < FLASH_N; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: MD.TEX.fire, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); sp.visible = false; sp.userData = { life: 0 }; scene.add(sp); flashes.push(sp); }
+  const sg = new THREE.PlaneGeometry(1, 1); sg.rotateX(-Math.PI / 2);
+  for (let i = 0; i < SCORCH_N; i++) { const m = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: MD.TEX.melt, transparent: true, depthWrite: false, opacity: 0, color: 0x1a1512, polygonOffset: true, polygonOffsetFactor: -4 })); m.visible = false; m.renderOrder = 2; m.userData = { life: 0 }; scene.add(m); scorch.push(m); }
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xa9d8ee, roughness: .2, flatShading: true, emissive: 0x2a6a88, emissiveIntensity: .7 }) /* Eisbrocken der Gezeitenschleuder */, emberMat = new THREE.MeshStandardMaterial({ color: 0x2a211d, roughness: .9, flatShading: true, emissive: 0xff5a14, emissiveIntensity: 1.6 });
+  fx3 = { fly, stuck, si: 0, stuckT: new Float32Array(STUCK_N), stuckP: [], flashes, scorch, sci: 0, stones: [], stoneGeo: MD.rockGeo(5, .34), stoneMat, emberMat };
+}
+function resetFx3() {
+  prevProj.clear(); if (!fx3) return;
+  for (const f of fx3.flashes) { f.visible = false; f.userData.life = 0; } for (const m of fx3.scorch) { m.visible = false; m.userData.life = 0; }
+  for (let i = 0; i < STUCK_N; i++) { fx3.stuck.setMatrixAt(i, ZERO_M); fx3.stuckT[i] = 0; } fx3.stuck.instanceMatrix.needsUpdate = true; fx3.fly.count = 0;
+  for (const st of fx3.stones) st.visible = false;
+}
+// Lichtblitz: kurzer, heller Fleck (Funken beim Treffer, Feuerball beim Einschlag)
+function spawnFlash(x, y, z, size, life, hex = 0xffffff, grow = 1.6) {
+  if (!fx3) return;
+  for (const f of fx3.flashes) if (f.userData.life <= 0) { f.userData = { life, max: life, s: size, grow }; f.material.color.setHex(hex); f.position.set(x, y, z); f.scale.setScalar(size); f.material.opacity = 1; f.visible = true; return; }
+}
+function spawnScorch(x, z, r, life = 26) {
+  if (!fx3) return; const m = fx3.scorch[fx3.sci++ % SCORCH_N];
+  m.userData = { life, max: life }; m.position.set(x, hAt(x, z) + .06, z); m.scale.set(r * 2, 1, r * 2); m.rotation.y = Math.random() * 6; m.material.opacity = .85; m.visible = true;
+}
+function stickArrow(x, z, yaw, deep) {
+  const i = fx3.si++ % STUCK_N, y = hAt(x, z);
+  E4.set(0, yaw + (Math.random() - .5) * .5, -(.75 + Math.random() * .6)); Q4.setFromEuler(E4); V4.set(x, y + .3 - deep, z); M4.compose(V4, Q4, SC1);
+  fx3.stuck.setMatrixAt(i, M4); fx3.stuckT[i] = 14; fx3.stuckP[i] = [x, y + .3 - deep, z, Q4.clone()]; fx3.stuck.instanceMatrix.needsUpdate = true;
+}
+function impact(pr) {
+  const { X, Y, Z } = pr, g = hAt(X, Z);
+  if (pr.big) {
+    for (let i = 0; i < 5; i++) spawnSmoke(X + (Math.random() - .5) * 1.6, g + .3 + Math.random() * .8, Z + (Math.random() - .5) * 1.6, 1 + Math.random() * .6, !pr.fire);
+    if (pr.fire) { spawnFlash(X, g + 1, Z, 3.4, .32, 0xffb060, 2.2); spawnScorch(X, Z, 2.2); } else spawnFlash(X, g + .7, Z, 2, .16, 0xbfe6ff, 2.4);
+    for (let i = 0; i < 12; i++) G.parts.push({ x: pr.wx + (Math.random() - .5) * 14, y: pr.wy + (Math.random() - .5) * 10, vx: (Math.random() - .5) * 90, vy: (Math.random() - .5) * 70, t: 0, life: .7 + Math.random() * .5, col: pr.fire ? (i % 3 === 0 ? '#ff8a3a' : i % 2 ? '#4a4038' : '#7d766c') : i % 2 ? '#dff2fb' : '#8fc4dc', sz: 2.2 + Math.random() * 1.6, hv: 1.2 + Math.random() * 1.8 });
+  } else {
+    if (Math.random() < .35) stickArrow(X + (Math.random() - .5) * 2.2, Z + (Math.random() - .5) * 2.2, pr.yaw, Math.random() * .15);
+    if (pr.fire) spawnFlash(X, g + 1, Z, .9, .16, 0xffa050);
   }
-  for (let i = n; i < arrows.length; i++) arrows[i].visible = false;
-  for (let i = m; i < stones.length; i++) stones[i].visible = false;
+}
+function updateArrows(dt = .016) {
+  if (!fx3) initFx3();
+  let n = 0, m = 0; const seen = new Set(), fly = fx3.fly;
+  for (const p of G.projs) {
+    const X = p.x * S, Z = (p.y + (p.sy !== undefined ? 6 : 0)) * S, g = hAt(X, Z);
+    const tg = G.map.get(p.t), tot = tg ? Math.hypot(tg.x - p.sx, tg.y - p.sy) + 1 : 1, k = Math.max(0, Math.min(1, tg ? 1 - Math.hypot(tg.x - p.x, tg.y - p.y) / tot : .5));
+    const yaw = -Math.atan2(p.vy || 0, p.vx || 1);
+    let pr = prevProj.get(p); if (!pr) { pr = { big: p.big, fire: p.fire, spin: Math.random() * 6 }; prevProj.set(p, pr); }
+    seen.add(p); pr.X = X; pr.Z = Z; pr.wx = p.x; pr.wy = p.y; pr.yaw = yaw;
+    if (p.big) { // Wurfgeschoss im hohen Bogen, taumelnd: Eisbrocken, sonst glühend mit Rauchfahne
+      let st = fx3.stones[m]; if (!st) { st = new THREE.Mesh(fx3.stoneGeo, fx3.stoneMat); st.castShadow = true; scene.add(st); fx3.stones.push(st); }
+      st.material = p.fire ? fx3.emberMat : fx3.stoneMat;
+      const Y = g + 1.6 + Math.sin(k * Math.PI) * tot * S * .35; st.position.set(X, Y, Z); pr.spin += dt * 7; st.rotation.set(pr.spin, pr.spin * .6, 0); st.visible = true; m++; pr.Y = Y;
+      if (p.fire) { if (Math.random() < dt * 22) spawnSmoke(X, Y, Z, .55); if (Math.random() < dt * 30) G.parts.push({ x: p.x, y: p.y, vx: (Math.random() - .5) * 20, vy: (Math.random() - .5) * 20, t: 0, life: .5, col: '#ff8a3a', sz: 1.8, hv: 0 }); }
+      continue;
+    }
+    if (n >= ARROW_N) continue;
+    const arc = tot * S * .13, Y = g + 1.5 + Math.sin(k * Math.PI) * arc, pitch = Math.atan(Math.cos(k * Math.PI) * Math.PI * arc / (tot * S)); pr.Y = Y;
+    E4.set(0, yaw, pitch); Q4.setFromEuler(E4); V4.set(X, Y, Z); M4.compose(V4, Q4, SC1); fly.setMatrixAt(n, M4);
+    fly.setColorAt(n, p.fire ? CW.setRGB(2.6, 1.1, .4) : CW.setRGB(1, 1, 1));
+    if (p.fire && Math.random() < dt * 9) spawnFlash(X, Y, Z, .45, .18, 0xff9040, 1);
+    n++;
+  }
+  fly.count = n; fly.instanceMatrix.needsUpdate = true; if (fly.instanceColor) fly.instanceColor.needsUpdate = true;
+  for (let i = m; i < fx3.stones.length; i++) fx3.stones[i].visible = false;
+  // verschwundene Geschosse sind eingeschlagen
+  for (const [p, pr] of prevProj) if (!seen.has(p)) { prevProj.delete(p); if (pr.X !== undefined) impact(pr); }
+  // Feuerregen und Feuerstoß: Feuerball, Brandfleck, Rauch
+  for (const mk of G.marks) if (mk.kind === 'blast' && !mk.fx3) {
+    mk.fx3 = true; const X = mk.x * S, Z = mk.y * S, g = hAt(X, Z), r = (mk.r || 60) * S;
+    spawnFlash(X, g + r * .4, Z, r * 1.5, .4, 0xffb060, 2); spawnScorch(X, Z, r * .8);
+    for (let i = 0; i < 4; i++) spawnSmoke(X + (Math.random() - .5) * r, g + .5 + Math.random(), Z + (Math.random() - .5) * r, 1.2 + Math.random() * .8);
+  }
+  // Blitze, Brandflecken und steckende Pfeile altern
+  for (const f of fx3.flashes) { const u = f.userData; if (u.life <= 0) continue; u.life -= dt; if (u.life <= 0) { f.visible = false; continue; } const q = 1 - u.life / u.max; f.scale.setScalar(u.s * (1 + q * (u.grow - 1))); f.material.opacity = (1 - q) * (1 - q); }
+  for (const sc of fx3.scorch) { const u = sc.userData; if (u.life <= 0) continue; u.life -= dt; if (u.life <= 0) { sc.visible = false; continue; } sc.material.opacity = .85 * Math.min(1, u.life / (u.max * .4)); }
+  let ch = false;
+  for (let i = 0; i < STUCK_N; i++) { if (fx3.stuckT[i] <= 0) continue; fx3.stuckT[i] -= dt; const sp = fx3.stuckP[i];
+    if (fx3.stuckT[i] <= 0) { fx3.stuck.setMatrixAt(i, ZERO_M); ch = true; } else if (fx3.stuckT[i] < 1.5) { V4.set(sp[0], sp[1] - (1.5 - fx3.stuckT[i]) * .6, sp[2]); M4.compose(V4, sp[3], SC1); fx3.stuck.setMatrixAt(i, M4); ch = true; } }
+  if (ch) fx3.stuck.instanceMatrix.needsUpdate = true;
 }
 
 function updateFogTex() {
@@ -985,7 +1067,7 @@ export function render(dt, selSet) {
     const ext = Math.max(18, Math.max(view.w, view.h) / cam.z * S * .62 + 4), sc = sun.shadow.camera;
     if (Math.abs(sc.right - ext) > ext * .08) { sc.left = sc.bottom = -ext; sc.right = sc.top = ext; sc.updateProjectionMatrix(); }
   }
-  updateEnts(dt); updateLights(); updateCorpses(dt); updateArrows(); updateSmoke(dt); drawParticles(); drawSnow(dt, G.t);
+  updateEnts(dt); updateLights(); updateCorpses(dt); updateArrows(dt); updateSmoke(dt); drawParticles(); drawSnow(dt, G.t);
   if (postActive()) post.render(dt, G.t); else renderer.render(scene, camera);
   camera.updateMatrixWorld(true);
   drawOverlay(selSet);

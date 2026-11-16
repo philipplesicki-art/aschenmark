@@ -1,0 +1,16 @@
+ASCHENMARK - Testversion
+========================
+
+Starten: Ordner entpacken, dann Aschenmark.exe doppelklicken. Eine Installation ist nicht nötig.
+
+Windows meldet "Der Computer wurde durch Windows geschützt"?
+Das ist normal: Die Testversion ist noch nicht signiert.
+  1. Im blauen Fenster auf "Weitere Informationen" klicken.
+  2. Unten auf "Trotzdem ausführen" klicken.
+Die Meldung lässt sich vermeiden: vor dem Entpacken Rechtsklick auf die ZIP-Datei,
+"Eigenschaften", unten den Haken bei "Zulassen" setzen, OK, danach erst entpacken.
+Fehlt der Knopf "Trotzdem ausführen", ist der Rechner verwaltet (Firmengerät);
+dann bitte einen privaten PC verwenden.
+
+Rückmeldungen (Fehler, Ruckeln, Unklares, Schwierigkeit) bitte mit der Versionsnummer
+aus dem Hauptmenü an den Absender dieser Testversion.

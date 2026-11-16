@@ -1,6 +1,6 @@
 {
   "name": "aschenmark",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "description": "Aschenmark, ein Echtzeit-Strategiespiel mit drei Fraktionen, Helden und Mächten",
   "private": true,
   "type": "module",
@@ -68,7 +68,13 @@
       "shortcutName": "Aschenmark",
       "artifactName": "Aschenmark-Setup-${version}.exe",
       "language": "1031"
-    }
+    },
+    "extraFiles": [
+      {
+        "from": "LIESMICH.txt",
+        "to": "LIESMICH.txt"
+      }
+    ]
   },
   "dependencies": {
     "@fontsource/alegreya": "^5.3.0",
