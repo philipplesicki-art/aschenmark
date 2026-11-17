@@ -23,7 +23,7 @@ const { newCampaign } = CS;
 import * as CU from './campaign/cui.js';
 const { openCampaign, campaignOpen } = CU;
 import { saveCampaign, loadCampaign, hasCampaign } from './campaign/csave.js';
-import { newBattle } from './battle.js';
+import { newBattle, newBaseBattle } from './battle.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('c'), mm = $('mm'), gl = $('gl');
@@ -152,13 +152,14 @@ cb.campaign = (fac, diff, size) => { audioOn(); newCampaign({ player: fac, diff,
 let battleDone = null;
 CU.cfg.fight = (spec, done) => {
   audioOn(); battleDone = done;
-  newBattle(spec); closeMenu(); buildTerrain(); beginMatch(); document.body.classList.add('battle');
+  (spec.base === false ? newBattle : newBaseBattle)(spec); closeMenu(); buildTerrain(); beginMatch(); document.body.classList.add('battle');
   cam.z = view.w < 640 ? 1 : 1.25; clampCam();
-  const mine = G.ents.filter(e => e.team === 0 && e.kind === 'unit');
-  const cx = mine.reduce((s, u) => s + u.x, 0) / mine.length, cy = mine.reduce((s, u) => s + u.y, 0) / mine.length;
-  centerOn(cx + 120, cy - 60); select(mine.map(u => u.id));
+  const mine = G.ents.filter(e => e.team === 0 && e.kind === 'unit' && e.type !== 'worker');
+  const cx = mine.reduce((s, u) => s + u.x, 0) / Math.max(1, mine.length), cy = mine.reduce((s, u) => s + u.y, 0) / Math.max(1, mine.length);
+  if (mine.length) { centerOn(cx + 120, cy - 60); select(mine.map(u => u.id)); }
+  warmPortraits(['worker', 'melee', 'ranged', 'cav', 'siege', 'support', 'elite', 'hero'].map(t => ['unit', spec.player.fac, t]));
   refreshUI(); stopMusic(); startMusic(spec.player.fac); sfx('horn');
-  toast(spec.playerAttacks ? 'Angriff auf ' + spec.name + ': Vernichte die Verteidiger (Esc: Rückzug)' : 'Verteidige ' + spec.name + ': Halte stand, bis die Angreifer fallen', 'good');
+  toast(spec.playerAttacks ? (spec.enemy.fac === 'wild' ? 'Angriff auf ' + spec.name + ': Vernichte die Besatzung der Wilden' : 'Angriff auf ' + spec.name + ': Brich die Burg des Gegners') + ' (Esc: Rückzug)' : 'Verteidige ' + spec.name + ': Halte die Burg', 'good');
 };
 cb.battleBack = res => { stopMusic(); document.body.classList.remove('battle'); const d = battleDone; battleDone = null; if (d) d(res); };
 cb.campaignLoad = () => { audioOn(); if (loadCampaign()) openCampaign(() => showStart()); else { toast('Kein Kampagnenstand gefunden', 'bad'); showStart(); } };

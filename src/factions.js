@@ -165,7 +165,7 @@ export const WILD = {
 // Gibt das Gebäude Rohstoff res ab? (Hauptburg, Vorposten: Erz und Holz; Holzlager: nur Holz)
 export const takes = (b, res) => !!(b && b.d && b.d.drops && b.d.drops.includes(res));
 // Anzeigename eines Gebäudes; die Hauptburg trägt je Ausbaustufe einen eigenen Namen.
-export const bldName = e => (e.type === 'hq' && FACTIONS[e.fac] ? FACTIONS[e.fac].tiers[(e.tier || 1) - 1] : e.d.name);
+export const bldName = e => (e.camp ? 'Feldlager' : e.type === 'hq' && FACTIONS[e.fac] ? FACTIONS[e.fac].tiers[(e.tier || 1) - 1] : e.d.name);
 export const facOf = fac => FACTIONS[fac] || { id: 'wild', name: 'Wild', color: '#9bb06a', dark: '#3e5030' };
 export function defOf(fac, type) {
   if (fac === 'wild') return WILD[type];

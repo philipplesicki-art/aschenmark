@@ -254,3 +254,30 @@ import { GW } from '../src/config.js';
   console.log('Heere tauschen ok');
 }
 console.log('Kampagnentests bestanden');
+
+// Schlacht mit Basisbau: die Siedlung steht wie in der Kampagne, und nach der Schlacht kommen Bauten, Schäden und Kasse zurück
+{
+  const { newBaseBattle, finishBattle } = await import('../src/battle.js');
+  CS.newCampaign({ player: 'wacht', diff: 'normal', seed: 21 }); CS.cHooks.ask = true;
+  const C = CS.C, cap = C.emp.wacht.capital, a = C.armies.find(x => x.owner === 'wacht'), tgt = CS.MAP.provs[cap].nb[0], p = C.provs[tgt];
+  a.units.melee = 10;
+  Object.assign(p, { owner: 'asch', lvl: 3, garrison: { melee: 0, ranged: 0 } }); Object.assign(p.blds, { farm: 2, barracks: 1, walls: 1, lumber: 0, mine: 0, market: 0, school: 0 });
+  p.bhp = { farm: [1, .5] }; CS.setDip('wacht', 'asch', 'war'); a.siege = tgt;
+  const r = CS.orderMove(a, tgt), spec = CS.battleSpec(r.pending);
+  assert.ok(spec.settle && spec.settle.lvl === 3 && spec.player.res.ore > 0, 'Siedlung und Kasse gehen ins Gefecht');
+  newBaseBattle(spec);
+  const t1 = t => G.ents.filter(e => e.team === 1 && e.type === t && !e.dead);
+  assert.equal(t1('hq').length, 1); assert.equal(t1('hq')[0].tier, 2, 'Dorf = Burgstufe 2'); assert.equal(t1('farm').length, 2); assert.equal(t1('barracks').length, 1); assert.equal(t1('tower').length, 2, 'Mauerstufe 1 = zwei Türme');
+  assert.ok(Math.abs(t1('farm')[1].hp / t1('farm')[1].maxhp - .5) < .01, 'Schaden aus der Kampagne');
+  assert.ok(G.ents.filter(e => e.team === 0 && e.type === 'worker').length >= 5 && G.ents.some(e => e.team === 0 && e.type === 'hq' && e.camp), 'Angreifer mit Baumeistern und Feldlager');
+  // Verteidiger hält; ein Turm ist zerstört, ein Hof brennt, der Angreifer hat einen Teil seiner Kasse verbaut
+  t1('tower')[0].dead = true; t1('farm')[0].hp = t1('farm')[0].maxhp * .3; G.ore[0] -= 200;
+  let res = null; hooks.battleEnd = x => { res = x; }; finishBattle(false, true);
+  const ore0 = C.emp.wacht.ore;
+  CS.resolvePending(r.pending, CS.battleOutcome(spec, res)); CS.applyBaseBattle(spec, res, tgt);
+  assert.equal(p.owner, 'asch'); assert.equal(p.blds.farm, 2); assert.equal(p.blds.barracks, 1); assert.equal(p.blds.walls, 1, 'ein Turm genügt für Stufe 1');
+  assert.ok(p.bhp && p.bhp.farm && p.bhp.farm.some(v => v < .5), 'Schäden gehen in die Provinz');
+  assert.equal(Math.round(C.emp.wacht.ore), Math.round(ore0 - 200), 'verbautes Erz fehlt in der Kasse');
+  const y0 = CS.provYield(p).food; CS.endTurn(); assert.ok(!p.bhp || p.bhp.farm.every(v => v >= .5), 'Ausbessern je Runde'); assert.ok(CS.provYield(p).food >= y0);
+  console.log('Basisbau-Schlacht: Siedlung, Rückübertragung und Ausbessern geprüft');
+}

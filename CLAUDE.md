@@ -71,3 +71,10 @@ Alle Modelle des Spiels kommen aus Skripten unter `tools/blender/`; Aufruf jewei
 - Bildnisse: `src/portraits.js` rechnet Kopf und Schultern (Knochen `head`; Reiter, Gerät und Gebäude als Ganzes) in einem eigenen kleinen Zeichner und speichert sie als Bild; `renderInfo` zeigt sie im Auswahlfeld, `startMatch` rechnet die eigenen vorab. Der Rohbau- und Schadensschnitt gilt über `customDepthMaterial` auch für den Schatten.
 - Backen ist langsam (Fels 512 px rund 2 Minuten); mit dem Namensteil nur das Nötige neu bauen.
 - Python gibt es nur in Blender: `C:\Program Files\Blender Foundation\Blender 5.3\5.3\python\bin\python.exe`.
+
+## Kampagnenschlacht mit Basisbau (ab 0.11.0)
+- `newBaseBattle(spec)` in `battle.js`: Gefechtskarte wie im freien Gefecht (Burgen, Baumeister, Erz, Wald). Der Verteidiger steht in seiner Siedlung (`spec.settle`: Stufe → Burgstufe über `tierOfLvl`, Bauten über `BLD_MAP`, Mauern → je zwei Türme, Schäden aus `bhp`), der Angreifer hat ein Feldlager (`hq.camp`). Beide bringen `res` aus der Reichskasse mit (höchstens 600 Erz, 500 Holz).
+- Sieg/Niederlage in `baseTick`: Burg des Verteidigers fällt, Feldlager fällt oder Angreifer ohne Einheiten; gegen Wilde zählt deren Besatzung. Die KI (Team 1) spielt mit `aiTick`.
+- Schaden: `PACE`/`BLD_PACE` gelten nur noch für die alte Feldschlacht (`newBattle`, `spec.base === false`); mit Basisbau die Werte des freien Gefechts.
+- Rückweg: `finishBattle` liefert `pb`/`eb` (stehende Bauten mit Zustand) und `pres`/`eres`; `applyBaseBattle` in `cstate.js` schreibt Kasse, Bauten (Anzahl → Stufe, höchstens 3, Plätze der Siedlung), Schäden (`p.bhp`) und Siedlungsstufe zurück. Im Gefecht ausgebildete Truppen schließen sich dem Heer an (`u.dep` markiert die Aufgestellten). Beschädigte Bauten liefern anteilig weniger (`bldHealth`) und werden je Runde um 25 % ausgebessert.
+- Probeläufe ohne Oberfläche: `node tests/probe_base.mjs [seed] [diff]`, `node tests/probe_wild.mjs`.

@@ -101,12 +101,15 @@ export function mkArmy(owner, at, units, hero = false) {
 export function addLog(text, kind = '') { C.log.push({ turn: C.turn, text, kind }); if (C.log.length > 200) C.log.shift(); cHooks.log(text, kind); }
 
 /* ---------- Ertrag, Unterhalt ---------- */
+// Zustand der Bauten einer Provinz (aus Schlachten): je Gebäude ein Anteil 0..1, fehlende Einträge sind heil
+export const bldHealth = (p, id) => { const L = p.blds[id] || 0, a = (p.bhp && p.bhp[id]) || []; if (!L) return 1; let s = 0; for (let i = 0; i < L; i++) s += a[i] ?? 1; return s / L; };
+export const provDamaged = p => !!p.bhp && Object.entries(p.bhp).some(([k, v]) => (Array.isArray(v) ? v.slice(0, k === 'hq' ? 1 : p.blds[k] || 0) : [v]).some(x => x < .99));
 export function provYield(p) {
   if (!p.owner || p.lvl < 1) return { ore: 0, wood: 0, food: 0 };
   const b = C.emp[p.owner].capital === p.id ? CAPITAL_BASE : BIOMES[pinfo(p.id).biome], base = 1 + .35 * (p.lvl - 1), y = {};
   for (const r of ['ore', 'wood', 'food']) {
     let v = b[r] * base;
-    for (const id of CBLD_IDS) { const L = p.blds[id]; if (!L) continue; const d = CBLD[id]; v += L * (((d.yieldMul && d.yieldMul[r]) || 0) * b[r] * (1 + cfx(p.owner, id)) + ((d.yieldAdd && d.yieldAdd[r]) || 0) * (1 + cfx(p.owner, id))); }
+    for (const id of CBLD_IDS) { const L = p.blds[id]; if (!L) continue; const d = CBLD[id]; v += L * bldHealth(p, id) * (((d.yieldMul && d.yieldMul[r]) || 0) * b[r] * (1 + cfx(p.owner, id)) + ((d.yieldAdd && d.yieldAdd[r]) || 0) * (1 + cfx(p.owner, id))); }
     if (r === 'ore') v += (p.blds.market || 0) * cfx(p.owner, 'marketOre');
     v += (p.bonus && p.bonus[r]) || 0; // Ereignisse (neue Erzader)
     if (p.site === 'ironpit' && r === 'ore') v += 45; if (p.site === 'saltlake' && r === 'food') v += 40;
@@ -337,19 +340,52 @@ export function battleSpec(pb) {
   const dFac = p.owner && hostile(p.owner, a.owner) ? p.owner : def.armies.length ? def.armies[0].owner : 'wild';
   const side = (fac, u, hero) => ({ fac, units: u, hero: hero && fac !== 'wild' ? C.emp[fac].heroLvl : 0, heroHp: fac !== 'wild' ? (hasTrait(fac, 'kaempe') ? 1.3 : 1) * heroItemMul(fac, 'hp') : 1, heroDmg: fac !== 'wild' ? heroItemMul(fac, 'dmg') : 1, tech: fac !== 'wild' ? { ...C.emp[fac].tech } : {} });
   const att = side(a.owner, { ...a.units }, a.hero), dfd = side(dFac, units, def.armies.some(d => d.hero));
+  // Gefecht mit Basisbau: beide Reiche bringen einen Teil ihrer Kasse mit, der Verteidiger seine Siedlung
+  for (const sd of [att, dfd]) if (C.emp[sd.fac]) sd.res = { ore: Math.min(600, Math.floor(C.emp[sd.fac].ore)), wood: Math.min(500, Math.floor(C.emp[sd.fac].wood)) };
+  const settle = p.owner && hostile(p.owner, a.owner) && p.lvl >= 1 ? { lvl: p.lvl, blds: { ...p.blds }, bhp: JSON.parse(JSON.stringify(p.bhp || {})), capital: C.emp[p.owner].capital === pb.prov } : null;
   const playerAttacks = a.owner === C.player;
   return { player: playerAttacks ? att : dfd, enemy: playerAttacks ? dfd : att, playerAttacks,
     towers: p.owner ? 2 * Math.max(0, (p.blds.walls || 0) - cfx(a.owner, 'breach') - (a.hero && hasTrait(a.owner, 'belagerer') ? 1 : 0)) : 0,
     walls: p.owner ? Math.max(0, (p.blds.walls || 0) - cfx(a.owner, 'breach')) + (C.emp[p.owner].capital === pb.prov ? 1 : 0) : 0, // Hauptstadt: immer eine Mauer
     militia: p.owner ? Math.min(8, 2 * p.lvl) : 0,
     season: season().id, biome: pinfo(pb.prov).biome, name: pinfo(pb.prov).name, seed: (C.seed * 31 + C.turn * 977 + pb.prov) >>> 0, diff: C.diff,
-    atkPow: Math.round(armyPower(a.units, a.owner, a.hero)), defPow: Math.round(def.pow) };
+    atkPow: Math.round(armyPower(a.units, a.owner, a.hero)), defPow: Math.round(def.pow), settle };
 }
 // Ausgang der Echtzeit-Schlacht (Sicht des Spielers) in Angreifer/Verteidiger umrechnen
 export function battleOutcome(spec, res) {
   return spec.playerAttacks
     ? { won: res.won, atk: res.p, def: res.e, atkHero: res.pHero, defHero: res.eHero, fought: true }
     : { won: !res.won, atk: res.e, def: res.p, atkHero: res.eHero, defHero: res.pHero, fought: true };
+}
+// Nach einer Schlacht mit Basisbau: Rohstoffe zurück in die Kassen; wer die Provinz hält, übernimmt die stehenden Bauten samt Schäden.
+// Nach einer Eroberung zählen die erbeuteten Bauten des Verteidigers und das, was der Angreifer im Gefecht errichtet hat.
+const BLD_MAP = { farm: 'farm', lumber: 'lumber', mine: 'outpost', barracks: 'barracks', market: 'market' };
+const lvlOfTier = t => t >= 3 ? 4 : t >= 2 ? 2 : 1;
+export function applyBaseBattle(spec, res, id) {
+  if (!res || !res.base) return null;
+  const pf = spec.player.fac, ef = spec.enemy.fac;
+  const pay = (f, take, left) => { const e = C.emp[f]; if (!e || !take || !left) return; e.ore = Math.max(0, e.ore - take.ore + left.ore); e.wood = Math.max(0, e.wood - take.wood + left.wood); };
+  pay(pf, spec.player.res, res.pres); pay(ef, spec.enemy.res, res.eres);
+  const p = prov(id); if (!p.owner) return null; // verwüstet oder wild geblieben: keine Bauten
+  const atkWon = spec.playerAttacks ? res.won : !res.won, holdP = p.owner === pf;
+  const own = holdP ? res.pb : res.eb, other = holdP ? res.eb : res.pb;
+  const sets = [own]; if (atkWon && other) sets.push(other); // erbeutete Bauten des Verteidigers
+  const cnt = {}; for (const st of sets) if (st) for (const [tp, a] of Object.entries(st.blds)) (cnt[tp] ||= []).push(...a);
+  const before = { ...p.blds }, bhp = {};
+  for (const [bid, tp] of Object.entries(BLD_MAP)) { const a = (cnt[tp] || []).sort((x, y) => y - x).slice(0, 3); p.blds[bid] = a.length; if (a.some(v => v < .99)) bhp[bid] = a; }
+  const cap = spec.settle && spec.settle.capital ? 1 : 0, tw = (cnt.tower || []).sort((x, y) => y - x);
+  p.blds.walls = Math.max(0, Math.min(3, Math.ceil(tw.length / 2) - cap)); // die Hauptstadt stellt im Gefecht ein Turmpaar mehr
+  if (p.blds.walls) { const w = []; for (let i = 0; i < p.blds.walls; i++) w.push(((tw[2 * i] ?? 1) + (tw[2 * i + 1] ?? 1)) / 2); if (w.some(v => v < .99)) bhp.walls = w; }
+  if (atkWon) { if (spec.settle) p.lvl = Math.max(1, p.lvl - 1); } // die Burg ist gebrochen
+  else if (own && own.hq) { p.lvl = Math.max(p.lvl, lvlOfTier(own.hq.tier)); if (own.hq.hp < .99) bhp.hq = Math.round(own.hq.hp * 100) / 100; }
+  // Plätze der Siedlung: zuerst neu Hinzugekommenes wieder abgeben, dann das Geringste
+  const order = ['market', 'lumber', 'mine', 'walls', 'farm', 'school', 'barracks'], used = () => CBLD_IDS.filter(b => p.blds[b] > 0).length;
+  for (const fresh of [true, false]) for (const b of order) if (used() > SETTLE[p.lvl].slots && p.blds[b] > 0 && (!fresh || !before[b])) { p.blds[b] = 0; delete bhp[b]; }
+  p.bhp = Object.keys(bhp).length ? bhp : undefined; if (!p.bhp) delete p.bhp;
+  const names = CBLD_IDS.filter(b => p.blds[b]).map(b => CBLD[b].name + (p.blds[b] > 1 ? ' ' + p.blds[b] : '') + (bhp[b] ? ' (beschädigt)' : ''));
+  if (p.owner === C.player) addLog(pinfo(id).name + ' nach der Schlacht: ' + (names.join(', ') || 'keine Bauten') + '.', provDamaged(p) ? 'bad' : '');
+  cHooks.changed();
+  return p;
 }
 // Überlebende der Verteidiger auf ihre Heere verteilen (der Reihe nach auffüllen)
 function setDefenders(armies, p, surv) {
@@ -472,6 +508,8 @@ function capture(id, f, att) {
 export function endTurn(aiTurn) {
   if (C.over) return;
   for (const f of FAC_IDS) if (isAI(f) && C.emp[f].alive && aiTurn) aiTurn(f);
+  // Ausbessern: beschädigte Bauten erholen sich je Runde um ein Viertel
+  for (const p of C.provs) if (p.bhp && p.owner) { for (const k of Object.keys(p.bhp)) p.bhp[k] = Array.isArray(p.bhp[k]) ? p.bhp[k].map(v => Math.min(1, v + .25)) : Math.min(1, p.bhp[k] + .25); if (!provDamaged(p)) delete p.bhp; }
   // Wirtschaft aller Reiche
   for (const f of FAC_IDS) {
     const e = C.emp[f]; if (!e.alive) continue;

@@ -56,7 +56,7 @@ export function hurt(t, d, src) {
   if (!alive(t) || t.kind === 'dep') return;
   if (t.shield > 0) d *= .6;
   d *= damageTakenMul(t);
-  if (G.battle) d *= t.kind === 'unit' ? PACE : BLD_PACE; // Schlachten dauern länger
+  if (G.battle && !G.battle.base) d *= t.kind === 'unit' ? PACE : BLD_PACE; // Feldschlachten ohne Basisbau dauern so länger; mit Basisbau gelten die Werte des freien Gefechts
   if (t.d.rres && src && src.d && src.d.rng > 60) d *= 1 - t.d.rres; // Schildwache: Fernkampf wirkt schwächer
   if (t.kind === 'unit' && src && src.d && src.d.rng > 60 && coverAt(t.x, t.y)) d *= COVER; // Deckung am Waldrand
   if (t.d.reflect && src && src.kind === 'unit' && src.d.rng <= 60 && alive(src)) { // Dornenpanzer: Nahkämpfer verletzen sich selbst
@@ -108,7 +108,7 @@ export function kill(e, src) {
     if (G.teamKills[st] % 6 === 0) G.pp[st] = Math.min(6, G.pp[st] + 1);
   }
   if (e.type === 'hero' && e.team === 0 && !G.battle) hooks.toast(e.d.name + ' ist gefallen', 'bad');
-  if (e.type === 'hq') hooks.endGame(e.team === 0 ? 'lose' : 'win');
+  if (e.type === 'hq' && !G.battle) hooks.endGame(e.team === 0 ? 'lose' : 'win');
 }
 
 export function strike(a, t) {
@@ -164,7 +164,7 @@ export function applyAura(u, au) {
   if (au.kind === 'heal') {
     const hurt = G.ents.filter(e => e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && e.hp < e.maxhp && near(e, au.range))
       .sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp).slice(0, au.n || 3);
-    for (const e of hurt) { e.hp = Math.min(e.maxhp, e.hp + au.amount * (G.battle ? .04 : .5)); hooks.burst(e.x, e.y, 1, '#9fe8a0', 3); }
+    for (const e of hurt) { e.hp = Math.min(e.maxhp, e.hp + au.amount * (G.battle && !G.battle.base ? .04 : .5)); hooks.burst(e.x, e.y, 1, '#9fe8a0', 3); }
   } else if (au.kind === 'dmg') {
     for (const e of G.ents) if (e.kind === 'unit' && !e.dead && e.team === u.team && e !== u && near(e, au.range)) { e.aur = G.t + .8; e.aurm = au.mul; }
   } else if (au.kind === 'slow') {

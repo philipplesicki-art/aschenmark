@@ -3,11 +3,11 @@
 import { C, MAP, cHooks, prov, pinfo, season, year, empireIncome, provYield, buildBlock, startBuild, settleBlock, startSettle, settleName,
   recruitBlock, recruit, recruitCost, bldCost, RESEARCH_IDS, researchBlock, researchCost, startResearch, researchRate, pickTrait, hasTrait, heroCap, armiesAt, movesLeft, orderMove,
   unitCount, armyPower, defense, endTurn, N, D, A, Nc, foodCapE, cTrade, cTradeRate, empireName, slotsUsed, splitArmy, regroup,
-  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, ADMIN_FREE, dipOf } from './cstate.js';
+  nextPending, pendingArmy, resolvePending, battleSpec, battleOutcome, applyBaseBattle, bldHealth, ADMIN_FREE, dipOf } from './cstate.js';
 import { aiTurn } from './cai.js';
 import { saveCampaign } from './csave.js';
 import { findRoute, MW, MH } from './cmap.js';
-import { BIOMES, CBLD, CBLD_IDS, SETTLE, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES, ITEMS, SLOT_NAME } from './cdata.js';
+import { BIOMES, CBLD, CBLD_IDS, SETTLE, SETTLE_NAMES, ROLE_INFO, ROLES, facColor, HERO_TRAITS, SITES, ITEMS, SLOT_NAME } from './cdata.js';
 import { FACTIONS, WILD, FAC_IDS, plural } from '../factions.js';
 import { HANDBOOK } from '../ui.js';
 import { CTECH, ERAS, ctechName } from './ctech.js';
@@ -274,6 +274,9 @@ function renderSide() {
     if (mine) {
       if (p.queue) h += '<div class="queue">Im Bau: ' + (p.queue.kind === 'bld' ? CBLD[p.queue.id].name + ' Stufe ' + ((p.blds[p.queue.id] || 0) + 1) : 'Ausbau zu ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1]) + ' · noch ' + runden(p.queue.t) + '</div>';
       h += '<h4>Gebäude <small>(' + slotsUsed(p) + ' / ' + SETTLE[Math.max(1, p.lvl)].slots + ' Plätze)</small></h4>';
+      { const dm = CBLD_IDS.filter(id => p.blds[id] && bldHealth(p, id) < .99).map(id => CBLD[id].name + ' ' + Math.round(bldHealth(p, id) * 100) + ' %');
+        if (p.bhp && p.bhp.hq < .99) dm.unshift('Burg ' + Math.round(p.bhp.hq * 100) + ' %');
+        if (dm.length) h += '<div class="queue dmg" title="Beschädigte Bauten liefern weniger und werden jede Runde um ein Viertel ausgebessert.">Schäden aus der Schlacht: ' + dm.join(', ') + '</div>'; }
       for (const id of CBLD_IDS) { const L = p.blds[id] || 0, d = CBLD[id]; if (L >= 3) { h += '<div class="bld done">' + d.name + ' Stufe 3</div>'; continue; }
         h += btn('b:' + id, (L ? d.name + ' Stufe ' + (L + 1) : d.name), buildBlock(p, id), d.desc + gainTxt(p, id), costTxt({ ore: bldCost(id, L, C.player)[0], wood: bldCost(id, L, C.player)[1] }) + '<i>' + runden(d.turns[L]) + '</i>'); }
       if (p.lvl < 5) h += btn('settle', 'Siedlung ausbauen: ' + ['', 'Weiler', 'Dorf', 'Marktflecken', 'Stadt', 'Festung'][p.lvl + 1], settleBlock(p), 'Grundertrag plus 35 Prozent, ein Bauplatz mehr, stärkere Bürgerwehr.', costTxt({ ore: SETTLE[p.lvl + 1].cost[0], wood: SETTLE[p.lvl + 1].cost[1] }) + '<i>' + runden(SETTLE[p.lvl + 1].turns) + '</i>');
@@ -416,6 +419,7 @@ function choose(pb) {
     + '<div class="vs">' + side(pl, pPow, !spec.playerAttacks) + '<div class="vmid">gegen</div>' + side(en, ePow, spec.playerAttacks) + '</div>'
     + '<div class="vbar" title="Kräfteverhältnis"><i style="width:' + share + '%;background:' + facColor(pl.fac) + '"></i><i style="width:' + (100 - share) + '%;background:' + facColor(en.fac) + '"></i></div>'
     + '<p class="sub">Berechnet stehen die Aussichten bei etwa <b>' + chance + ' %</b>. Wer die Schlacht selbst schlägt, kann mit Gelände und Geschick mehr herausholen, aber auch mehr verlieren.</p>'
+    + '<p class="sub">Selbst geschlagen wird mit Burg und Baumeistern: ' + (spec.settle ? 'die Siedlung steht, wie sie gebaut ist (' + SETTLE_NAMES[spec.settle.lvl] + '), ' : '') + 'jede Seite bringt einen Teil ihrer Kasse mit. Gewonnen hat, wer die Burg des Gegners bricht' + (en.fac === 'wild' || pl.fac === 'wild' ? ' oder die Wilden vertreibt' : '') + '. Was danach steht, was zerstört ist und was übrig bleibt, geht in die Kampagne ein.</p>'
     + '<div class="row end">' + (spec.playerAttacks ? '<button class="btn" data-d="cancel" type="button" title="Das Heer bleibt stehen, der Angriff findet nicht statt.">Angriff abbrechen</button>' : '') + '<button class="btn" data-d="auto" type="button">Berechnen lassen</button>'
     + (cfg.fight ? '<button class="btn go" data-d="fight" type="button">Schlacht schlagen</button>' : '') + '</div>',
   d => {
@@ -501,7 +505,7 @@ function fight(pb, spec) {
   saveCampaign(); $('cDlg').hidden = true; closeCampaign();
   cfg.fight(spec, res => {
     root.hidden = false; cHooks.ask = true;
-    const r = resolvePending(pb, battleOutcome(spec, res)); saveCampaign();
+    const r = resolvePending(pb, battleOutcome(spec, res)); applyBaseBattle(spec, res, pb.prov); saveCampaign();
     owners = null; resize(); render();
     if (r) showBattle(r); else afterBattle();
   });

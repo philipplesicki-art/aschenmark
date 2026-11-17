@@ -1,6 +1,6 @@
 {
   "name": "aschenmark",
-  "version": "0.10.9",
+  "version": "0.11.0",
   "description": "Aschenmark, ein Echtzeit-Strategiespiel mit drei Fraktionen, Helden und Mächten",
   "private": true,
   "type": "module",

@@ -214,6 +214,7 @@ export function trainBlock(b, tp) {
   const lk = lack(t, costOf(d)); if (lk) return lk;
   if (popUsed(t) + d.pop > popCap(t)) return 'Mehr Höfe nötig';
   if (b.queue.length >= 5) return 'Warteschlange voll';
+  if (tp === 'hero' && G.battle) return 'Der Held kommt nur mit dem Heer'; // Kampagne: der Held gehört zum Heer
   if (tp === 'hero' && G.ents.some(e => e.team === t && !e.dead && (e.type === 'hero' || (e.queue && e.queue.some(q => q.type === 'hero'))))) return 'Held bereits im Dienst';
   return null;
 }

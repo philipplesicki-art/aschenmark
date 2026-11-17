@@ -2,10 +2,10 @@
 // der Verteidiger hat Türme (für jede Mauerstufe zwei) und Bürgerwehr (Siedlungsstufe). Die Jahreszeit der Runde gilt auch hier.
 // Ende, wenn eine Seite keine Kämpfer mehr hat oder der Spieler abzieht. Reine Simulation: kein DOM, kein Three.js.
 import { G, hooks, simR, rng } from './state.js';
-import { newWorld, mkUnit, mkBld, mkCreep, setBlock, free } from './world.js';
+import { newWorld, mkUnit, mkBld, mkCreep, setBlock, free, nearestTree } from './world.js';
 import { setOrder } from './path.js';
-import { aiSkirmish } from './ai.js';
-import { TS, GW, GH } from './config.js';
+import { aiSkirmish, aiTick } from './ai.js';
+import { TS, GW, GH, DIFF } from './config.js';
 import { SEASONS } from './economy.js';
 import { initMorale, moraleTick, DEPLOY_T } from './tactics.js';
 import { FACTIONS, otherFac, defOf, XP_STEPS, MAX_HERO_LVL } from './factions.js';
@@ -49,6 +49,88 @@ export function newBattle(spec) {
   initMorale();
   return G;
 }
+/* ---------- Schlacht mit Basisbau (Kampagne) ---------- */
+// Wie ein freies Gefecht: Burgen, Baumeister, Wirtschaft, Ausbildung. Der Verteidiger steht in seiner Siedlung mit den Bauten der
+// Provinz (samt Schäden), der Angreifer kommt mit Heer, Baumeistern und Feldlager. Wer seine Burg verliert, hat verloren;
+// gegen Wilde zählt die Besatzung. Danach gehen Bauten, Schäden, Rohstoffe und neue Truppen an die Kampagne zurück.
+// Gebäude der Kampagne ↔ Bauwerke im Gefecht (Mauern werden zu je zwei Türmen; das Gelehrtenhaus hat kein Gegenstück)
+export const BLD_MAP = { farm: 'farm', lumber: 'lumber', mine: 'outpost', barracks: 'barracks', market: 'market' };
+export const tierOfLvl = lvl => lvl >= 4 ? 3 : lvl >= 2 ? 2 : 1;
+const fits = (gx, gy, s) => { for (let j = -1; j < s + 1; j++) for (let i = -1; i < s + 1; i++) if (!free(gx + i, gy + j)) return false; return true; };
+// Bauwerk nahe (cx, cy) setzen: im Goldenen Winkel nach außen suchen, bis Platz ist
+function placeNear(tp, team, cx, cy, minR, a0) {
+  const s = defOf(G.fac[team], tp).size; let a = a0 || .3;
+  for (let k = 0; k < 90; k++, a += 2.39996) {
+    const rad = minR + k * 5, gx = Math.round((cx + Math.cos(a) * rad) / TS - s / 2), gy = Math.round((cy + Math.sin(a) * rad) / TS - s / 2);
+    if (fits(gx, gy, s)) return mkBld(tp, team, gx, gy, true);
+  }
+  return null;
+}
+const hurtTo = (e, f) => { if (e && f !== undefined && f < 1) e.hp = Math.max(e.maxhp * .15, e.maxhp * f); };
+// Siedlung aus der Kampagne: Burgstufe nach Siedlungsstufe, die Bauten der Provinz rund um die Burg, Türme zur Feindseite
+function settlement(team, st, foeHq) {
+  const hq = G.ents.find(e => e.team === team && e.type === 'hq'); if (!hq) return;
+  const tier = tierOfLvl(st.lvl || 1); hq.tier = tier; if (tier > 1) { hq.maxhp = Math.round(hq.maxhp * (tier === 2 ? 1.2 : 1.5)); hq.hp = hq.maxhp; }
+  hurtTo(hq, st.bhp && st.bhp.hq);
+  const hp = id => (st.bhp && st.bhp[id]) || [];
+  for (const [id, tp] of Object.entries(BLD_MAP)) {
+    const L = Math.min(3, st.blds[id] || 0);
+    for (let i = 0; i < L; i++) {
+      let b = null;
+      if (tp === 'outpost') { // Bergwerk: an der nächsten Erzader, die nicht schon an der Burg liegt
+        const deps = G.ents.filter(e => e.kind === 'dep' && Math.hypot(e.x - hq.x, e.y - hq.y) > 280).sort((x, y) => Math.hypot(x.x - hq.x, x.y - hq.y) - Math.hypot(y.x - hq.x, y.y - hq.y));
+        if (deps[i]) b = placeNear(tp, team, deps[i].x, deps[i].y, 70, 1.1);
+      } else if (tp === 'lumber') { const tr = nearestTree(hq.x, hq.y, 1200); if (tr) b = placeNear(tp, team, tr.x, tr.y, 60, 2 + i); }
+      else b = placeNear(tp, team, hq.x, hq.y, 120 + i * 20, .3 + i * 1.7 + tp.length);
+      hurtTo(b, hp(id)[i]);
+    }
+  }
+  const walls = Math.min(3, st.blds.walls || 0) + (st.capital ? 1 : 0);
+  if (walls && foeHq) {
+    const dx = foeHq.x - hq.x, dy = foeHq.y - hq.y, dl = Math.hypot(dx, dy), fx = dx / dl, fy = dy / dl;
+    for (let i = 0; i < walls * 2; i++) {
+      const off = ((i % 2 ? 1 : -1) * (Math.floor(i / 2) * 2 + 1)) * 65;
+      const b = placeNear('tower', team, hq.x + fx * 190 - fy * off, hq.y + fy * 190 + fx * off, 0, i);
+      hurtTo(b, hp('walls')[i >> 1]);
+    }
+  }
+}
+// spec wie newBattle, dazu: settle { lvl, blds, bhp, capital } (Siedlung des Verteidigers, fehlt bei Wildnis) und res { ore, wood } je Seite
+export function newBaseBattle(spec) {
+  const wild = spec.enemy.fac === 'wild', pf = spec.player.fac, ef = wild ? otherFac(pf) : spec.enemy.fac;
+  newWorld({ fac0: pf, fac1: ef, diff: DIFF[spec.diff] ? spec.diff : 'normal', seed: spec.seed });
+  // Lager der Wilden und die Startwachen der Gefechtskarte fallen weg; Burgen, Baumeister, Erz und Wald bleiben
+  for (const e of G.ents) if (e.kind === 'unit' && (e.team === 3 || e.type === 'melee')) { e.dead = true; G.map.delete(e.id); }
+  G.ents = G.ents.filter(e => !e.dead);
+  let t0 = 0; for (const s of SEASONS) { if (s.id === spec.season) break; t0 += s.dur; }
+  G.t = t0 + 5; G.season = SEASONS.find(s => s.id === spec.season)?.id || 'thaw';
+  G.ev.next = 1e9; G.pp = [1, 1];
+  G.tech = [{ ...(spec.player.tech || {}) }, { ...(wild ? {} : spec.enemy.tech || {}) }];
+  const E = wild ? 3 : 1, defT = spec.playerAttacks ? E : 0;
+  const hq0 = G.ents.find(e => e.team === 0 && e.type === 'hq'), hq1 = G.ents.find(e => e.team === 1 && e.type === 'hq');
+  const res = s => s.res || {};
+  G.ore = [res(spec.player).ore ?? 300, wild ? 0 : res(spec.enemy).ore ?? 300]; G.wood = [res(spec.player).wood ?? 200, wild ? 0 : res(spec.enemy).wood ?? 200];
+  const scale = scaleOf(Math.max(count(spec.player.units), count(spec.enemy.units)));
+  G.battle = { base: true, name: spec.name || '', playerAttacks: !!spec.playerAttacks, scale, E, defT, t0: G.t, engaged: true, over: null, phase: 'fight', biome: spec.biome || 'grenz',
+    res0: [G.ore[0], G.wood[0], G.ore[1], G.wood[1]],
+    start: { p: { ...spec.player.units }, e: { ...spec.enemy.units }, pHero: !!spec.player.hero, eHero: !!spec.enemy.hero } };
+  const site = { x: hq1.x, y: hq1.y, r: hq1.r, fac: ef, team: 1, type: 'hq' };
+  if (wild) { // Wildnis: keine Burg, die Besatzung lagert an ihrem Platz
+    for (const e of G.ents) if (e.team === 1) { if (e.kind === 'bld') setBlock(e, -1); e.dead = true; G.map.delete(e.id); }
+    G.ents = G.ents.filter(e => !e.dead);
+  }
+  G.battle.sites = [{ x: hq0.x, y: hq0.y, r: hq0.r, fac: pf, team: 0, type: 'hq' }, site]; // Bodenbemalung unter den Lagern
+  if (spec.settle && !(wild && defT === E)) settlement(defT === 0 ? 0 : 1, spec.settle, defT === 0 ? hq1 : hq0);
+  if (spec.playerAttacks) hq0.camp = true; else if (!wild) hq1.camp = true; // Feldlager des Angreifers
+  // Heere vor dem eigenen Lager, Blick zum Gegner
+  const fw = (a, b) => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy); return [dx / l, dy / l]; };
+  const f0 = fw(hq0, site), c0 = [hq0.x + f0[0] * 230, hq0.y + f0[1] * 230], c1 = [site.x - f0[0] * 230, site.y - f0[1] * 230];
+  deploy(0, spec.player, c0, f0, scale, defT === 0 ? spec.militia : 0, false);
+  deploy(E, spec.enemy, wild ? [site.x, site.y] : c1, [-f0[0], -f0[1]], scale, defT === E ? spec.militia : 0, wild);
+  // KI: als Angreifer zieht sie bald los, als Verteidiger baut sie erst aus und hält ihre Truppen daheim
+  if (!wild) { const n = G.ents.filter(e => e.team === 1 && e.kind === 'unit' && e.type !== 'worker').length; G.ai.size = defT === 1 ? Math.max(G.ai.size, n + 4) : Math.max(4, Math.round(n * .8)); G.ai.next = G.t + (defT === 1 ? 420 : 75); }
+  return G;
+}
 // Aufstellung beenden: die Schlacht beginnt
 export function startBattle() { const B = G.battle; if (B && B.phase === 'deploy') { B.phase = 'fight'; B.t1 = G.t; hooks.sfx('horn'); } }
 
@@ -73,7 +155,7 @@ function deploy(team, side, c, fwd, scale, militia, wild) {
       [x, y] = freeSpot(x, y);
       const u = wild ? mkCreep(role === 'militia' ? 'melee' : role, x, y) : mkUnit(role === 'militia' ? 'melee' : role, team, x, y);
       u.face = Math.atan2(fwd[1], fwd[0]);
-      if (role === 'militia') u.militia = 1;
+      u.dep = 1; if (role === 'militia') u.militia = 1;
       if (role === 'hero') heroAt(u, side.hero, side.heroHp || 1, side.heroDmg || 1);
     });
   });
@@ -149,8 +231,23 @@ function towers(team, c, fwd, n) {
 
 /* ---------- Ablauf: einmal je Sekunde aus step() ---------- */
 const fighters = t => G.ents.filter(e => e.team === t && e.kind === 'unit' && !e.dead);
+const hqAlive = t => G.ents.some(e => e.team === t && e.type === 'hq' && !e.dead);
+function baseTick(B) {
+  const att = B.defT === 0 ? B.E : 0;
+  if (B.E === 3) { // gegen Wilde: deren Besatzung zählt; greifen sie an, ziehen sie auf die Burg
+    const foes = fighters(3);
+    if (!foes.length) return finishBattle(true);
+    if (!hqAlive(0) && !fighters(0).length) return finishBattle(false);
+    if (B.defT === 0) { const h = G.ents.find(e => e.team === 0 && e.type === 'hq' && !e.dead); if (h) for (const u of foes) if (!u.order) setOrder(u, { t: 'amove', x: h.x, y: h.y }); }
+    return;
+  }
+  if (!hqAlive(B.defT)) return finishBattle(B.defT !== 0);  // die Siedlung fällt
+  if (!hqAlive(att) || !G.ents.some(e => e.team === att && e.kind === 'unit' && !e.dead)) return finishBattle(att !== 0); // Feldlager zerstört oder Angreifer aufgerieben
+  aiTick(1);
+}
 export function battleTick() {
   const B = G.battle; if (!B || B.over) return;
+  if (B.base) return baseTick(B);
   if (B.phase === 'deploy') { if (G.t >= B.depT) startBattle(); else return; }
   moraleTick();
   // Wer flieht, kämpft nicht mehr: eine Seite ohne standhafte Kämpfer hat verloren (die Geflohenen überleben)
@@ -177,9 +274,23 @@ export function battleTick() {
 }
 // Überlebende je Truppenart, auf die Kampagne hochgerechnet (Bürgerwehr zählt nicht)
 function survivors(t, start) {
-  const out = {}, n = {};
-  for (const u of fighters(t)) if (!u.militia && u.type !== 'hero') n[u.type] = (n[u.type] || 0) + 1;
+  const out = {}, n = {}, fresh = {};
+  for (const u of fighters(t)) {
+    if (u.militia || u.type === 'hero' || u.type === 'worker') continue;
+    if (u.dep || !G.battle.base) n[u.type] = (n[u.type] || 0) + 1; else fresh[u.type] = (fresh[u.type] || 0) + 1; // im Gefecht ausgebildet: ein Krieger je Figur
+  }
   for (const r of Object.keys(start)) out[r] = Math.min(start[r] || 0, Math.round((n[r] || 0) * G.battle.scale));
+  for (const r of Object.keys(fresh)) out[r] = (out[r] || 0) + fresh[r]; // neue Truppen schließen sich dem Heer an
+  return out;
+}
+// Stehende Bauwerke einer Seite, für die Kampagne: Anzahl und Zustand je Art, dazu die Burg
+function standing(t) {
+  const out = { hq: null, blds: {} };
+  for (const e of G.ents) {
+    if (e.team !== t || e.kind !== 'bld' || e.dead || !e.built || e.type === 'wall') continue;
+    if (e.type === 'hq') { out.hq = { tier: e.tier || 1, hp: e.hp / e.maxhp, camp: !!e.camp }; continue; }
+    (out.blds[e.type] ||= []).push(Math.round(e.hp / e.maxhp * 100) / 100);
+  }
   return out;
 }
 export function finishBattle(won, retreat = false) {
@@ -188,6 +299,11 @@ export function finishBattle(won, retreat = false) {
   if (retreat) for (const r of Object.keys(p)) p[r] = Math.floor(p[r] * .8); // Abzug unter Feuer kostet
   const res = { won, retreat, p, e: survivors(B.E, B.start.e), pHero: B.start.pHero && fighters(0).some(u => u.type === 'hero'),
     eHero: B.start.eHero && fighters(B.E).some(u => u.type === 'hero'), time: G.t - B.t0, kills: G.kills, lost: G.lost };
+  if (B.base) { // Bauten und übrige Rohstoffe beider Seiten gehen an die Kampagne zurück
+    res.base = true; res.pb = standing(0); res.eb = B.E === 1 ? standing(1) : null;
+    res.pres = { ore: Math.floor(G.ore[0]), wood: Math.floor(G.wood[0]) }; res.eres = B.E === 1 ? { ore: Math.floor(G.ore[1]), wood: Math.floor(G.wood[1]) } : null;
+    res.res0 = B.res0;
+  }
   B.over = res; G.over = won ? 'win' : 'lose';
   hooks.battleEnd(res);
   return res;

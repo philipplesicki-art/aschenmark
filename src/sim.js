@@ -41,7 +41,7 @@ function updFood() {
     }
     G.season = s.id;
   }
-  if (G.battle) return; // in der Schlacht zählen nur die Truppen, keine Vorräte
+  if (G.battle && !G.battle.base) return; // in der Feldschlacht zählen nur die Truppen, keine Vorräte
   for (const t of [0, 1]) {
     const r = foodRates(t);
     G.food[t] = Math.max(0, Math.min(foodCap(t), G.food[t] + r.net));

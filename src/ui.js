@@ -53,7 +53,7 @@ function renderQuest() {
 
 function renderInfo() {
   const s = selEnts(); let h = '';
-  if (!s.length) h = '<div class="hint">' + (G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>F</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
+  if (!s.length) h = '<div class="hint">' + (G.battle && G.battle.base ? (G.battle.playerAttacks ? 'Angriff auf ' + G.battle.name + ': Baumeister bauen das Feldlager aus, das Heer muss die Burg des Gegners brechen. Fällt dein Feldlager, ist die Schlacht verloren.' : 'Verteidige ' + G.battle.name + ': Deine Siedlung steht, wie sie in der Kampagne gebaut ist. Fällt die Burg, fällt die Provinz. Was du hier baust und was zerstört wird, bleibt.') + ' <b>Esc</b>: Rückzug.' : G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>F</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
   else if (s.length === 1) {
     const e = s[0];
     h = porImg(e, 'por') + '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
@@ -136,7 +136,7 @@ export function refreshUI() {
     $('food').textContent = Math.floor(G.food[0]);
     fe.textContent = (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1).replace('.', ','); fe.className = net < -.05 ? 'neg' : net > .05 ? 'pos' : '';
     $('seasonN').textContent = s.name; $('seasonT').textContent = Math.floor(s.left / 60) + ':' + String(Math.floor(s.left % 60)).padStart(2, '0'); ch.className = 'stat season ' + s.id; }
-  $('pop').textContent = G.battle ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length + ' · Moral ' + avgMorale(0) + ' zu ' + avgMorale(1) : popUsed(0) + '/' + popCap(0);
+  $('pop').textContent = G.battle && !G.battle.base ? G.ents.filter(e => e.team === 0 && e.kind === 'unit').length + ' gegen ' + G.ents.filter(e => e.team === G.battle.E && e.kind === 'unit').length + ' · Moral ' + avgMorale(0) + ' zu ' + avgMorale(1) : popUsed(0) + '/' + popCap(0);
   $('pp').textContent = G.pp[0].toFixed(1).replace('.', ',');
   renderQuest();
   { const dp = $('deploy'), on = !!G.battle && G.battle.phase === 'deploy' && !G.battle.over;
@@ -182,7 +182,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.10.9';
+export const VERSION = '0.11.0';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 
@@ -462,7 +462,8 @@ export function showBattleEnd(res) {
     show('<h2>' + title + '</h2>'
       + '<p>' + (res.won ? (B.playerAttacks ? 'Das Feld ist geräumt. ' + B.name + ' kann eingenommen werden.' : 'Der Angriff ist abgeschlagen.') : res.retreat ? 'Die Truppen lösen sich vom Feind.' : 'Das Heer ist geschlagen.') + '</p>'
       + '<p class="sub">Dauer ' + Math.floor(res.time / 60) + ':' + String(Math.floor(res.time % 60)).padStart(2, '0') + ' · eigene Truppen ' + sum(res.p) + ' von ' + p0 + ' · Gegner ' + sum(res.e) + ' von ' + e0
-      + (B.scale > 1 ? '<br>Jede Figur stand für ' + B.scale + ' Krieger.' : '') + (B.start.pHero && !res.pHero ? '<br>Dein Held ist verwundet und fällt drei Runden aus.' : '') + '</p>'
+      + (B.scale > 1 ? '<br>Jede Figur stand für ' + B.scale + ' Krieger.' : '')
+      + (res.base ? '<br>Rohstoffe zurück in die Kasse: ' + res.pres.ore + ' Erz, ' + res.pres.wood + ' Holz. ' + (res.won === B.playerAttacks || !B.playerAttacks ? 'Die stehenden Bauten gehen an die Provinz.' : '') : '') + (B.start.pHero && !res.pHero ? '<br>Dein Held ist verwundet und fällt drei Runden aus.' : '') + '</p>'
       + '<div class="row end"><button class="btn go" data-act="back" type="button">Zur Weltkarte</button></div>',
     act => { if (act === 'back') { closeOverlay(); cb.battleBack(res); } }, null, '.go');
   }, res.retreat ? 0 : 1400);
