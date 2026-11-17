@@ -606,6 +606,17 @@ float bN(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
 function stageMats(root, e, H) {
   const U = { cut: { value: 999 }, dmg: { value: 0 }, org: { value: new THREE.Vector3() }, sd: { value: (e.id * 7.31) % 40 }, bh: { value: H } };
   const done = new Map();
+  // Schatten: dieselbe Bauhöhe und dieselben Löcher, sonst wirft der Rohbau den Schatten des fertigen Hauses
+  const dm = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  dm.onBeforeCompile = sh => {
+    sh.uniforms.uCut = U.cut; sh.uniforms.uDmg = U.dmg; sh.uniforms.uOrg = U.org; sh.uniforms.uSd = U.sd; sh.uniforms.uBh = U.bh;
+    sh.vertexShader = 'varying vec3 vBp; uniform vec3 uOrg;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBp = (modelMatrix * vec4(transformed, 1.)).xyz - uOrg;');
+    sh.fragmentShader = STAGE_HEAD + sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+      float bRag = bH(vec3(floor(vBp.xz * 2.3), 1.)) * .7 + bH(vec3(floor(vBp.xz * 6.), 2.)) * .25;
+      if (vBp.y > floor((uCut + bRag) * 5.) / 5.) discard;
+      if (uDmg > .01) { float bHole = bN(vBp * 1.15) * .75 + bN(vBp * 3.1) * .25 + (vBp.y / uBh - .5) * .22 + (bH(floor(vBp * vec3(3., 7., 3.))) - .5) * .1; if (bHole > 1.02 - uDmg * .5) discard; }`);
+  };
+  dm.customProgramCacheKey = () => 'stageDepth1';
   root.traverse(o => {
     if (!o.isMesh) return; const src = o.material;
     if (!src || !src.isMeshStandardMaterial || src.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return;
@@ -633,7 +644,7 @@ function stageMats(root, e, H) {
       m.customProgramCacheKey = () => 'stage5';
       done.set(src, m);
     }
-    o.material = m;
+    o.material = m; o.customDepthMaterial = dm;
   });
   return done.size ? { U, mats: [...done.values()], open: false } : null;
 }

@@ -1,5 +1,6 @@
 // Oberfläche außerhalb des Canvas: Kopfleiste, Auswahlinfo, Befehlsknöpfe, Menüs, Meldungen.
 import { saveGame, hasSave } from './save.js';
+import { portrait } from './portraits.js';
 import { G, UI, hooks, cam, view } from './state.js';
 import { regionAt, REGIONS } from './regions.js';
 import { EVENTS, evAt } from './events.js';
@@ -33,6 +34,12 @@ export function toast(msg, cls) {
   setTimeout(() => d.remove(), 3200);
 }
 
+// Bildnis der Auswahl: gerahmt, unten in der Farbe der Fraktion; solange es noch gerechnet wird, ein leerer Rahmen
+const porImg = (e, cls) => {
+  if (e.kind === 'dep') return '';
+  const u = portrait(e.kind === 'bld' ? 'bld' : 'unit', e.fac, e.type), f = FACTIONS[e.fac];
+  return '<span class="' + cls + '" style="--fc:' + (f ? f.color : '#8d99a5') + '">' + (u ? '<img alt="" src="' + u + '">' : '') + '</span>';
+};
 const bar = (v, m, cls) => '<div class="bar ' + (cls || '') + '"><i style="width:' + Math.max(0, Math.min(100, v / m * 100)) + '%"></i></div>';
 
 function renderQuest() {
@@ -49,7 +56,7 @@ function renderInfo() {
   if (!s.length) h = '<div class="hint">' + (G.battle ? 'Taste <b>E</b> wählt das ganze Heer, Rechtsklick schickt es los, <b>F</b> befiehlt den Angriffsmarsch. Über <b>Esc</b> geht es zum Rückzug.' : 'Linksklick wählt, ein gezogener Rahmen wählt mehrere, Rechtsklick befiehlt. Arbeiter bauen, schürfen Erz und fällen Holz (Rechtsklick auf Ader oder Baum). Ziel: die gegnerische Festung im Nordosten zerstören.') + '</div>';
   else if (s.length === 1) {
     const e = s[0];
-    h = '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
+    h = porImg(e, 'por') + '<div class="nm">' + (e.kind === 'bld' ? bldName(e) : e.d.name) + (e.team === 1 ? ' <span class="sub">Feind</span>' : e.team === 3 ? ' <span class="sub">Wild</span>' : '') + '</div>';
     if (e.kind === 'dep') h += '<div class="sub">Erz: ' + Math.ceil(e.amt) + ' von ' + e.max + '</div>' + bar(e.amt, e.max, 'q');
     else {
       h += bar(e.hp, e.maxhp) + '<div class="sub">' + Math.ceil(e.hp) + ' / ' + e.maxhp + ' Leben';
@@ -74,10 +81,10 @@ function renderInfo() {
       if (e.kind === 'bld' && e.rs) h += '<div class="sub">Forschung: ' + techName(e.fac, e.rs.id, e.rs.lvl) + '</div>' + bar(e.rs.t, e.rs.dur, 'x');
     }
   } else {
-    const c = {}; s.forEach(e => { c[e.d.name] = (c[e.d.name] || 0) + 1; });
-    h = '<div class="nm">' + s.length + ' ausgewählt</div><div class="chips">' + Object.entries(c).map(([k, v]) => '<span>' + k + ' ×' + v + '</span>').join('') + '</div>';
+    const c = new Map(); s.forEach(e => { const k = e.fac + ':' + e.type; const o = c.get(k); if (o) o.n++; else c.set(k, { e, n: 1 }); });
+    h = '<div class="nm">' + s.length + ' ausgewählt</div><div class="chips">' + [...c.values()].map(({ e, n }) => '<span>' + porImg(e, 'pmini') + e.d.name + ' ×' + n + '</span>').join('') + '</div>';
   }
-  $('info').innerHTML = h;
+  const box = $('info'); if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; } // nur bei Änderung neu setzen, sonst flackern die Bilder
 }
 
 // Kosten mit Rohstoffzeichen; was fehlt, wird rot
@@ -175,7 +182,7 @@ export function wireTopBar() {
 /* ---------- Menüs ---------- */
 // Alle Menüs teilen sich die Karte #card im Overlay #ov. Jeder Bildschirm liefert HTML und verarbeitet Klicks
 // über data-act; Escape führt einen Schritt zurück. Im Hauptmenü läuft dahinter eine lebende Szene.
-export const VERSION = '0.10.8';
+export const VERSION = '0.10.9';
 let screen = null;
 const has = (el, c) => !!(el && el.classList && el.classList.contains && el.classList.contains(c));
 

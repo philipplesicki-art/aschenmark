@@ -9,6 +9,7 @@ import * as R2 from './render.js';
 import * as R3 from './render3d.js';
 import { initInput } from './input.js';
 import { wireHooks, wireTopBar, showStart, showChainEnd, showBattleEnd, closeMenu, refreshUI, ovOpen, cb, toast } from './ui.js';
+import { warm as warmPortraits } from './portraits.js';
 import { initAudio, sfx, startMusic, stopMusic, setIntensity, setVolumes, setWeather, setAmbience, audioReady } from './audio.js';
 import { seasonAt } from './economy.js';
 import { evAt } from './events.js';
@@ -71,6 +72,7 @@ function startMatch(fac0, diff, quests, fac1) {
   newWorld({ fac0, fac1, diff, quests });
   buildTerrain();
   beginMatch();
+  warmPortraits([...['worker', 'hero', 'melee', 'ranged', 'cav', 'siege', 'support', 'elite'].map(t => ['unit', fac0, t]), ['bld', fac0, 'hq']]); // Bildnisse der eigenen Truppen vorab rechnen
   cam.z = view.w < 640 ? 1 : 1.3; clampCam();
   const hq = G.ents.find(e => e.type === 'hq' && e.team === 0);
   centerOn(hq.x + 40, hq.y - 20);
@@ -204,4 +206,4 @@ showStart();
 requestAnimationFrame(frame);
 
 // Nur zum Prüfen: ?debug im Link macht Zustand und Schritte von außen erreichbar.
-if (typeof location !== 'undefined' && /[?&]debug/.test(location.search)) window.__A = { get G() { return G; }, cam, step, centerOn, clampCam, select, view, dbg: R3.dbg, mkUnit, mkBld, toScreen, toWorld, startMatch, menuScene, UI, CS, CU, stats: R3.stats, setQuality: q => R.setQuality && R.setQuality(q), setPost: on => R.setPost && R.setPost(on), draw: (n = 1) => { for (let i = 0; i < n; i++) render(.016, new Set(G.sel)); } };
+if (typeof location !== 'undefined' && /[?&]debug/.test(location.search)) window.__A = { get G() { return G; }, refreshUI, portraitsMod: () => import("./portraits.js"), cam, step, centerOn, clampCam, select, view, dbg: R3.dbg, mkUnit, mkBld, toScreen, toWorld, startMatch, menuScene, UI, CS, CU, stats: R3.stats, setQuality: q => R.setQuality && R.setQuality(q), setPost: on => R.setPost && R.setPost(on), draw: (n = 1) => { for (let i = 0; i < n; i++) render(.016, new Set(G.sel)); } };
